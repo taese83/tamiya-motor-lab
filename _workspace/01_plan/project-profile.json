@@ -1,0 +1,83 @@
+{
+  "$schema": "https://web-harness.local/schemas/web-core/project-profile.schema.json",
+  "adapter": {
+    "id": "react-vite-spa",
+    "sha256": "87f2c35534b4873465c763d16ababe480c5286e62a26af32867b6e909da4e11b",
+    "supportLevel": "certified",
+    "trustTier": "builtin",
+    "version": "1.1.0"
+  },
+  "backend": {
+    "shape": "external-api-or-none"
+  },
+  "capabilities": [
+    "client-routing",
+    "csr",
+    "static-build"
+  ],
+  "deployment": {
+    "artifacts": [
+      {
+        "id": "vite-dist",
+        "kind": "static-directory",
+        "path": "dist"
+      }
+    ],
+    "availableProviders": [
+      "generic",
+      "vercel"
+    ],
+    "availableTargets": [
+      "container-static",
+      "static-cdn"
+    ],
+    "provider": "generic",
+    "releaseTarget": "release.static-cdn",
+    "target": "static-cdn"
+  },
+  "frontend": {
+    "framework": "react",
+    "packageManager": "pnpm",
+    "rendering": [
+      "csr"
+    ],
+    "router": "react-router",
+    "variant": "vite-spa"
+  },
+  "product": {
+    "kind": "spa"
+  },
+  "profileId": "react-vite-spa",
+  "resolution": {
+    "detected": "react-vite-spa",
+    "evidence": [
+      "package:react",
+      "package:vite",
+      "path:src/main.tsx",
+      "path:vite.config.ts"
+    ],
+    "requested": "react-vite-spa",
+    "source": "requested-and-detected"
+  },
+  "risk": {
+    "level": "public"
+  },
+  "runtime": {
+    "primary": "browser",
+    "supported": [
+      "browser",
+      "container",
+      "node-build"
+    ]
+  },
+  "schemaVersion": 1,
+  "toolchain": {
+    "exactFrameworkVersions": true,
+    "nodeEngine": ">=22.22.3 <23",
+    "packageDeclarations": {
+      "react": "19.2.7",
+      "vite": "8.1.4"
+    },
+    "packageManager": "pnpm@11.13.0"
+  }
+}

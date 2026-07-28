@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover 필수 — safe-area 변수(--mml-safe-top/bottom) 전제 (design-system §5) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- 개인 도구 — 공개 CDN 배포 대비 색인 차단 (layout-spec §2.5) -->
+    <meta name="robots" content="noindex" />
+    <!-- 웹폰트 미도입(DS-A2: 시스템 폰트 스택) — font preload 힌트 없음 -->
+    <title>%VITE_APP_TITLE%</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

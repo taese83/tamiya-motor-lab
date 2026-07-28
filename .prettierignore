@@ -1,0 +1,8 @@
+_workspace/
+pnpm-lock.yaml
+node_modules/
+dist/
+coverage/
+.turbo/
+playwright-report/
+test-results/

@@ -1,0 +1,301 @@
+{
+  "$schema": "https://web-harness.local/schemas/web-core/execution-plan.schema.json",
+  "adapter": {
+    "id": "react-vite-spa",
+    "version": "1.1.0"
+  },
+  "edges": [
+    {
+      "capabilities": [
+        "source.ready"
+      ],
+      "from": "adapter.scaffold",
+      "to": "dependencies.install"
+    },
+    {
+      "capabilities": [
+        "profile.resolved"
+      ],
+      "from": "core.resolve-profile",
+      "to": "adapter.scaffold"
+    },
+    {
+      "capabilities": [
+        "dependencies.installed"
+      ],
+      "from": "dependencies.install",
+      "to": "quality.lint"
+    },
+    {
+      "capabilities": [
+        "dependencies.installed"
+      ],
+      "from": "dependencies.install",
+      "to": "quality.typecheck"
+    },
+    {
+      "capabilities": [
+        "dependencies.installed"
+      ],
+      "from": "dependencies.install",
+      "to": "quality.unit"
+    },
+    {
+      "capabilities": [
+        "dependencies.installed"
+      ],
+      "from": "dependencies.install",
+      "to": "vite.build"
+    },
+    {
+      "capabilities": [
+        "evidence.lint"
+      ],
+      "from": "quality.lint",
+      "to": "release.assemble"
+    },
+    {
+      "capabilities": [
+        "evidence.typecheck"
+      ],
+      "from": "quality.typecheck",
+      "to": "vite.build"
+    },
+    {
+      "capabilities": [
+        "evidence.unit"
+      ],
+      "from": "quality.unit",
+      "to": "release.assemble"
+    },
+    {
+      "capabilities": [
+        "evidence.browser"
+      ],
+      "from": "vite.browser",
+      "to": "release.assemble"
+    },
+    {
+      "capabilities": [
+        "artifact.built"
+      ],
+      "from": "vite.build",
+      "to": "vite.browser"
+    },
+    {
+      "capabilities": [
+        "artifact.built"
+      ],
+      "from": "vite.build",
+      "to": "vite.production-boundary"
+    },
+    {
+      "capabilities": [
+        "evidence.production-boundary"
+      ],
+      "from": "vite.production-boundary",
+      "to": "release.assemble"
+    }
+  ],
+  "executionOrder": [
+    "core.resolve-profile",
+    "adapter.scaffold",
+    "dependencies.install",
+    "quality.lint",
+    "quality.typecheck",
+    "quality.unit",
+    "vite.build",
+    "vite.browser",
+    "vite.production-boundary",
+    "release.assemble"
+  ],
+  "initialCapabilities": [
+    "requirements.locked"
+  ],
+  "nodes": [
+    {
+      "commandIds": [],
+      "dependencies": [],
+      "id": "core.resolve-profile",
+      "phase": "plan",
+      "provides": [
+        "profile.resolved"
+      ],
+      "requires": [
+        "requirements.locked"
+      ]
+    },
+    {
+      "commandIds": [],
+      "dependencies": [
+        "core.resolve-profile"
+      ],
+      "id": "adapter.scaffold",
+      "phase": "scaffold",
+      "provides": [
+        "source.ready"
+      ],
+      "requires": [
+        "profile.resolved"
+      ]
+    },
+    {
+      "commandIds": [
+        "dependencies.install"
+      ],
+      "dependencies": [
+        "adapter.scaffold"
+      ],
+      "id": "dependencies.install",
+      "phase": "install",
+      "provides": [
+        "dependencies.installed"
+      ],
+      "requires": [
+        "source.ready"
+      ]
+    },
+    {
+      "commandIds": [
+        "quality.lint"
+      ],
+      "dependencies": [
+        "dependencies.install"
+      ],
+      "id": "quality.lint",
+      "phase": "verify",
+      "provides": [
+        "evidence.lint"
+      ],
+      "requires": [
+        "dependencies.installed"
+      ]
+    },
+    {
+      "commandIds": [
+        "quality.typecheck"
+      ],
+      "dependencies": [
+        "dependencies.install"
+      ],
+      "id": "quality.typecheck",
+      "phase": "verify",
+      "provides": [
+        "evidence.typecheck"
+      ],
+      "requires": [
+        "dependencies.installed"
+      ]
+    },
+    {
+      "commandIds": [
+        "quality.unit"
+      ],
+      "dependencies": [
+        "dependencies.install"
+      ],
+      "id": "quality.unit",
+      "phase": "verify",
+      "provides": [
+        "evidence.unit"
+      ],
+      "requires": [
+        "dependencies.installed"
+      ]
+    },
+    {
+      "commandIds": [
+        "vite.build"
+      ],
+      "dependencies": [
+        "dependencies.install",
+        "quality.typecheck"
+      ],
+      "id": "vite.build",
+      "phase": "build",
+      "provides": [
+        "artifact.built"
+      ],
+      "requires": [
+        "dependencies.installed",
+        "evidence.typecheck"
+      ]
+    },
+    {
+      "commandIds": [
+        "vite.browser"
+      ],
+      "dependencies": [
+        "vite.build"
+      ],
+      "id": "vite.browser",
+      "phase": "runtime",
+      "provides": [
+        "evidence.browser"
+      ],
+      "requires": [
+        "artifact.built"
+      ]
+    },
+    {
+      "commandIds": [
+        "vite.production-mock-boundary"
+      ],
+      "dependencies": [
+        "vite.build"
+      ],
+      "id": "vite.production-boundary",
+      "phase": "verify",
+      "provides": [
+        "evidence.production-boundary"
+      ],
+      "requires": [
+        "artifact.built"
+      ]
+    },
+    {
+      "commandIds": [],
+      "dependencies": [
+        "quality.lint",
+        "quality.unit",
+        "vite.browser",
+        "vite.production-boundary"
+      ],
+      "id": "release.assemble",
+      "phase": "release",
+      "provides": [
+        "release.candidate",
+        "release.container-static",
+        "release.static-cdn"
+      ],
+      "requires": [
+        "evidence.browser",
+        "evidence.lint",
+        "evidence.production-boundary",
+        "evidence.unit"
+      ]
+    }
+  ],
+  "profileBinding": {
+    "adapterSha256": "87f2c35534b4873465c763d16ababe480c5286e62a26af32867b6e909da4e11b",
+    "deploymentProvider": "generic",
+    "deploymentTarget": "static-cdn",
+    "profileSha256": "491648f94042f76d4eee9c415bd271a6496b221d4745a58a053f8d7b31758711",
+    "selectedCapabilities": [
+      "client-routing",
+      "csr",
+      "static-build"
+    ]
+  },
+  "profileId": "react-vite-spa",
+  "schemaVersion": 1,
+  "targetCapabilities": [
+    "artifact.built",
+    "evidence.browser",
+    "evidence.lint",
+    "evidence.production-boundary",
+    "evidence.typecheck",
+    "evidence.unit",
+    "release.static-cdn"
+  ]
+}

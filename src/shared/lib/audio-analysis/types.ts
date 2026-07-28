@@ -1,0 +1,185 @@
+// 분석 엔진 산출 타입 (analysis-algorithm v2 §1·§5·§7 / feature-plan §3)
+// AD-12: 이 디렉터리는 zero-dependency 순수 TS — 상대 경로 외 import 금지.
+
+// status 6종의 canonical 타입. 엔진(track)은 이 중 EngineStatus 3종만 산출하고,
+// idle/no-permission/suspended는 측정 세션 상태 머신(F2)이 소유한다 (feature-plan §0 분리 계약).
+export type MeasureStatus =
+  | 'idle'
+  | 'measuring'
+  | 'stable'
+  | 'weak-signal'
+  | 'no-permission'
+  | 'suspended'
+
+export type EngineStatus = Extract<MeasureStatus, 'measuring' | 'stable' | 'weak-signal'>
+
+/** pYIN 후보 (estimateFrame 출력) — f0는 [fMin, fMax] 대역 내, ÷3·÷6 확장 반영 후 */
+export interface FrameCandidate {
+  f0: number
+  /** pYIN 임계 분포 집계 확률 (0~1) — comb 점수 산출 전의 잠정 salience */
+  salience: number
+  /** 프레임 voicing 확률 (0~1) — 후보 공통 */
+  voicedProb: number
+}
+
+/**
+ * 출력 계약 (v2 §7). weak-signal이면 f0/rpm은 반드시 null — 수치 미표시를 타입으로 강제(REQ-ST-003).
+ * 필드명은 v2 canonical `f0` 유지 — Measurement.panoHz 매핑은 F2가 stable 확정 시 수행 (api-schema NR-1).
+ */
+export interface DisplayEstimate {
+  f0: number | null
+  rpm: number | null
+  confidence: number
+  status: EngineStatus
+}
+
+/** 고조파별 스펙트럼 계측 (comb 점수·일치도 검사 입력) */
+export interface HarmonicMeasurement {
+  k: number
+  /** 국소 노이즈 플로어 대비 피크 SNR (dB, 0~40 클램프) */
+  snrDb: number
+  /** 보간된 국소 피크 주파수 (Hz) — 피크 미검출이면 null */
+  peakFreq: number | null
+  peakPower: number
+}
+
+/** comb 점수가 매겨진 후보 */
+export interface ScoredCandidate {
+  f0: number
+  combScore: number
+  harmonics: HarmonicMeasurement[]
+  voicedProb: number
+  salience: number
+}
+
+/** variable projection 정밀 추정 결과 (refine 출력) */
+export interface RefineResult {
+  f0: number
+  /** 사용된 고조파 차수 목록 (일치도 검사 제외 반영) */
+  usedHarmonics: number[]
+  /** 고조파별 포착 전력 (usedHarmonics와 정렬) */
+  harmonicPowers: number[]
+  /** 포착 전력 합 — 신뢰 게이트 보조 지표 */
+  capturedPower: number
+}
+
+/** Viterbi 격자 노드 — 프레임당 후보 (analyzeFrame 출력) */
+export interface TrackCandidate {
+  f0: number
+  /** 정규화 전 emission 점수 (comb 점수 기반, 클수록 우세) */
+  score: number
+}
+
+/** 프레임 단위 전체 분석 결과 — track()의 입력 단위 */
+export interface FrameAnalysis {
+  /** 신뢰 게이트 통과 여부 — false면 candidates는 비어 있고 수치가 표시되면 안 된다 */
+  gatePassed: boolean
+  /** 게이트 통과 시 VP 정밀 추정 f0 (Hz), 아니면 null */
+  f0: number | null
+  candidates: TrackCandidate[]
+  voicedProb: number
+  /** 고조파 대역 합산 전력 vs 잔여 대역 전력 (dB) */
+  snrDb: number
+  /** 검출된 고조파 차수 (scoredHarmonics 부분집합, 대역 전력 기준) */
+  detectedHarmonics: number[]
+  /** 일치도 검사 후 VP에 실제 사용된 고조파 차수 */
+  usedHarmonics: number[]
+  rms: number
+}
+
+/** 엔진 파라미터 — 전부 주입 가능 (REQ-F-010/011 hook: 캘리브레이션·10ms hop은 이 객체로 흡수) */
+export interface EngineTuning {
+  /** 분석 프레임 길이 (s) — v2 §1: 200 ms */
+  frameSeconds: number
+  /** hop (s) — v2 §1: 25 ms (10 ms는 고급 옵션, REQ-F-011) */
+  hopSeconds: number
+  /** 데시메이션 목표 샘플레이트 (Hz) — v2 §1: 12 kHz */
+  targetDecimatedRate: number
+  /** f0 탐색 대역 (Hz) — v2 §0: 170~620 */
+  fMin: number
+  fMax: number
+  /** comb 점수·검출 대상 고조파 차수 — v2 §1: 1·3·6 */
+  scoredHarmonics: readonly number[]
+  /** scoredHarmonics와 정렬된 가중치 (물리 기반 고정값 baseline) */
+  harmonicWeights: readonly number[]
+  /** pYIN 후보 상한 — v2 §1: 상위 3~5 */
+  maxCandidates: number
+  /** 비고조파 스펙트럼 피크 페널티 가중 (comb 점수) */
+  nonHarmonicPenaltyWeight: number
+  /** 가정 f₀보다 낮은 유의 피크 가중치 (하위 고조파 veto) */
+  subHarmonicPenaltyWeight: number
+  /**
+   * 고조파 일치도 허용 편차 — |peak_k − k·f0| ≤ ratio·f0 (기본 주파수 영역 절대 오차).
+   * v2 §1 "±0.5%"의 정합 해석: 1805 Hz 오염(6f0=1800 대비 5 Hz)을 제외 가능해야 한다 (§3 fixture).
+   */
+  consistencyTolRatio: number
+  /** 신뢰 게이트: 고조파 SNR 임계 (dB) — v2 §1: 8 */
+  gateSnrDb: number
+  /** 단일 고조파만 검출된 경우(순음)의 강한 SNR 임계 (dB) — §3 순음 fixture 정합용 */
+  gateStrongSnrDb: number
+  /** 신뢰 게이트: 최소 검출 고조파 수 — v2 §1: 2 */
+  gateMinHarmonics: number
+  /** 신뢰 게이트: pYIN voicing 확률 임계 */
+  gateVoicingThreshold: number
+  /** 무음 판정 RMS 임계 */
+  silenceRms: number
+  /** fixed-lag Viterbi 지연 (프레임 수) — v2 §1: 5 */
+  viterbiLag: number
+  /** 연속 드리프트 전이 비용 가중 (옥타브당) */
+  driftCostWeight: number
+  /** 이 이상 |log2 비율|이면 점프로 간주 (옥타브) */
+  jumpCostThresholdOctaves: number
+  /** 점프 전이 고정 페널티 */
+  jumpPenalty: number
+  /** 옥타브/고조파(×2·×3·×6) 점프 추가 페널티 — v2 §1 */
+  harmonicJumpExtraPenalty: number
+  /** 게이트 실패 연속 허용 프레임 수 — 초과 시 weak-signal 전환 (D-9 stale 방지) */
+  missTolerance: number
+  /** 안정 판정 창 (s) — v2 §1: 1.5 */
+  stabilitySeconds: number
+  /** 안정 판정 변동계수 임계 — v2 §1: 1.5% */
+  stabilityCv: number
+}
+
+export interface EngineOptions extends Partial<EngineTuning> {
+  /** 실제 캡처 샘플레이트 (Hz) — 48 kHz 가정 금지 (v2 §2) */
+  sampleRate: number
+}
+
+export interface ResolvedEngineOptions extends EngineTuning {
+  sampleRate: number
+}
+
+export const DEFAULT_TUNING: EngineTuning = {
+  frameSeconds: 0.2,
+  hopSeconds: 0.025,
+  targetDecimatedRate: 12000,
+  fMin: 170,
+  fMax: 620,
+  scoredHarmonics: [1, 3, 6],
+  harmonicWeights: [1, 1, 0.7],
+  maxCandidates: 5,
+  nonHarmonicPenaltyWeight: 0.5,
+  subHarmonicPenaltyWeight: 2.5,
+  consistencyTolRatio: 0.005,
+  gateSnrDb: 8,
+  gateStrongSnrDb: 15,
+  gateMinHarmonics: 2,
+  gateVoicingThreshold: 0.15,
+  silenceRms: 1e-5,
+  viterbiLag: 5,
+  driftCostWeight: 4,
+  jumpCostThresholdOctaves: 0.35,
+  jumpPenalty: 2.5,
+  harmonicJumpExtraPenalty: 1.5,
+  missTolerance: 4,
+  stabilitySeconds: 1.5,
+  stabilityCv: 0.015,
+}
+
+export function resolveEngineOptions(options: EngineOptions): ResolvedEngineOptions {
+  if (!Number.isFinite(options.sampleRate) || options.sampleRate <= 0) {
+    throw new RangeError(`sampleRate must be a positive finite number: ${options.sampleRate}`)
+  }
+  return {...DEFAULT_TUNING, ...options}
+}

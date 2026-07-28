@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 2,
+  "runner": "web-harness-quality-gate",
+  "id": "lint",
+  "adapterCheckId": "lint",
+  "adapterCommandId": "quality.lint",
+  "command": "pnpm run lint",
+  "executionMode": "verified-package-argv",
+  "packageScript": {
+    "name": "lint",
+    "sha256": "9a7845d926241f664c20b42477279677dbd628326d4207f2ab3f8e3b7e0b04e3",
+    "commandContractSha256": "4a0a3c5e2f7613fd0a6df3b3bda191c79b3116921489c69547136c7af826da4f"
+  },
+  "cwd": ".",
+  "startedAt": "2026-07-28T05:39:46.394Z",
+  "durationMs": 10945,
+  "timeoutMs": 600000,
+  "nodeVersion": "22.22.3",
+  "nodeEngine": ">=22.22.3 <23",
+  "engineSatisfied": true,
+  "pnpmVersion": "11.13.0",
+  "packageManager": "pnpm@11.13.0",
+  "packageManagerSatisfied": true,
+  "dependencyBinding": {
+    "required": true,
+    "satisfied": true,
+    "lockfileSha256": "45a49f508aa6105369fbc100c64cc7ca3141d9c0ac6ddf1c529f806cf9a0730c",
+    "installedLockfileSha256": "45a49f508aa6105369fbc100c64cc7ca3141d9c0ac6ddf1c529f806cf9a0730c",
+    "installedDependencyContentSha256": "7dc9acb8b69997a7e44c6a57049613fee33b155f207d031ee61375fb8398c728",
+    "installedDependencyMetadataSha256": "b3d813d1d47191218f0b2163cb016d090ad03dd07120f30a7af26aefb49d2614",
+    "installedDependencyFileCount": 22513,
+    "installedDependencyBytes": 199009385,
+    "effectivePackageGraphSha256": "001911bf338c2e623b56bf3c5a3d45d5dc03b025dc07efa180a33be56be40dec",
+    "effectiveBinGraphSha256": "7b3c8f7eb9d08eabfc1fbac2310509643cf927e7a8c422e11082a8f31012c528",
+    "inventoryError": null
+  },
+  "dependencyBindingBefore": {
+    "required": true,
+    "satisfied": true,
+    "lockfileSha256": "45a49f508aa6105369fbc100c64cc7ca3141d9c0ac6ddf1c529f806cf9a0730c",
+    "installedLockfileSha256": "45a49f508aa6105369fbc100c64cc7ca3141d9c0ac6ddf1c529f806cf9a0730c",
+    "installedDependencyContentSha256": "7dc9acb8b69997a7e44c6a57049613fee33b155f207d031ee61375fb8398c728",
+    "installedDependencyMetadataSha256": "b3d813d1d47191218f0b2163cb016d090ad03dd07120f30a7af26aefb49d2614",
+    "installedDependencyFileCount": 22513,
+    "installedDependencyBytes": 199009385,
+    "effectivePackageGraphSha256": "001911bf338c2e623b56bf3c5a3d45d5dc03b025dc07efa180a33be56be40dec",
+    "effectiveBinGraphSha256": "7b3c8f7eb9d08eabfc1fbac2310509643cf927e7a8c422e11082a8f31012c528",
+    "inventoryError": null
+  },
+  "dependencyBindingAfter": {
+    "required": true,
+    "satisfied": true,
+    "lockfileSha256": "45a49f508aa6105369fbc100c64cc7ca3141d9c0ac6ddf1c529f806cf9a0730c",
+    "installedLockfileSha256": "45a49f508aa6105369fbc100c64cc7ca3141d9c0ac6ddf1c529f806cf9a0730c",
+    "installedDependencyContentSha256": "7dc9acb8b69997a7e44c6a57049613fee33b155f207d031ee61375fb8398c728",
+    "installedDependencyMetadataSha256": "b3d813d1d47191218f0b2163cb016d090ad03dd07120f30a7af26aefb49d2614",
+    "installedDependencyFileCount": 22513,
+    "installedDependencyBytes": 199009385,
+    "effectivePackageGraphSha256": "001911bf338c2e623b56bf3c5a3d45d5dc03b025dc07efa180a33be56be40dec",
+    "effectiveBinGraphSha256": "7b3c8f7eb9d08eabfc1fbac2310509643cf927e7a8c422e11082a8f31012c528",
+    "inventoryError": null
+  },
+  "dependencyMutationDetected": false,
+  "executionTargetBindingBefore": {
+    "satisfied": true,
+    "sha256": "20bf9b66de5123a10d532ec047a211becb8d07c1319004bbd5b3ee89dbd1d10c",
+    "targets": [
+      {
+        "executable": "eslint",
+        "category": "package",
+        "path": "node_modules/.pnpm/eslint@9.39.5/node_modules/eslint/bin/eslint.js",
+        "linkTargetSha256": null,
+        "resolvedPath": "node_modules/.pnpm/eslint@9.39.5/node_modules/eslint/bin/eslint.js",
+        "contentSha256": "6280b95e2a6ab3b04be45cbd3b1627654be518e6a4da163ec0adcbba9cd5fcd8",
+        "metadataSha256": "936403a9f6ba6d4b02be77037972193e58d86dc4a620c37bed096eb17f5c0c0e",
+        "package": {
+          "name": "eslint",
+          "version": "9.39.5",
+          "packageJsonSha256": "361210aa42b55fd814c48a01e3724559ec6f0f3e1c021d0f8aa2e8b00276060e"
+        }
+      },
+      {
+        "executable": "pnpm",
+        "category": "package-manager",
+        "path": "[package-manager]/pnpm",
+        "linkTargetSha256": "94866addd9be65632bddf66c588c7df1941ee9eec5c85f7d265cc2e17f1e4b0f",
+        "resolvedPath": "[package-manager]/pnpm.mjs",
+        "contentSha256": "ff3224d46b47fbb24a7e9fe15fededef7e00892d07d4e376b6762d4899906bfd",
+        "metadataSha256": "054c3080087227f500ea72e797030b924ecec4d443a86560cec74eda0a9de007",
+        "package": null
+      }
+    ],
+    "errors": []
+  },
+  "executionTargetBindingAfter": {
+    "satisfied": true,
+    "sha256": "20bf9b66de5123a10d532ec047a211becb8d07c1319004bbd5b3ee89dbd1d10c",
+    "targets": [
+      {
+        "executable": "eslint",
+        "category": "package",
+        "path": "node_modules/.pnpm/eslint@9.39.5/node_modules/eslint/bin/eslint.js",
+        "linkTargetSha256": null,
+        "resolvedPath": "node_modules/.pnpm/eslint@9.39.5/node_modules/eslint/bin/eslint.js",
+        "contentSha256": "6280b95e2a6ab3b04be45cbd3b1627654be518e6a4da163ec0adcbba9cd5fcd8",
+        "metadataSha256": "936403a9f6ba6d4b02be77037972193e58d86dc4a620c37bed096eb17f5c0c0e",
+        "package": {
+          "name": "eslint",
+          "version": "9.39.5",
+          "packageJsonSha256": "361210aa42b55fd814c48a01e3724559ec6f0f3e1c021d0f8aa2e8b00276060e"
+        }
+      },
+      {
+        "executable": "pnpm",
+        "category": "package-manager",
+        "path": "[package-manager]/pnpm",
+        "linkTargetSha256": "94866addd9be65632bddf66c588c7df1941ee9eec5c85f7d265cc2e17f1e4b0f",
+        "resolvedPath": "[package-manager]/pnpm.mjs",
+        "contentSha256": "ff3224d46b47fbb24a7e9fe15fededef7e00892d07d4e376b6762d4899906bfd",
+        "metadataSha256": "054c3080087227f500ea72e797030b924ecec4d443a86560cec74eda0a9de007",
+        "package": null
+      }
+    ],
+    "errors": []
+  },
+  "executionTargetMutationDetected": false,
+  "gitCommit": null,
+  "sourceFingerprint": "06b5e8643df7accf1eb03c2c08dbfdc43c0335175be2f054352254a3adef787a",
+  "sourceFingerprintBefore": "06b5e8643df7accf1eb03c2c08dbfdc43c0335175be2f054352254a3adef787a",
+  "sourceFingerprintAfter": "06b5e8643df7accf1eb03c2c08dbfdc43c0335175be2f054352254a3adef787a",
+  "sourceMutationDetected": false,
+  "allowedSourceMutations": [
+    "dist"
+  ],
+  "artifactInventoryBefore": [],
+  "artifactInventoryAfter": [],
+  "cleanBuildArtifacts": [],
+  "exitCode": 0,
+  "signal": null,
+  "status": "PASS",
+  "blockedReason": null,
+  "discoveredTestFiles": [],
+  "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stdoutTail": "",
+  "stderrTail": "",
+  "outputTailPolicy": "omitted-to-prevent-secret-persistence",
+  "environmentPolicy": {
+    "inheritedKeys": [
+      "CI",
+      "PATH",
+      "TEMP",
+      "TMP",
+      "TMPDIR",
+      "npm_config_globalconfig",
+      "npm_config_registry"
+    ],
+    "isolatedHome": true,
+    "secretVariablesInherited": false,
+    "declaredPublicVariables": [
+      "VITE_APP_TITLE",
+      "VITE_PHASE"
+    ],
+    "publicEnvironmentSha256": "f2767771f574a092dbbab2ea668822b359b97e27e4660c890e1e2a1f08f43e83",
+    "trustedPromotionActionsSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "executionContext": "user-approved-host",
+    "isolationVerifiedByRunner": false,
+    "hostFilesystemIsolated": null,
+    "networkIsolated": null
+  },
+  "profileBinding": {
+    "profileId": "react-vite-spa",
+    "adapterVersion": "1.1.0",
+    "adapterSha256": "87f2c35534b4873465c763d16ababe480c5286e62a26af32867b6e909da4e11b",
+    "deploymentProvider": "generic",
+    "deploymentTarget": "static-cdn",
+    "profileSha256": "491648f94042f76d4eee9c415bd271a6496b221d4745a58a053f8d7b31758711",
+    "selectedCapabilities": [
+      "client-routing",
+      "csr",
+      "static-build"
+    ],
+    "releaseTarget": "release.static-cdn",
+    "executionPlanSha256": "ab84303428cad39c86e3e81bda4c7ac74a3aec0cba310e317cb852a5aed4bbd2",
+    "buildEnvironmentSha256": "5aa91007adea4cfdc8bab54ffdcd73f336d85d759e3999ada34e8ff69e71700b",
+    "publicEnvironmentSha256": "f2767771f574a092dbbab2ea668822b359b97e27e4660c890e1e2a1f08f43e83"
+  },
+  "qualityCohortId": "cfd1afe2-addc-47e9-89c9-41cc8400c646",
+  "runMode": "single",
+  "completedAt": "2026-07-28T05:40:00.150Z"
+}
