@@ -16,6 +16,7 @@ import {ConfirmDialog} from '@shared/ui/confirm-dialog'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
+import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
 import type {RecordRowView, RunRecord} from '@entities/run-record'
@@ -124,6 +125,7 @@ export function MotorDetailPage() {
       <PageHeader
         onBack={handleBack}
         title={motor?.name ?? '모터 상세'}
+        action={<ThemeToggle />}
         actions={
           <>
             <Button

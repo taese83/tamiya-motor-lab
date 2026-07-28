@@ -5,6 +5,7 @@ import {BigNumber} from '@shared/ui/big-number'
 import type {ReactNode} from 'react'
 import {S1_SETTINGS_HELP_ID} from './constants'
 import type {MeasureView} from './measure-view'
+import {RpmGauge} from './RpmGauge'
 
 export interface MeasureFiguresProps {
   view: MeasureView
@@ -104,6 +105,8 @@ function PermanentPermissionHelp({open, color}: {open: boolean; color: string}) 
             sx={{m: 0, pl: 2.5, display: 'flex', flexDirection: 'column', gap: 0.5}}>
             <li>iOS Safari: 설정 → Safari(또는 앱 → Safari) → 마이크 허용</li>
             <li>Android Chrome: 주소창 자물쇠 아이콘 → 권한 → 마이크 허용</li>
+            <li>매번 묻지 않게 하기 — iOS Safari: 주소창 ᴀA → 웹 사이트 설정 → 마이크 → 허용</li>
+            <li>매번 묻지 않게 하기 — Chrome: 권한 요청에서 “방문할 때마다 허용” 선택</li>
             <li>변경 후 이 페이지를 새로고침하세요</li>
           </Typography>
         </Box>
@@ -155,8 +158,12 @@ function figuresContent(view: MeasureView, valueFg: string): ReactNode {
 /**
  * S1 Z2 수치 존 (component-spec §2.4) — `--s1-figure-h` 고정 높이 소유(min/max 동일).
  * 6-status 전부 동일 높이 — 상태 전환으로 어떤 요소도 이동하지 않는다(layout-spec §4.1).
- * measureStatusTokens 소비자는 MeasureStatusLabel과 이 컴포넌트뿐(DS §9).
+ * measureStatusTokens 소비자는 MeasureStatusLabel·RpmGauge와 이 컴포넌트뿐(DS §9).
  * aria-live 없음 — 실시간 수치 갱신은 절대 announce하지 않는다(§2.6, 알림은 Z1 단일 채널).
+ *
+ * v2: RpmGauge(타코미터)는 존을 가득 채우는 배경 오버레이(absolute·aria-hidden)로 깔리고
+ * 수치 5행/안내는 그 위 전경층에 그대로 얹힌다(DS §9 "게이지+수치 오버레이") —
+ * §3.4 고정 높이 clamp는 무변경, 6-status 전환에도 레이아웃 불변.
  */
 export function MeasureFigures({view}: MeasureFiguresProps) {
   const visual = measureStatusTokens[view.status]
@@ -174,13 +181,26 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
           view.status === 'stable'
             ? `background-color ${motionTokens.stableTransitionMs}ms ease-out`
             : 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: scrollable ? 'flex-start' : 'center',
-        overflowY: scrollable ? 'auto' : 'hidden',
-        px: 2,
+        position: 'relative',
       }}>
-      {figuresContent(view, visual.valueFg)}
+      {/* 타코미터 배경층 — 장식(aria-hidden), viewBox 고정이라 존 스케일에만 따라간다(§9) */}
+      <Box aria-hidden="true" sx={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
+        <RpmGauge view={view} />
+      </Box>
+      {/* 전경 콘텐츠층 — 기존 5행 스캐폴드·안내(스크린리더 canonical 경로 무변경) */}
+      <Box
+        sx={{
+          position: 'relative',
+          zIndex: 1,
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: scrollable ? 'flex-start' : 'center',
+          overflowY: scrollable ? 'auto' : 'hidden',
+          px: 2,
+        }}>
+        {figuresContent(view, visual.valueFg)}
+      </Box>
     </Box>
   )
 }

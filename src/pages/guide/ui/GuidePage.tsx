@@ -14,6 +14,7 @@ import {formatRpm, formatVoltage} from '@shared/lib/format'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
+import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
 import type {RunRecord} from '@entities/run-record'
@@ -86,7 +87,7 @@ export function GuidePage() {
   return (
     <>
       {/* [H] 화면 헤더 — 탭 화면: [h1] (layout-spec §3) */}
-      <PageHeader title="가이드" />
+      <PageHeader title="가이드" action={<ThemeToggle />} />
 
       {corrupted ? (
         <Box sx={{px: 2, py: 2}}>

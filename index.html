@@ -7,6 +7,28 @@
     <!-- 개인 도구 — 공개 CDN 배포 대비 색인 차단 (layout-spec §2.5) -->
     <meta name="robots" content="noindex" />
     <!-- 웹폰트 미도입(DS-A2: 시스템 폰트 스택) — font preload 힌트 없음 -->
+    <!-- 다크 기본 no-flash 부팅 (design-system v2 §7.2) — MUI InitColorSchemeScript는 CSR에서
+         실행되지 않으므로 동등 인라인 스크립트를 직접 둔다. 'mml-mode'는 ThemeProvider
+         modeStorageKey와 문자열 결속 — 불일치 시 no-flash가 깨진다. -->
+    <meta name="theme-color" content="#05060A" />
+    <style>
+      html {
+        background-color: #05060a;
+      }
+    </style>
+    <script>
+      ;(function () {
+        var mode = 'dark'
+        try {
+          // MUI 7.3의 ThemeProvider defaultMode가 첫 방문에서 light로 초기화되는 것이 관찰됨 —
+          // 기본값을 storage에 직접 시드해 MUI가 이 값을 읽게 한다 (다크 기본 계약의 단일 원천)
+          if (localStorage.getItem('mml-mode') === null) localStorage.setItem('mml-mode', 'dark')
+          if (localStorage.getItem('mml-mode') === 'light') mode = 'light'
+        } catch (e) {}
+        document.documentElement.setAttribute('data-mui-color-scheme', mode)
+        if (mode === 'light') document.documentElement.style.backgroundColor = '#F8F9FA'
+      })()
+    </script>
     <title>%VITE_APP_TITLE%</title>
   </head>
   <body>

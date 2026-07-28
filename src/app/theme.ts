@@ -1,8 +1,9 @@
 // src/app/theme.ts
-// design-system.md §8 — 토큰 정의는 src/shared/config/design-tokens.ts가 canonical (app→shared 방향).
-// 소비 규칙: 컴포넌트에서 hex 직접 사용 금지. theme.palette 또는 design-tokens export 경유.
+// design-system.md v2 §8.2 — 토큰 정의는 src/shared/config/design-tokens.ts가 canonical (app→shared 방향).
+// 소비 규칙: 컴포넌트에서 hex 직접 사용 금지. theme.palette/theme.vars 또는 design-tokens export 경유.
+// v2: 다크 기본 + 라이트 토글 — colorSchemes 2벌, 컴포넌트 오버라이드는 theme.vars로 모드 중립.
 import { createTheme } from '@mui/material/styles'
-import {color} from '@shared/config/design-tokens'
+import { buildModeCssVars, color, darkColor } from '@shared/config/design-tokens'
 
 // 하위 호환 re-export — 기존 `@app/theme` 소비자 유지.
 export {
@@ -11,22 +12,38 @@ export {
   layoutTokens,
   motionTokens,
 } from '@shared/config/design-tokens'
-export type {MeasureStatusVisual} from '@shared/config/design-tokens'
+export type { MeasureStatusVisual } from '@shared/config/design-tokens'
 
 /* ------------------------------------------------------------------ *
- * MUI theme — 최소 오버라이드 (AD-8: MUI 기본 + 토큰만)
+ * MUI theme — 최소 오버라이드 (AD-8 유지: MUI 기본 + 토큰만)
+ * 다크 기본: defaultColorScheme 'dark' → :root가 다크 변수 탑재 (no-flash, §7.2)
  * ------------------------------------------------------------------ */
 export const theme = createTheme({
-  cssVariables: true, // --mui-palette-* CSS 변수 생성 — 다크 확장 경로(DS-A1)
-  palette: {
-    mode: 'light',
-    primary: { main: color.blue700, dark: color.blue900, light: color.blue50, contrastText: color.white },
-    error: { main: color.red800, light: color.red50, contrastText: color.white },
-    warning: { main: color.amber800, light: color.amber50, contrastText: color.white },
-    success: { main: color.green800, light: color.green50, contrastText: color.white },
-    text: { primary: color.gray900, secondary: color.gray600, disabled: color.gray300 },
-    background: { default: color.gray50, paper: color.white },
-    divider: color.gray100,
+  cssVariables: { colorSchemeSelector: 'data' }, // [data-mui-color-scheme="…"] — index.html 부팅 스크립트와 결속
+  defaultColorScheme: 'dark',
+  colorSchemes: {
+    dark: {
+      palette: {
+        primary: { main: darkColor.blue300, dark: darkColor.blue500, light: darkColor.blueTint, contrastText: darkColor.night950 },
+        error: { main: darkColor.red400, light: darkColor.redTint, contrastText: darkColor.night950 },
+        warning: { main: darkColor.amber400, light: darkColor.amberTint, contrastText: darkColor.night950 },
+        success: { main: darkColor.green400, light: darkColor.greenTint, contrastText: darkColor.night950 },
+        text: { primary: darkColor.ice100, secondary: darkColor.slate400, disabled: darkColor.slate600 },
+        background: { default: darkColor.night950, paper: darkColor.night700 },
+        divider: darkColor.hairline,
+      },
+    },
+    light: {
+      palette: {
+        primary: { main: color.blue700, dark: color.blue900, light: color.blue50, contrastText: color.white },
+        error: { main: color.red800, light: color.red50, contrastText: color.white },
+        warning: { main: color.amber800, light: color.amber50, contrastText: color.white },
+        success: { main: color.green800, light: color.green50, contrastText: color.white },
+        text: { primary: color.gray900, secondary: color.gray600, disabled: color.gray300 },
+        background: { default: color.gray50, paper: color.white },
+        divider: color.gray100,
+      },
+    },
   },
   typography: {
     fontFamily:
@@ -42,14 +59,21 @@ export const theme = createTheme({
   shape: { borderRadius: 12 },
   components: {
     MuiCssBaseline: {
-      styleOverrides: {
+      styleOverrides: (t) => ({
         ':root': {
           '--mml-safe-top': 'env(safe-area-inset-top, 0px)',
           '--mml-safe-bottom': 'env(safe-area-inset-bottom, 0px)',
+          ...buildModeCssVars('dark'), // 다크 기본 — defaultColorScheme와 일치
         },
+        '[data-mui-color-scheme="light"]': buildModeCssVars('light'),
+        html: { backgroundColor: (t.vars ?? t).palette.background.default }, // index.html 인라인 fallback을 부팅 후 승계
         body: { WebkitTapHighlightColor: 'transparent' },
-        // focus ring: outline 방식 — forced-colors 모드에서 생존 (box-shadow 금지)
-        '*:focus-visible': { outline: `2px solid ${color.blue700}`, outlineOffset: '2px' },
+        '[data-mui-color-scheme="dark"] body': {
+          WebkitFontSmoothing: 'antialiased', // 다크 흰 글자 번짐 완화 — 라이트 무영향
+          MozOsxFontSmoothing: 'grayscale',
+        },
+        // focus ring: outline 방식 — forced-colors 모드에서 생존 (box-shadow 금지). 모드별 실값은 --mml-focus-ring.
+        '*:focus-visible': { outline: '2px solid var(--mml-focus-ring)', outlineOffset: '2px' },
         '@media (prefers-reduced-motion: reduce)': {
           '*, *::before, *::after': {
             animationDuration: '0.01ms !important',
@@ -57,7 +81,7 @@ export const theme = createTheme({
             transitionDuration: '0.01ms !important',
           },
         },
-      },
+      }),
     },
     MuiButton: {
       defaultProps: { disableElevation: true },
@@ -74,39 +98,40 @@ export const theme = createTheme({
     },
     MuiToggleButton: {
       styleOverrides: {
-        root: {
+        root: ({ theme: t }) => ({
           minHeight: 44,
           textTransform: 'none',
           fontWeight: 500,
-          color: color.gray700,
-          borderColor: color.gray500,
+          color: (t.vars ?? t).palette.text.secondary,
+          borderColor: 'var(--mml-outline)',
           '&.Mui-selected': {
-            backgroundColor: color.blue700,
-            color: color.white,
+            backgroundColor: (t.vars ?? t).palette.primary.main,
+            color: (t.vars ?? t).palette.primary.contrastText,
             fontWeight: 700,
-            '&:hover': { backgroundColor: color.blue900 },
+            '&:hover': { backgroundColor: (t.vars ?? t).palette.primary.dark },
           },
-        },
+        }),
       },
     },
     MuiBottomNavigation: {
       defaultProps: { showLabels: true },
       styleOverrides: {
-        root: {
+        root: ({ theme: t }) => ({
           height: 'auto',
           minHeight: 56,
           paddingBottom: 'var(--mml-safe-bottom)',
-          borderTop: `1px solid ${color.gray100}`,
-        },
+          backgroundColor: (t.vars ?? t).palette.background.paper,
+          borderTop: `1px solid ${(t.vars ?? t).palette.divider}`, // 다크: 헤어라인 (그림자 대체)
+        }),
       },
     },
     MuiBottomNavigationAction: {
       styleOverrides: {
-        root: {
+        root: ({ theme: t }) => ({
           minWidth: 96,
-          color: color.gray600,
-          '&.Mui-selected': { color: color.blue700 },
-        },
+          color: (t.vars ?? t).palette.text.secondary,
+          '&.Mui-selected': { color: (t.vars ?? t).palette.primary.main },
+        }),
       },
     },
     MuiDialog: {
@@ -138,13 +163,23 @@ export const theme = createTheme({
     },
     MuiAlert: {
       styleOverrides: {
-        standardWarning: { backgroundColor: color.amber50, color: color.amber800 },
-        standardError: { backgroundColor: color.red50, color: color.red800 },
-        standardSuccess: { backgroundColor: color.green50, color: color.green800 },
+        // 모드 중립: 각 scheme의 {severity}.light = 배경 tint, .main = 전경 (§1.2·§1.4 대비 검증 조합)
+        standardWarning: ({ theme: t }) => ({
+          backgroundColor: (t.vars ?? t).palette.warning.light,
+          color: (t.vars ?? t).palette.warning.main,
+        }),
+        standardError: ({ theme: t }) => ({
+          backgroundColor: (t.vars ?? t).palette.error.light,
+          color: (t.vars ?? t).palette.error.main,
+        }),
+        standardSuccess: ({ theme: t }) => ({
+          backgroundColor: (t.vars ?? t).palette.success.light,
+          color: (t.vars ?? t).palette.success.main,
+        }),
       },
     },
     MuiOutlinedInput: {
-      styleOverrides: { notchedOutline: { borderColor: color.gray500 } },
+      styleOverrides: { notchedOutline: { borderColor: 'var(--mml-outline)' } },
     },
     MuiRadio: {
       styleOverrides: { root: { padding: 10 } }, // 24px 아이콘 + 20px 패딩 = 44px 타깃
@@ -153,7 +188,7 @@ export const theme = createTheme({
       styleOverrides: { root: { padding: 10 } },
     },
     MuiPaper: {
-      defaultProps: { elevation: 0 }, // 카드류 기본 무그림자 — variant="outlined" 사용
+      defaultProps: { elevation: 0 }, // 카드류 기본 무그림자 — variant="outlined" (다크: 헤어라인 보더)
     },
   },
 })

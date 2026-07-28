@@ -9,12 +9,17 @@ export interface PageHeaderProps {
   onBack?: (() => void) | undefined
   /** 우측 버튼들 — 각 44×44 이상은 호출부 책임 */
   actions?: ReactNode | undefined
+  /**
+   * 우측 끝 단일 액션 슬롯 (design-system v2 §7.3 — additive, 기존 호출부 무변경).
+   * ThemeToggle 주입용 — 래퍼가 44×44 최소 타깃 영역을 보장한다.
+   */
+  action?: ReactNode | undefined
 }
 
 /**
  * 전 화면 공통 헤더 [H] (component-spec §3.9) — h 56px(rem 기반), AppBar 미사용(장식 배제).
  */
-export function PageHeader({title, onBack, actions}: PageHeaderProps) {
+export function PageHeader({title, onBack, actions, action}: PageHeaderProps) {
   return (
     <Box
       component="header"
@@ -33,6 +38,18 @@ export function PageHeader({title, onBack, actions}: PageHeaderProps) {
       </Typography>
       {actions !== undefined && actions !== null && (
         <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>{actions}</Box>
+      )}
+      {action !== undefined && action !== null && (
+        <Box
+          sx={{
+            minWidth: 44,
+            minHeight: 44,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+          {action}
+        </Box>
       )}
     </Box>
   )

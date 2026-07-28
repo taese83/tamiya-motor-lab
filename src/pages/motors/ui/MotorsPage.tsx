@@ -13,6 +13,7 @@ import {formatRpm, formatVoltage} from '@shared/lib/format'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
+import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
 import type {Motor} from '@entities/motor'
@@ -107,6 +108,7 @@ export function MotorsPage() {
       {/* [H] 화면 헤더 — 탭 화면: [h1] [+ 모터][+ 기록] (layout-spec §3) */}
       <PageHeader
         title="이력"
+        action={<ThemeToggle />}
         actions={
           <>
             <Button variant="outlined" onClick={openCreateSheet} sx={{minHeight: '2.75rem'}}>

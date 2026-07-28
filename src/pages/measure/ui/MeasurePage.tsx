@@ -10,6 +10,7 @@ import {
 } from '@features/measure-session/model'
 import {MeasureActionDock, MeasureFigures} from '@features/measure-session/ui'
 import {MeasureStatusLabel} from '@shared/ui/measure-status-label'
+import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useEffect} from 'react'
 import {useNavigate} from 'react-router'
 
@@ -75,6 +76,17 @@ export function MeasurePage() {
       <Typography component="h1" sx={visuallyHiddenSx}>
         측정
       </Typography>
+
+      {/* 테마 토글 — S1 우상단 고정, 수치 영역 밖 (design-system v2 §7.3) */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 'calc(8px + var(--mml-safe-top, 0px))',
+          right: 8,
+          zIndex: 1,
+        }}>
+        <ThemeToggle />
+      </Box>
 
       {/* [Z1] 상태 라벨 존 — h 48px 고정 (라벨+색+아이콘 3요소 + sr 단일 채널) */}
       <Box sx={{height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>

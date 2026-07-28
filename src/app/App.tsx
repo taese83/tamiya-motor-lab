@@ -1,11 +1,13 @@
 import {CssBaseline} from '@mui/material'
-import {ThemeProvider} from '@mui/material/styles'
+import {ThemeProvider, useColorScheme} from '@mui/material/styles'
 import {QueryClient, QueryClientProvider, QueryErrorResetBoundary} from '@tanstack/react-query'
+import {useEffect} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 
 import {AppRouterProvider} from '@app/providers/RouterProvider'
 import {RootErrorFallback} from '@app/routes'
 import {theme} from '@app/theme'
+import {themeColorMeta} from '@shared/config/design-tokens'
 
 // AD-4a 로컬 store 특화 정책 (api-schema.md §6.1 — 값 고정, 변경 금지).
 // project-init QUERY_CLIENT 템플릿의 AppError/HTTP retry 로직은 해당 없음 — HTTP 경계가 없고
@@ -29,10 +31,28 @@ const queryClient = new QueryClient({
 // RouterProvider. 라우트 내부 렌더 crash는 route ErrorBoundary(RootErrorFallback)가 먼저 잡고,
 // 이 최상위 경계는 프로바이더·라우터 초기화 crash를 커버한다. 동일 fallback([새로고침] = 전체
 // 리로드)이므로 query 캐시도 함께 초기화되며, onReset은 QueryErrorResetBoundary와 연결해 둔다.
+// 토글 시 문서 레벨 동기화 (design-system v2 §7.2-4):
+// 1) <html data-mui-color-scheme> — MUI 7.3이 이 속성을 스스로 갱신하지 않는 것이 관찰됨.
+//    커스텀 상태 변수(--mml-status-*)와 index.html 부팅 스크립트가 이 속성에 결속되므로 앱이 동기화한다.
+// 2) <meta name="theme-color"> — hex는 design-tokens export(themeColorMeta) 경유(hex 금지 규칙 유지).
+function ThemeColorMetaSync() {
+  const {mode} = useColorScheme()
+  useEffect(() => {
+    if (mode !== 'dark' && mode !== 'light') return
+    document.documentElement.setAttribute('data-mui-color-scheme', mode)
+    document.documentElement.style.removeProperty('background-color') // 부팅 인라인 fallback 해제 — CssBaseline이 승계
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeColorMeta[mode])
+  }, [mode])
+  return null
+}
+
 export function App() {
   return (
-    <ThemeProvider theme={theme}>
+    // 다크 기본 + 라이트 토글 (v2 §7): modeStorageKey는 index.html 부팅 스크립트의
+    // localStorage 키('mml-mode')와 문자열 결속 — 변경 시 양쪽 동시 수정.
+    <ThemeProvider theme={theme} defaultMode="dark" modeStorageKey="mml-mode" disableTransitionOnChange noSsr>
       <CssBaseline />
+      <ThemeColorMetaSync />
       <QueryClientProvider client={queryClient}>
         <QueryErrorResetBoundary>
           {({reset}) => (

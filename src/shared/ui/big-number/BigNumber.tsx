@@ -1,5 +1,5 @@
 import {Box} from '@mui/material'
-import {numericTypography} from '@shared/config/design-tokens'
+import {darkColor, numericTypography} from '@shared/config/design-tokens'
 import {EM_DASH} from '@shared/lib/format'
 
 export interface BigNumberProps {
@@ -39,7 +39,21 @@ const srOnlySx = {
 export function BigNumber({value, unit, size, valueColor}: BigNumberProps) {
   const typography = SIZE_TO_TYPOGRAPHY[size]
   return (
-    <Box sx={{display: 'inline-flex', alignItems: 'baseline', gap: 1}}>
+    <Box
+      sx={[
+        {display: 'inline-flex', alignItems: 'baseline', gap: 1},
+        // 다크 베젤 (design-system v2 §2-6·§9): night900 다크 글래스 bg + 헤어라인 1px 보더.
+        // 보더+패딩을 음수 마진으로 정확히 상쇄 — 플로우 크기 불변(고정 높이·layout shift 금지 계약,
+        // 모드 토글 시에도 수치 위치 이동 없음). hex 금지 — darkColor 토큰·theme.vars(divider=hairline) 경유.
+        (theme) =>
+          theme.applyStyles('dark', {
+            backgroundColor: darkColor.night900,
+            border: `1px solid ${(theme.vars ?? theme).palette.divider}`,
+            borderRadius: '12px',
+            padding: '6px 14px',
+            margin: '-7px -15px',
+          }),
+      ]}>
       <Box component="span" sx={{...typography, color: valueColor ?? 'text.primary'}}>
         {value !== null ? (
           value
