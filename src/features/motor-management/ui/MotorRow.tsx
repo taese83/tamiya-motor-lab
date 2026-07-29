@@ -20,6 +20,12 @@ export interface MotorRowProps {
   summary: MotorSummary
   /** 행 본체 탭 — 상세 페이지 진입(내비게이션은 페이지 소유) */
   onSelect: (motorId: string) => void
+  /**
+   * 순서 변경 잠금 (v2.4 — 종류 필터 활성 시). 핸들을 disabled로 두고 드래그 리스너를
+   * 부착하지 않는다: 부분집합 순열이 reorderMotors로 전송되는 것을 UI 단계에서 차단한다(SO-2).
+   * 안내 문구는 소비 페이지 소관. 미지정이면 정렬 가능(기존 호출부 무변경).
+   */
+  reorderDisabled?: boolean
 }
 
 const srOnlySx = {
@@ -34,7 +40,7 @@ const srOnlySx = {
   border: 0,
 } as const
 
-export function MotorRow({summary, onSelect}: MotorRowProps) {
+export function MotorRow({summary, onSelect, reorderDisabled = false}: MotorRowProps) {
   const {motor, lastMeasure} = summary
   const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
 
@@ -43,6 +49,7 @@ export function MotorRow({summary, onSelect}: MotorRowProps) {
   const {attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging} =
     useSortable({
       id: motor.id,
+      disabled: reorderDisabled, // 잠금 시 센서 자체가 이 항목을 집지 않는다(v2.4)
       // reduced-motion: 이동/드롭 애니메이션 0ms(§5.1)
       transition: prefersReducedMotion
         ? null
@@ -63,16 +70,25 @@ export function MotorRow({summary, onSelect}: MotorRowProps) {
         ...(isDragging && {zIndex: 2, borderColor: 'primary.main'}),
       }}>
       <Box sx={{display: 'flex', alignItems: 'center', minHeight: 56, pr: 1}}>
-        {/* DnD 핸들 — 44×44 독립 button. attributes/listeners는 핸들에만 부착(핸들 전용 활성화) */}
+        {/*
+          DnD 핸들 — 44×44 독립 button. attributes/listeners는 핸들에만 부착(핸들 전용 활성화).
+          v2.4 잠금 시: listeners 미부착 + disabled + 잠금 사유를 aria-label에 포함해
+          스크린리더에서도 "왜 못 쓰는지"가 드러나게 한다(무음 비활성 금지).
+        */}
         <IconButton
           ref={setActivatorNodeRef}
           {...attributes}
-          {...listeners}
-          aria-label={`'${motor.name}' 순서 변경`}
-          aria-roledescription="정렬 가능"
+          {...(reorderDisabled ? {} : listeners)}
+          disabled={reorderDisabled}
+          aria-label={
+            reorderDisabled
+              ? `'${motor.name}' 순서 변경 — 필터를 해제하면 사용할 수 있습니다`
+              : `'${motor.name}' 순서 변경`
+          }
+          {...(reorderDisabled ? {} : {'aria-roledescription': '정렬 가능'})}
           sx={{
             touchAction: 'none', // PointerSensor 터치 드래그 요건 — 스크롤은 행 본체가 담당
-            cursor: isDragging ? 'grabbing' : 'grab',
+            cursor: reorderDisabled ? 'not-allowed' : isDragging ? 'grabbing' : 'grab',
             color: 'text.secondary',
           }}>
           <DragHandleIcon />

@@ -39,6 +39,12 @@ export interface MotorListProps {
   onReorder: (orderedIds: string[]) => void | Promise<unknown>
   /** 행 본체 탭 — 상세 페이지 진입 (v2.2: 인라인 확장 폐지) */
   onSelect: (motorId: string) => void
+  /**
+   * 순서 변경 잠금 (v2.4 — 종류 필터 활성 시 true). `summaries`가 전체의 부분집합이면
+   * 반드시 true여야 한다: reorderMotors는 전체 모터 id의 완전한 순열을 요구하므로
+   * 부분집합 커밋은 순열 검증 실패(SO-2)로 귀결된다. 안내 문구는 소비 페이지 소관.
+   */
+  reorderDisabled?: boolean
 }
 
 // SR 안내 한국어 주입 (§5.1 — dnd-kit accessibility). 키보드 재정렬은 QA 필수 게이트.
@@ -47,7 +53,12 @@ const SCREEN_READER_INSTRUCTIONS: ScreenReaderInstructions = {
     '순서 변경 핸들입니다. Space 또는 Enter로 들어 올리고, 위/아래 화살표로 이동한 뒤 다시 Space로 놓습니다. Escape로 취소합니다.',
 }
 
-export function MotorList({summaries, onReorder, onSelect}: MotorListProps) {
+export function MotorList({
+  summaries,
+  onReorder,
+  onSelect,
+  reorderDisabled = false,
+}: MotorListProps) {
   // 낙관 재배열 — 로컬 상태만(query 캐시 직접 조작 금지, api-schema §6.4 어댑터 규약)
   const [optimisticOrder, setOptimisticOrder] = useState<ReadonlyArray<string> | null>(null)
 
@@ -98,6 +109,9 @@ export function MotorList({summaries, onReorder, onSelect}: MotorListProps) {
   }
 
   const handleDragEnd = (event: DragEndEvent): void => {
+    // 잠금 시 방어 게이트 — 각 행의 useSortable도 disabled지만, 부분집합 커밋은
+    // 데이터 정합성 문제라 컨텍스트 레벨에서도 한 번 더 막는다(v2.4)
+    if (reorderDisabled) return
     const {active, over} = event
     if (over === null || active.id === over.id) return
     const from = ids.indexOf(String(active.id))
@@ -126,7 +140,7 @@ export function MotorList({summaries, onReorder, onSelect}: MotorListProps) {
           {orderedSummaries.map(summary => (
             // key = stable entity id (렌더 index 금지)
             <Box component="li" key={summary.motor.id}>
-              <MotorRow summary={summary} onSelect={onSelect} />
+              <MotorRow summary={summary} onSelect={onSelect} reorderDisabled={reorderDisabled} />
             </Box>
           ))}
         </Stack>

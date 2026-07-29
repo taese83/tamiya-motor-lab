@@ -2,6 +2,8 @@
 // GradeChip·MotorListItem(v1)은 제거 대상 — export하지 않는다(물리 삭제는 오케스트레이터 소관).
 export {MotorFormSheet} from './MotorFormSheet'
 export type {MotorFormSheetProps, MotorFormValues} from './MotorFormSheet'
+export {MotorKindFilter} from './MotorKindFilter'
+export type {MotorKindFilterProps} from './MotorKindFilter'
 export {MotorKindSelect} from './MotorKindSelect'
 export type {MotorKindSelectProps} from './MotorKindSelect'
 export {MotorList} from './MotorList'
