@@ -152,7 +152,14 @@ export function useMotorDeleteFlow(options: UseMotorDeleteFlowOptions): MotorDel
           onConfirm: confirm,
           onCancel: cancel,
         }
-      : {open: false, title: '', impact: '', confirmLabel: '삭제', onConfirm: confirm, onCancel: cancel}
+      : {
+          open: false,
+          title: '',
+          impact: '',
+          confirmLabel: '삭제',
+          onConfirm: confirm,
+          onCancel: cancel,
+        }
 
   return {
     requestDelete,

@@ -688,3 +688,74 @@ Fitbit·Apple Health 수면 / PLATA 목록 / 계정 편집 input). 사용자 결
   [수정][삭제][핸들][본체] · 콘솔 오류 0
 - **미검증(실기기 필요)**: 실제 손가락 터치의 관성·팜리젝션. preview는 합성 PointerEvent가
   React 위임 리스너에 도달하지 않아 핸들러 직접 호출로 검증했다(제품 로직은 동일 경로).
+
+---
+
+## v2.17 — 레이스 목록 종류 필터 + 필터 공유·영속 (ux-change)
+
+### 요청 3건 중 2건은 이미 충족돼 있었다 (실측 확인)
+- **"레이스 정렬 = 모터 정렬"** — 이미 동일하다. 두 화면이 같은 `motorQueries.summaries()`
+  (sortOrder 오름차순 INV-08)를 소비한다. 브라우저 실측으로 두 화면의 행 순서 문자열이
+  일치함을 확인했다. 새로 만든 것 없음.
+- **"정렬 저장"** — 이미 저장된다. DnD 결과가 `reorderMotors`로 IndexedDB `sortOrder`에 영속.
+- 없는 기능을 만들었다고 보고하지 않기 위해 두 항목은 코드가 아니라 실측으로 확인만 했다.
+
+### TARGET_BEHAVIOR (실제 작업)
+- `/race`에 모터 목록과 **같은** 종류 필터를 노출한다(같은 컴포넌트·같은 상태).
+- 필터 선택은 두 화면이 **공유**하고 앱 재시작 후에도 **유지**된다(사용자 결정 2건).
+
+### 설계 결정 — URL param 폐기
+v2.4는 선택을 URL(`?kind=a,b`)에 뒀다. 두 요구가 그 설계를 무효화한다:
+① 라우트가 다르면 URL도 달라 **공유가 성립하지 않는다** ② param은 세션과 함께 사라진다.
+그래서 모듈 store(공유) + localStorage(영속)로 옮기고 param 경로를 **제거**했다 —
+병행하면 같은 상태의 출처가 둘이 되어 어느 쪽이 이기는지 화면마다 갈린다.
+잃는 것은 필터 딥링크뿐이고, 로컬 단일 사용자 앱이라 공유할 URL 개념이 없다.
+v2.4가 param을 고른 실제 이유("상세 왕복 후 필터 유지")는 영속 store가 더 확실히 충족한다.
+
+`useMotorKindFilter`의 **공개 형태는 그대로 유지**했다 — 저장 위치는 구현 세부다.
+덕분에 MotorsPage는 무변경, MotorKindFilter도 무변경(완전 제어형)이다.
+
+### 판단해서 지킨 것
+- **localStorage는 외부 입력**이다(사용자 편집·구버전 잔존·다른 탭). rehydrate 경계에서
+  MOTOR_KINDS로 검증하고 미지값은 버린다 — 잘못된 값 하나가 "모터가 없다"로 보이는
+  빈 목록을 만들면 안 된다(D-10 정신). 순서도 MOTOR_KINDS로 정규화해 칩 순서가
+  세션마다 흔들리지 않게 했다.
+- **영속 필터의 최대 위험** = 재시작 시 아무것도 매칭하지 않는 상태로 시작하는 것.
+  0건 분기를 전체 0건(EmptyState)과 분리하고 사유 문구 + [필터 해제]를 준다. 실측 확인.
+- 필터는 view 상태이므로 도메인 저장소(IndexedDB)가 아니라 localStorage에 둔다.
+
+### ALLOWED_PATHS
+- `src/features/motor-management/model/kind-filter-store.ts` (신규) + `.test.ts`
+- `src/features/motor-management/model/{use-motor-kind-filter.ts,index.ts}`
+- `src/features/motor-management/ui/MotorKindFilter.tsx` (주석만 — 소비처 2곳 반영)
+- `src/pages/race/ui/RacePage.tsx`
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- `MotorKindFilter`·`useMotorKindFilter` 공개 형태 · MotorsPage 무변경
+- 필터 중 DnD 정렬 잠금(SO-2) + 잠금 사유 인라인 고지 · 선택했지만 0건인 종류도 옵션 유지(해제 경로)
+- 화면 간 순서 일치(INV-09·INV-08) · 정렬 진입점은 모터 목록 1곳(sortOrder 단일 소유)
+- 44px 타깃 · 색 단독 구분 금지(filled/outlined + aria-pressed 이중화)
+
+### NON_GOALS
+- 정렬 기준 추가(파노순·이름순 등) — 요청은 "모터와 동일"이고 이미 동일하다
+- `/race`에서의 재정렬 · 레이스 기록 목록(`/race/:motorId`) 필터 · 필터 딥링크 복원
+
+### CHANGE_BUDGET
+- 신규 의존성 0 (zustand `persist`는 기존 zustand 5.0.11의 서브모듈)
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build·test 전부 exit 0, vitest **63건**(55 → 63, 신규 8건)
+- 신규 unit: 미지 종류 폐기 · 중복 제거 · MOTOR_KINDS 순서 정규화 ·
+  비배열/null/문자열/객체/숫자배열 → 빈 선택 · toggle · 추가 선택 순서 · clear · 모듈 store 공유
+- 브라우저 실측(다크):
+  - `/race`에 필터 그룹 렌더(칩 4개 = 전체 + 종류 3)
+  - **공유**: `/motors`에서 '하이퍼대시' 선택 → `/race` 행·선택 칩이 동일하게 반영
+  - **영속**: `localStorage['mml-kind-filter-1'] = {"selected":["hyper_dash"]}`,
+    전체 리로드 후에도 선택 유지
+  - **sanitize**: `['m130','bogus_kind']` 주입 후 리로드 → `bogus_kind` 폐기, m130만 선택
+  - **0건 분기**: "선택한 종류의 모터가 없습니다" + [필터 해제] 노출,
+    EmptyState("모터를 먼저 등록하세요")로 위장되지 않음
+  - 모터 화면 DnD 잠금 안내 유지 · [전체]로 해제 시 3행 복귀 · 콘솔 오류 0
+- 알려진 잔여: sanitize는 **읽는 시점**에만 적용되므로 무효값이 localStorage에 남아 있을 수
+  있다(다음 토글·해제 시 정리됨). 매 부팅 재기록은 하지 않았다 — 동작에 영향 없고
+  원본 값이 남아 있어야 디버깅에 유리하다.

@@ -5,8 +5,13 @@ import {MOTOR_KIND_LABELS} from '@shared/config/domain'
 import type {MotorKindFilterOption} from '../model'
 import type {MotorKind} from '@shared/config/domain'
 
-// MotorKindFilter (v2.4 — 모터 목록 종류 필터 행). 순수 presentational·완전 제어형:
-// 선택 상태·URL 동기화는 상위(useMotorKindFilter) 소유.
+// MotorKindFilter (v2.4 — 종류 필터 행). 순수 presentational·완전 제어형:
+// 선택 상태의 소유와 영속은 상위(useMotorKindFilter) 소관이다.
+//
+// v2.17: 소비처가 모터 목록 **1곳에서 2곳(모터·레이스)으로** 늘었다. 이 컴포넌트는
+// 무변경이다 — 완전 제어형이라 상태 출처가 URL→공유 store로 바뀐 것과 무관하다.
+// 레이스 화면에 칩을 다시 만들지 않고 이 컴포넌트를 재사용한다(옵션 산출·0건 처리·
+// 순서 정규화가 화면마다 갈리지 않게).
 //
 // 형태: 가로 스크롤 칩 행 [전체][종류 n]… — 다중선택(사용자 결정). 모바일 터치 우선이라
 // 칩 최소 높이 44px를 유지하고, 가로 스크롤은 목록 세로 스크롤과 충돌하지 않게 x축만 허용한다.
