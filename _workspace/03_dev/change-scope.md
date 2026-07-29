@@ -268,3 +268,47 @@
 - 타 화면 회귀 없음(모터 목록·레이스·측정 탭 정상 렌더)
 - 스크린샷 도구가 이 라운드에서 timeout으로 실패해 시각 캡처는 없다 — 스크롤·고정 동작은
   위 좌표·치수 실측으로 검증했다(앱 콘솔 오류 0).
+
+## v2.9 라운드 (2026-07-29 — v2.7 기록 3종 철회)
+
+### TARGET_BEHAVIOR
+측정 탭의 기록을 **단일 [기록]으로 되돌린다**. 10초 후·1분 후 지연 기록을 제거하고
+버튼 문구도 '즉시' → '기록'으로 복원한다(사용자 결정: v2.7 철회).
+
+### 방법 — hand-edit 대신 부모 커밋에서 복원
+v2.7(0ce8387)이 건드린 4개 source 파일이 그 이후 아무 커밋에서도 수정되지 않았음을 먼저 확인하고
+(`git log 0ce8387..HEAD -- <path>`가 전부 공백), 부모 커밋 0bc0105에서 그대로 checkout했다.
+손으로 되돌리면 주석·공백 수준의 흔적이 남기 쉬운데, 이 방식은 byte-exact 복원을 보장한다
+(`git diff 0bc0105 -- <4파일>`이 공백으로 확인됨).
+git revert를 쓰지 않은 이유: change-scope.md가 이후 v2.8에서 추가 append돼 충돌하고,
+아래 테스트 판단도 revert로는 표현할 수 없다.
+
+### 제거·보존 판단
+- 제거: `use-delayed-capture.ts`(+테스트), `RECORD_DELAY_OPTIONS`, `capture-pending` 액션,
+  `onCancelCapture`, 3버튼 그룹 렌더. 잔존 참조 0건을 grep으로 확인.
+- **보존**: `MeasureActionDock.test.tsx`를 삭제하지 않고 복원된 단일 버튼 계약만 남겨 축소했다.
+  deriveMeasureAction은 §2.7이 "unit 대상"으로 지정한 순수 함수인데 v2.7 전까지 테스트가
+  0건이었고, 마이크 없는 브라우저 QA로는 measuring/record 활성 경로에 도달할 수 없다.
+  기능 철회와 무관하게 유효한 커버리지라 남긴다(9건).
+
+### ALLOWED_PATHS
+- `src/shared/config/domain.ts`·`src/features/collect-measure/index.ts`·
+  `src/features/measure-session/ui/MeasureActionDock.tsx`·`src/pages/measure/ui/MeasurePage.tsx` (복원)
+- `src/features/collect-measure/model/use-delayed-capture.ts`(+test) 삭제
+- `src/features/measure-session/ui/MeasureActionDock.test.tsx` 축소
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- v2.8 모터 상세 고정 셸·v2.6 뱃지/헤더·v2.5 측정 왕복은 무변경(이 라운드가 건드리지 않음)
+- 스냅샷 고정(SC2-A3·MR-2)·INV-20 rolling 10·INV-21 왕복 중 기록 진입점 0개
+
+### NON_GOALS
+- 지연 기록을 다른 형태(설정 값·프리셋)로 재도입
+- 측정 화면의 다른 존(Z1/Z2) 변경
+
+### CHANGE_BUDGET
+- 신규 의존성 0 (제거도 없음 — 지연 기록은 표준 타이머만 사용했다)
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build 클린, vitest 31건(40건에서 지연 기록 9건 제거)
+- 복원 4파일이 0bc0105와 byte-exact 동일 · 잔존 참조 grep 0건
+- 브라우저: 측정 탭에 단일 [기록]만 노출(3버튼 그룹 부재 확인), 콘솔 오류 0
