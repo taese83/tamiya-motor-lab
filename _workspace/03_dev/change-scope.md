@@ -1274,3 +1274,45 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - 브라우저(375px, 다크) `/motors`: 정렬 그룹 radius=칩 radius(999 pill), 첫 버튼 좌측만·끝 버튼
   우측만 라운딩(999/0, 0/999), overflow hidden, **그룹 높이 44 = 칩 높이 44**로 정합.
   정렬 전환 동작 정상(이름순 클릭→ko locale 재정렬), 필터×정렬 함께 동작.
+
+---
+
+## v2.28 — 게이지 오버레이 수치 배치: 파노 하강 + rpm을 바늘 축 아래로 (실기기 피드백)
+
+### TARGET_BEHAVIOR
+- 사용자 실기기 피드백 3연속: (1) 파노 위치를 더 아래로, (2) rpm을 바늘 축(hub)으로 내려,
+  (3) rpm만 더 아래로 → 최종: **파노는 아크 내부 상단-중앙, rpm은 hub보다 더 아래(아크 하단 개구부)**.
+
+### 원인·해석
+- 오버레이 수치 컬럼이 존 세로 **중앙 정렬**이라 파노(86px)·rpm(135px) 모두 게이지 기하학과
+  어긋나 있었다(hub=존 높이의 0.711=160px). 게이지 hub 좌표에 수치를 정렬해 "계기판" 느낌을 살린다.
+- 마이크가 없어 measuring 실측은 불가하나, 대기 상태 placeholder("—")가 **행 높이 고정**이라
+  measuring 숫자와 동일 위치에 렌더된다 → 브라우저에서 hub 대비 픽셀 위치를 정확히 실측해 조정.
+
+### 변경 (모두 뷰포트 비례 clamp — 존 높이 clamp(200~272px,60vw)와 breakpoint 정합)
+- 수치 컬럼 전체를 `translateY(clamp(22px,6.6vw,30px))` 하향 → 파노 86→**111px**(아크 내부 중앙),
+  rpm 135→160px(=hub). (hub는 존 높이의 0.111 아래 = 60vw×0.111≈6.6vw)
+- rpm 행에만 추가 `offsetY = clamp(44px,12vw,56px)` 하향(transform이라 파노/Hz 레이아웃 무영향)
+  → rpm 160→**205px**(hub보다 45px 아래, 아크 하단 개구부, 존 바닥에서 20px).
+- `Row`에 optional `offsetY` prop 추가(순수 additive — 다른 소비처 무변경).
+- 모든 view 상태에 동일 이동 적용 → **상태 전환 layout-shift 0** 유지.
+
+### ALLOWED_PATHS
+- `src/features/measure-session/ui/MeasureFigures.tsx` (오버레이 컬럼 translateY + Row offsetY prop)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 존 고정 높이·layout-shift 0 · 게이지 aria-hidden 장식 · canonical 수치=BigNumber(sr 경로)
+- 파노 주지표(라임)/rpm 보조 위계(M-4) · 값 없음 "—" + sr "측정값 없음" · aria-live 없음
+
+### NON_GOALS
+- 게이지 스케일·색·두께 변경 · 존 높이 토큰 변경 · 파노/rpm 크기·색 변경(위치만)
+
+### CHANGE_BUDGET
+- 신규 의존성 0 · 단일 파일 · 순수 시각(로직·데이터·테스트 무변경)
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 85건
+- 브라우저(375px, 다크) `/`(측정): 존 h=225px, hub=160px(0.711). 파노 placeholder=111px(아크 중앙),
+  rpm placeholder=205px(hub+45, 바닥-20). 파노는 컬럼 이동 전후 rpm 추가 이동에도 111px로 불변.
+- **미검증(마이크 필요)**: measuring 실제 숫자 표시 — placeholder와 행 높이 동일이라 같은 위치 보장,
+  실기기 확인 대상.

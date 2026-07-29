@@ -61,7 +61,9 @@ const ROW_HEIGHTS = {
   message: '1.5rem',
 } as const
 
-function Row({height, children}: {height: string; children?: ReactNode}) {
+// offsetY: 이 행만 추가로 아래로 내린다(transform이라 다른 행 레이아웃엔 무영향).
+// v2.28: rpm을 바늘 축(hub)보다 더 아래로 — 파노/Hz는 그대로 두고 rpm 행만 이동(사용자).
+function Row({height, children, offsetY}: {height: string; children?: ReactNode; offsetY?: string}) {
   return (
     <Box
       sx={{
@@ -70,6 +72,7 @@ function Row({height, children}: {height: string; children?: ReactNode}) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        ...(offsetY !== undefined && {transform: `translateY(${offsetY})`}),
       }}>
       {children}
     </Box>
@@ -113,7 +116,12 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
         <PanoGauge panoHz={measuring ? view.panoHz : null} />
       </Box>
       {/* 수치 오버레이 — 게이지 위 중앙. 눈금 라벨이 아크 바깥(v2.21)이라 내부가 비어 겹치지 않는다.
-          파노는 축소(guide)해 아크를 넘지 않고, canonical 텍스트는 BigNumber(스크린리더 경로). */}
+          파노는 축소(guide)해 아크를 넘지 않고, canonical 텍스트는 BigNumber(스크린리더 경로).
+          v2.28(사용자): 중앙 정렬 스택을 아래로 내려 파노를 아크 내부 중앙에, rpm을 **바늘 축(hub)**에
+          맞춘다. hub는 게이지 viewBox상 존 높이의 0.711 지점(=존 h × 0.111만큼 아래로 이동하면
+          rpm 중앙이 hub에 안착). 이동량을 존 높이 clamp(200~272px, 60vw)에 비례하도록 clamp로 둬
+          뷰포트가 바뀌어도 rpm이 hub에 유지되게 한다(60vw×0.111≈6.6vw). 모든 view 동일 이동 —
+          상태 전환 layout-shift 0 유지. */}
       <Box
         sx={{
           position: 'relative',
@@ -123,6 +131,7 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
+          transform: 'translateY(clamp(22px, 6.6vw, 30px))',
           overflowY: 'hidden',
         }}>
         <Row height={ROW_HEIGHTS.pano}>
@@ -140,7 +149,8 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
             </Typography>
           )}
         </Row>
-        <Row height={ROW_HEIGHTS.rpm}>
+        {/* v2.28(사용자: rpm만 더 내려) — hub 안착에서 한 단계 더 아래로. 뷰포트 비례(clamp) */}
+        <Row height={ROW_HEIGHTS.rpm} offsetY="clamp(44px, 12vw, 56px)">
           {measuring ? (
             // rpm 보조 — 고대비 중립색(text.primary). 파노=라임과 위계 구분
             <BigNumber
