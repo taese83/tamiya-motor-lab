@@ -13,6 +13,7 @@ import {RaceEntrySheet, RaceRecordRow, ResetRecordsBlock} from '@features/race-r
 import {layoutTokens} from '@shared/config/design-tokens'
 import {formatDateTimeShort} from '@shared/lib/format'
 import {ConfirmDialog} from '@shared/ui/confirm-dialog'
+import {useSingleOpenRow} from '@shared/ui/swipe-actions'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
@@ -86,6 +87,8 @@ export function RaceDetailPage() {
   const entry = useRaceEntry(motorId, initialPano)
   const resetFlow = useResetRecordsFlow(motorId) // v2.3 — 모터별 [레이스 기록 초기화] (상세 하단)
   const deleteFlow = useRaceDeleteFlow()
+  // v2.16 스와이프 트레이 — "한 번에 한 행만"을 페이지가 소유한다
+  const swipe = useSingleOpenRow()
 
   // 왕복 복귀 소비(§7.2) — mount 시 1회. consume은 read-and-clear라 StrictMode 이중
   // 실행에도 두 번째 호출은 null(no-op). restore 함수는 매 렌더 재생성이라 ref로 최신만 참조
@@ -220,8 +223,12 @@ export function RaceDetailPage() {
                     record={record}
                     index={races.length - arrayIndex}
                     onEdit={entry.editRecord}
-                    onDelete={id => deleteFlow.requestDelete(id, formatDateTimeShort(record.createdAt))}
+                    onDelete={id =>
+                      deleteFlow.requestDelete(id, formatDateTimeShort(record.createdAt))
+                    }
                     deletePending={deleteFlow.pendingId === record.id}
+                    swipeOpen={swipe.openId === record.id}
+                    onSwipeOpenChange={open => swipe.setOpen(record.id, open)}
                   />
                 </Box>
               ))}

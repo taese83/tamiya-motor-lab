@@ -622,3 +622,69 @@ Fitbit·Apple Health 수면 / PLATA 목록 / 계정 편집 input). 사용자 결
 - `/`·`/motors`·`/race` 문서 레벨 가로 스크롤 0 · S1 h1 1×1 · 상태 live 1×1 · BigNumber sr 1×1
 - 신규 error 리스너로 재검증: 시트 2모드 개폐 중 콘솔 오류 0건
   (앞선 `visuallyHiddenSx is not defined`는 import 추가 전 HMR 과도 상태의 흔적 — 모듈 타임스탬프로 확인)
+
+---
+
+## v2.16 — 목록 행 스와이프 액션 (ux-change, LD-4 번복)
+
+### TARGET_BEHAVIOR
+- 모터 목록(`/motors`)·레이스 기록 목록(`/race/:motorId`)의 행을 **왼쪽으로 밀면** 우측에
+  [수정]·[삭제] 트레이가 열리고 그 자리에서 바로 실행할 수 있다.
+- 방향은 사용자 결정에 따라 **왼쪽으로 밀기 → 액션 우측**(iOS 메일·Gmail 표준).
+
+### 선행 결정 번복 (중요)
+`layout-spec.md` LD-4는 스와이프를 **명시적으로 기각**했다(발견성 낮음 · 세로 스크롤 경합 ·
+가시 버튼이 오입력 복구에 확실). 사용자 지시로 뒤집으면서 세 사유를 각각 막았고,
+근거는 `layout-spec.md` LD-4′ 행과 `SwipeActions.tsx` 상단 주석에 남겼다.
+스펙이 코드와 모순된 채로 남으면 다음 라운드가 오판하므로 문서를 함께 갱신했다.
+
+### 판단해서 지킨 것
+- **제스처의 최대 권한 = 트레이 열기.** 풀 스와이프 즉시 삭제는 만들지 않았다.
+  모터 삭제는 cascade(측정·레이스 기록 동반 삭제)이고 그 건수는 목록 행에 보이지 않는다 —
+  숨은 데이터를 제스처 하나로 지우는 경로는 두지 않는다. ConfirmDialog + 실측 건수 유지.
+- **비제스처 경로 유지.** 트레이 액션은 항상 DOM에 있는 button이고 Tab 포커스 시 트레이가
+  자동으로 열린다(보이지 않는 컨트롤에 포커스 금지 — WCAG 2.4.11). 아이콘 + 텍스트 라벨.
+- **단일 열림을 목록이 소유**(`useSingleOpenRow`). 닫기는 자기 행일 때만 반영해
+  A의 blur-close가 방금 열린 B를 닫는 순서 경합을 막았다.
+
+### 부수 효과 — v2.14 미결 항목 해소
+`RaceRecordRow`는 v2.14에서 "버튼과 값이 우측을 다퉈 별도 판단 필요"로 NON_GOAL이었다.
+버튼이 트레이로 빠지면서 다른 목록과 같은 **좌측 식별 / 우측 수치** 2열이 됐다.
+
+### ALLOWED_PATHS
+- `src/shared/ui/swipe-actions/**` (신규 — SwipeActions·SwipeActionButton·useSingleOpenRow·테스트)
+- `src/shared/ui/icons/{icons.tsx,index.ts}` (PencilIcon·TrashIcon 추가 — 파일 주석이 지정한 owner 경로)
+- `src/features/motor-management/ui/{MotorRow,MotorList}.tsx`
+- `src/features/race-record/ui/RaceRecordRow.tsx`
+- `src/pages/motors/ui/MotorsPage.tsx` (edit 시트 + cascade 삭제 플로우 호스팅)
+- `src/pages/race-detail/ui/RaceDetailPage.tsx` (단일 열림 소유)
+- `_workspace/02_design/layout-spec.md` (LD-4′ 번복 근거)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- DnD 핸들 전용 활성화(§5.3) · 키보드 정렬(Space/↑↓/Esc) · 필터 중 정렬 잠금(SO-2)
+- cascade 삭제 실측 건수 고지(CP-3) · ConfirmDialog 초기 포커스 [취소] · count 실패 시 dialog 미개방
+- 행 본체 탭 → 상세 진입 · rolling 10(INV-20) · 기록 정렬(repository 보장, 재정렬 금지)
+- 44px 타깃(REQ-NFR-003) · 색 단독 구분 금지(DS-A5)
+
+### NON_GOALS
+- `/race` 모터 카드(RaceMotorList) 스와이프 — 이 화면에는 모터 수정·삭제 의미가 없다
+- 오른쪽 스와이프·양방향 · 풀 스와이프 즉시 실행 · 스와이프 애니메이션 고도화
+
+### CHANGE_BUDGET
+- 신규 의존성 0 (제스처는 pointer event로 직접 구현 — @dnd-kit은 이 용도에 부적합)
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build·test 전부 exit 0, vitest **55건**(38 → 55, 신규 17건)
+- 신규 unit: 방향 락(가로/세로/오른쪽) · 임계 미달 · 핸들 제외 · gestureDisabled ·
+  클릭 억제 · 열린 상태 탭=닫기 · 포커스 자동 열림 · ESC · 단일 열림 순서 경합 · 콘텐츠 불투명
+- **실측으로 버그 2건 발견·수정**:
+  ① `handlePointerUp`이 state(`dragOffset`)를 읽어, 빠른 플릭에서 마지막 move와 up이 한 프레임에
+     합쳐지면 stale null을 보고 열리지 않았다 → `offsetRef`로 전환 + 회귀 테스트 고정
+  ② 콘텐츠 레이어가 투명해 **닫힌 트레이가 카드(alpha 0.16 tint)를 통해 비쳐 수치와 겹쳤다**
+     → 콘텐츠 레이어에 `background.default` 부여 + 불투명 invariant 테스트
+- 브라우저(375px, 다크) 실측: 스와이프 열림 −112px · 단일 열림(다른 행 열면 이전 행 닫힘) ·
+  세로 우세 제스처 무시 · cascade confirm "측정 기록 6건·레이스 기록 2건" + 초기 포커스 [취소] ·
+  edit 시트 prefill(이름·종류) · 트레이 포커스 시 자동 열림/포커스 이탈 시 닫힘 · 행 내 Tab 순서
+  [수정][삭제][핸들][본체] · 콘솔 오류 0
+- **미검증(실기기 필요)**: 실제 손가락 터치의 관성·팜리젝션. preview는 합성 PointerEvent가
+  React 위임 리스너에 도달하지 않아 핸들러 직접 호출로 검증했다(제품 로직은 동일 경로).

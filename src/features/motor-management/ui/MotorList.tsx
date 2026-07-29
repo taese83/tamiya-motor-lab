@@ -15,6 +15,8 @@ import {
 import {Box, Stack} from '@mui/material'
 import {useMemo, useState} from 'react'
 
+import {useSingleOpenRow} from '@shared/ui/swipe-actions'
+
 import {MotorRow} from './MotorRow'
 
 import type {Announcements, DragEndEvent, ScreenReaderInstructions} from '@dnd-kit/core'
@@ -45,6 +47,12 @@ export interface MotorListProps {
    * 부분집합 커밋은 순열 검증 실패(SO-2)로 귀결된다. 안내 문구는 소비 페이지 소관.
    */
   reorderDisabled?: boolean
+  /** 행 스와이프 [수정] (v2.16) — 편집 시트는 소비 페이지 소유 */
+  onEdit: (motor: MotorSummary['motor']) => void
+  /** 행 스와이프 [삭제] (v2.16) — cascade confirm 플로우는 소비 페이지 소유 */
+  onDelete: (motor: MotorSummary['motor']) => void
+  /** 삭제 대상 건수 조회 중 — 모든 행의 트레이 액션 disabled */
+  actionsPending?: boolean | undefined
 }
 
 // SR 안내 한국어 주입 (§5.1 — dnd-kit accessibility). 키보드 재정렬은 QA 필수 게이트.
@@ -58,9 +66,14 @@ export function MotorList({
   onReorder,
   onSelect,
   reorderDisabled = false,
+  onEdit,
+  onDelete,
+  actionsPending = false,
 }: MotorListProps) {
   // 낙관 재배열 — 로컬 상태만(query 캐시 직접 조작 금지, api-schema §6.4 어댑터 규약)
   const [optimisticOrder, setOptimisticOrder] = useState<ReadonlyArray<string> | null>(null)
+  // v2.16 스와이프 트레이 — "한 번에 한 행만"을 목록이 소유한다(파괴 액션 대상 모호성 제거)
+  const swipe = useSingleOpenRow()
 
   const orderedSummaries = useMemo(() => {
     if (optimisticOrder === null) return summaries
@@ -134,13 +147,25 @@ export function MotorList({
       sensors={sensors}
       collisionDetection={closestCenter}
       accessibility={{announcements, screenReaderInstructions: SCREEN_READER_INSTRUCTIONS}}
+      // 드래그 시작 시 열린 트레이를 접는다 — 밀린 채로 들리면 드래그 프리뷰가 어긋나고,
+      // 정렬을 마친 뒤 다른 행에 트레이가 남아 있으면 액션 대상을 오인한다
+      onDragStart={swipe.closeAll}
       onDragEnd={handleDragEnd}>
       <SortableContext items={[...ids]} strategy={verticalListSortingStrategy}>
         <Stack component="ul" spacing={1} sx={{listStyle: 'none', m: 0, p: 0}}>
           {orderedSummaries.map(summary => (
             // key = stable entity id (렌더 index 금지)
             <Box component="li" key={summary.motor.id}>
-              <MotorRow summary={summary} onSelect={onSelect} reorderDisabled={reorderDisabled} />
+              <MotorRow
+                summary={summary}
+                onSelect={onSelect}
+                reorderDisabled={reorderDisabled}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                actionsPending={actionsPending}
+                swipeOpen={swipe.openId === summary.motor.id}
+                onSwipeOpenChange={open => swipe.setOpen(summary.motor.id, open)}
+              />
             </Box>
           ))}
         </Stack>
