@@ -30,6 +30,25 @@ export interface MotorKindVisual {
   border: string
 }
 
+/**
+ * hex(#RRGGBB) → rgba 문자열. 종류색을 **면 tint**로 재사용하기 위한 유틸(v2.12).
+ *
+ * 카드를 종류색으로 꽉 채우지 않는 이유: 우리 종류색은 채도가 높고(빨강·검정·흰색) 솔리드로
+ * 채우면 ① 글자 대비를 종류마다 따로 계산해야 하고 ② 다크 카본에서 흰 카드/라이트에서 검정
+ * 카드가 튄다. tint로 깔면 글자는 테마 전경색을 그대로 쓸 수 있어 양 모드에서 대비가 안전하다.
+ * 식별성은 solid accent bar가 담당한다.
+ */
+export const withAlpha = (hex: string, alpha: number): string => {
+  const value = hex.replace('#', '')
+  const r = Number.parseInt(value.slice(0, 2), 16)
+  const g = Number.parseInt(value.slice(2, 4), 16)
+  const b = Number.parseInt(value.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+/** 모터 카드 면 tint 농도 — 종류 식별을 돕되 글자 대비를 해치지 않는 수준(v2.12) */
+export const MOTOR_CARD_TINT_ALPHA = 0.16
+
 /** 종류별 뱃지 색 — 소비는 MotorKindChip 1곳(다른 곳에서 hex 재정의 금지) */
 export const motorKindColors = {
   m130: {bg: '#5F6368', fg: '#FFFFFF', border: 'rgba(255,255,255,0.28)'}, // 회색 — 5.7:1

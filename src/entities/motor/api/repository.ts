@@ -284,6 +284,8 @@ function parseSummaryRaceRow(row: unknown): MotorSummaryRace {
 interface Rollup<T> {
   count: number
   last: T
+  /** v2.12: 같은 스캔에서 모아둔 전 행 — 스파크라인 수열 파생용(추가 IO 없음) */
+  rows: T[]
 }
 
 /** 단일 스캔 집계 — timestamp 내림차순 기준 최신 1건 유지 (동률 시 id 최대 — INV-08 역방향 선두) */
@@ -295,10 +297,11 @@ function rollupBy<T extends {motorId: string; id: string}>(
   for (const row of rows) {
     const current = rollups.get(row.motorId)
     if (current === undefined) {
-      rollups.set(row.motorId, {count: 1, last: row})
+      rollups.set(row.motorId, {count: 1, last: row, rows: [row]})
       continue
     }
     current.count += 1
+    current.rows.push(row)
     const rowTs = timestampOf(row)
     const lastTs = timestampOf(current.last)
     if (rowTs > lastTs || (rowTs === lastTs && row.id > current.last.id)) current.last = row
@@ -340,6 +343,22 @@ export async function listMotorSummaries(): Promise<MotorSummary[]> {
       ...(measure !== undefined ? {lastMeasure: measure.last} : {}),
       raceCount: race?.count ?? 0,
       ...(race !== undefined ? {lastRace: race.last} : {}),
+      // v2.12 스파크라인 수열 — measuredAt 오름차순(오래된→최신). 같은 스캔 결과를 정렬만 하므로
+      // 추가 IO 없음. 상세 화면 차트와 정렬 방향을 일치시켜 두 화면의 추세 방향이 어긋나지 않게 한다.
+      panoTrend:
+        measure === undefined
+          ? []
+          : [...measure.rows]
+              .sort((a, b) =>
+                a.measuredAt === b.measuredAt
+                  ? a.id < b.id
+                    ? -1
+                    : 1
+                  : a.measuredAt < b.measuredAt
+                    ? -1
+                    : 1,
+              )
+              .map(row => row.panoHz),
     }
   })
 }

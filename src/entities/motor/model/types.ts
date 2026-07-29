@@ -40,4 +40,10 @@ export interface MotorSummary {
   lastMeasure?: MotorSummaryMeasure // max measuredAt (동률 시 id 최대)
   raceCount: number
   lastRace?: MotorSummaryRace // max createdAt (동률 시 id 최대) — 부재 시 "레이스 기록 없음"
+  /**
+   * v2.12: 목록 스파크라인용 파노 추세 — measuredAt 오름차순(오래된→최신), ≤MEASURE_RECORD_LIMIT.
+   * 기록 0건이면 빈 배열. listMotorSummaries가 이미 measureRecords 전건을 메모리로 읽어
+   * 롤업하므로 추가 IO는 없다. 표시 포맷·단위는 소비 UI 소관 — 여기는 원시 panoHz 수열만 전달한다.
+   */
+  panoTrend: ReadonlyArray<number>
 }
