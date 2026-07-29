@@ -138,3 +138,44 @@
 ### TEST_EVIDENCE
 - Node 22 typecheck·lint·build·vitest 클린
 - 브라우저: 모터 상세 왕복(자동 복귀·기록 +1·차트 갱신) · 레이스 왕복 회귀 없음 · origin 교차 오소비 없음
+
+## v2.6 라운드 (2026-07-29 — 헤더 버튼 정리 + 종류 뱃지 색상 + 라이트대시 추가)
+
+### TARGET_BEHAVIOR
+1. 헤더 버튼 위계 정리: 주 행동([+ 모터]·[+ 기록])은 라임 contained(컷코너), 보조·파괴
+   ([수정]·[삭제])는 text 톤. 56px 헤더에서 제목 폭 잠식과 파괴 액션의 과도한 시선 끌기를 줄인다.
+2. 모터 종류 뱃지에 식별색 적용(사용자 지정 색상표 10종). 라벨은 항상 동반 — 색 단독 구분 아님.
+3. `light_dash`(라이트대시) enum **추가**. MOTOR_KINDS 표시 순서를 제품 라인업 순서로 재배열.
+
+### 설계 판단
+- enum은 추가만 한다: 제거·개명이면 저장된 모터 행이 rehydrate에서 data-corrupt로 판정돼
+  복구 화면에 빠지고 마이그레이션이 필요했다. 배열 순서 변경은 표시 순서만 바꾸고 저장값에 무영향.
+- 뱃지 색에 모드별 변종을 두지 않는다: 채워진 뱃지는 bg↔fg 대비를 자체 만족해 텍스트 가독성이
+  모드와 무관하다. 모드에 걸리는 유일한 문제는 면 분리(라이트 배경의 흰 뱃지, 다크 배경의 검정
+  뱃지)이고, fg를 옅게 깐 border가 자동으로 반대 톤 윤곽을 만들어 분기 없이 해결한다.
+- 기존 MotorKindChip은 테마 무관 라이트 hex 고정으로 다크에서 저대비였던 결함이 있었다 — 함께 정정.
+
+### ALLOWED_PATHS
+- `src/shared/config/domain.ts` (MOTOR_KINDS +light_dash·순서·라벨)
+- `src/shared/config/design-tokens.ts` (motorKindColors 신설)
+- `src/entities/motor/ui/MotorKindChip.tsx` (색 적용)
+- `src/pages/{motors,motor-detail,race-detail}/ui/*.tsx` (헤더 버튼 톤)
+- 9종 → 10종 stale 주석 3곳
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- MotorKindChip 공개 props(kind·size)·소비처 4곳 무변경
+- 저장된 motor 행의 kind 값·rehydrate 검증·sortOrder 불변식
+- 44px 타깃·색 단독 구분 금지·bg↔fg WCAG AA 4.5:1·다크/라이트 양립
+- 종류 선택 3중 표시(라임 bg + w800 + check)·필터 칩 동작
+
+### NON_GOALS
+- 뱃지 모양·크기 변경, 종류별 아이콘 도입
+- 헤더를 아이콘 버튼으로 전환(파괴 액션 아이콘 단독 금지 — 라벨 유지)
+- 시맨틱 red/amber/green 팔레트 재정의
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build·vitest 클린
+- 브라우저: 10종 뱃지 색·다크/라이트 양쪽 · 흰색·검정 뱃지 면 분리 · 헤더 위계 · 종류 선택 10택 · 필터 칩

@@ -4,12 +4,16 @@
 // v2 제거: MOTOR_STATUS_GRADES(+LABELS)·RUN_RESULTS(+LABELS)·GUIDE_MIN_SATISFIED·
 // WIDE_VARIANCE_THRESHOLD·MOTOR_MEMO_MAX_LENGTH (api-schema §7 — 잔존 시 결함).
 
-// ── 모터 종류 (T-1 확정: 9종 enum — 저장은 안정 식별자, 표시는 라벨 맵)
+// ── 모터 종류 (v2.6: 10종 enum — 저장은 안정 식별자, 표시는 라벨 맵)
+// 배열 순서 = 표시 순서(종류 선택 그리드·필터 칩)로, 실제 제품 라인업의 출력 순서를 따른다.
+// `light_dash`는 v2.6 신설 — enum **추가만** 하므로 기존 저장 행의 rehydrate 검증은 그대로 통과한다
+// (제거·개명이면 저장된 모터가 data-corrupt로 판정되어 마이그레이션이 필요했다).
 export const MOTOR_KINDS = [
   'm130',
-  'atomic',
   'torque',
+  'atomic',
   'rev',
+  'light_dash',
   'hyper_dash',
   'power_dash',
   'sprint_dash',
@@ -19,9 +23,10 @@ export const MOTOR_KINDS = [
 export type MotorKind = (typeof MOTOR_KINDS)[number]
 export const MOTOR_KIND_LABELS: Record<MotorKind, string> = {
   m130: '130',
-  atomic: '아토믹튠',
   torque: '토크튠',
+  atomic: '아토믹튠',
   rev: '렙튠',
+  light_dash: '라이트대시',
   hyper_dash: '하이퍼대시',
   power_dash: '파워대시',
   sprint_dash: '스프린트대시',

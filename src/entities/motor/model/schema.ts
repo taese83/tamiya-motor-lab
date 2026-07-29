@@ -6,7 +6,7 @@ import {DOMAIN_ERROR_MESSAGES, DomainError} from '@shared/lib/errors'
 // Motor 엔티티 zod 스키마 단일 정의 (api-schema v2 §2.2 canonical, AD-7) —
 // UI 인라인 검증·command precondition·rehydrate(read 경계)가 이 스키마를 공유한다.
 // persisted 데이터는 외부 입력 취급: type assertion 금지 (INV-16).
-// v2 제거 필드: statusGrade·statusMemo (T-1). 신설: kind(9종 enum)·sortOrder(T-6).
+// v2 제거 필드: statusGrade·statusMemo (T-1). 신설: kind(10종 enum — v2.6 light_dash 추가)·sortOrder(T-6).
 
 export const motorKindSchema = z.enum(MOTOR_KINDS) // T-1 — 상수 1곳 참조 (@shared/config/domain)
 

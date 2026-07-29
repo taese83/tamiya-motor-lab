@@ -94,7 +94,8 @@ export function MotorsPage() {
         title="모터"
         action={<ThemeToggle />}
         actions={
-          <Button variant="outlined" onClick={openCreateSheet} sx={{minHeight: '2.75rem'}}>
+          // v2.6: 화면의 주 행동이므로 시그니처 라임 contained(컷코너)로 위계를 명확히 한다
+          <Button variant="contained" onClick={openCreateSheet} sx={{minHeight: '2.75rem'}}>
             + 모터
           </Button>
         }

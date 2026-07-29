@@ -5,7 +5,7 @@ import {CheckIcon} from '@shared/ui/icons'
 import type {MotorKind} from '@shared/config/domain'
 import type {MouseEvent} from 'react'
 
-// MotorKindSelect (component-spec v2 §5.4 — T-1 종류 9택 3열 그리드).
+// MotorKindSelect (component-spec v2 §5.4 — T-1 종류 10택 3열 그리드 (v2.6: light_dash 추가)).
 // MUI exclusive ToggleButtonGroup 채택(CD2-A3) — 직각·라임 선택 bg·w800은 theme이 소유.
 // 선택 표시 3중: 라임 bg + w800(theme) + check 아이콘 병행 — 색 단독 구분 금지(REQ-NFR-003).
 // 라벨 = MOTOR_KIND_LABELS 1곳(하드코딩 금지), 저장 값 = 안정 식별자(m130·atomic·…).

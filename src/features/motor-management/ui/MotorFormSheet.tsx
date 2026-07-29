@@ -9,7 +9,7 @@ import type {MotorKind} from '@shared/config/domain'
 import type {FormEvent, RefObject} from 'react'
 
 // MotorFormSheet v2 (component-spec v2 §5.4 — T-1).
-// 필드 = 이름 + 종류 9택(MotorKindSelect)만 — v1의 statusGrade·memo 행 제거.
+// 필드 = 이름 + 종류 10택(MotorKindSelect)만 — v1의 statusGrade·memo 행 제거.
 // create/edit 2모드 유지. 닫힘(취소·ESC·backdrop) = 폼 파기 + 트리거 focus 복귀(MUI 기본).
 
 export interface MotorFormValues {

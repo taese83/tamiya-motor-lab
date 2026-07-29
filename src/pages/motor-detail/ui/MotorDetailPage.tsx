@@ -156,15 +156,24 @@ export function MotorDetailPage() {
         action={<ThemeToggle />}
         actions={
           motor !== null ? (
+            // v2.6 헤더 정리: 보조·파괴 액션은 테두리를 걷어 text 톤으로 낮춘다.
+            // 이전에는 outlined 사각 2개(+빨간 테두리)가 56px 헤더에서 제목 폭을 잠식하고
+            // 파괴 액션이 과하게 시선을 끌었다. 라벨은 유지한다(아이콘 단독 파괴 액션 금지) —
+            // 실제 안전장치는 ConfirmDialog의 명시 고지다.
             <>
-              <Button variant="outlined" onClick={openEditSheet} sx={{minHeight: '2.75rem'}}>
+              {/* 중립 톤 — 라임은 주 행동([측정]) 전용이라 보조 액션이 같은 색을 쓰지 않는다 */}
+              <Button
+                variant="text"
+                onClick={openEditSheet}
+                sx={{minWidth: 44, minHeight: '2.75rem', color: 'text.primary'}}>
                 수정
               </Button>
               <Button
-                variant="outlined"
+                variant="text"
+                color="error"
                 disabled={deleteFlow.isCounting}
                 onClick={requestDelete}
-                sx={{minHeight: '2.75rem', color: 'error.main', borderColor: 'error.main'}}>
+                sx={{minWidth: 44, minHeight: '2.75rem'}}>
                 삭제
               </Button>
             </>

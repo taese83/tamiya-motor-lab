@@ -178,6 +178,12 @@ export const theme = createTheme({
             textDecorationThickness: '2px',
           },
         }),
+        // v2.6 신설 — tertiary 파괴 톤. 위 `text` 오버라이드가 라임을 고정해 MUI 기본
+        // textError 색을 덮어버리므로, color="error"가 실제로 반영되려면 이 슬롯이 필요하다
+        // (없으면 [삭제]가 라임으로 렌더돼 안전한 주 행동처럼 보인다).
+        textError: ({ theme: t }) => ({
+          color: (t.vars ?? t).palette.error.main,
+        }),
       },
     },
     MuiIconButton: {

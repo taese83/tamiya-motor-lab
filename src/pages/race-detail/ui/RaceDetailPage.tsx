@@ -135,7 +135,8 @@ export function RaceDetailPage() {
         title={motor?.name ?? '레이스'}
         actions={
           motor !== null ? (
-            <Button variant="outlined" onClick={entry.openSheet} sx={{minHeight: '2.75rem'}}>
+            // v2.6: 화면의 주 행동 — 라임 contained(컷코너)로 위계를 명확히 한다
+            <Button variant="contained" onClick={entry.openSheet} sx={{minHeight: '2.75rem'}}>
               + 기록
             </Button>
           ) : undefined
