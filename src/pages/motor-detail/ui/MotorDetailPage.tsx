@@ -42,6 +42,54 @@ import type {PersistenceStatus} from '@shared/lib/persistence'
 // invalidation 소관이라 이 페이지가 별도 갱신하지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── v2.8 고정 셸 레이아웃 (하단 [측정] 고정 + 기록 목록만 스크롤) ─────────────
+//
+// 페이지 전체를 뷰포트 높이에 고정하고 기록 목록에만 overflow를 준다. 헤더·차트·[측정]은
+// 스크롤을 타지 않으므로 기록이 늘어도 [측정]이 화면 밖으로 밀리지 않는다.
+//
+// 높이 계산: <main>이 이미 탭 바 높이를 pb로 예약하므로 여기서 같은 값을 빼면 문서 스크롤이
+// 생기지 않는다(S1 MeasurePage와 동일 관례). 전역 배너[G]가 떠 있는 동안에는 그 높이만큼
+// 문서가 살짝 길어질 수 있는데, 이는 MeasurePage와 같은 기존 특성이고 목록 자체는 그대로
+// 내부 스크롤된다.
+const pageShellSx = {
+  display: 'flex',
+  flexDirection: 'column',
+  height: `calc(100dvh - ${layoutTokens.bottomNavHeight}px - ${layoutTokens.safeAreaBottom})`,
+} as const
+
+/** 스크롤을 타지 않는 상단 블록 — 알림·종류 칩·차트 */
+const fixedTopSx = {
+  px: 2,
+  pt: 2,
+  flexShrink: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 1.5,
+} as const
+
+/**
+ * 유일한 스크롤 영역 — 기록 목록.
+ * minHeight 0이 없으면 flex 자식이 콘텐츠 높이만큼 부풀어 overflow가 동작하지 않는다.
+ * overscrollBehavior contain — 목록 끝에서 문서·상위로 스크롤이 연쇄되지 않게 한다.
+ */
+const scrollAreaSx = {
+  px: 2,
+  py: 1.5,
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  overscrollBehaviorY: 'contain',
+} as const
+
+/** 하단 고정 액션 — 목록이 밑으로 지나가므로 헤어라인으로 면을 분리한다 */
+const footerSx = {
+  px: 2,
+  py: 1.5,
+  flexShrink: 0,
+  borderTop: '1px solid',
+  borderTopColor: 'divider',
+} as const
+
 // RootLayout Outlet context의 로컬 구조 선언 — pages는 app을 import할 수 없다
 // (FSD, app/routes/Routes.tsx RootOutletContext와 동일 구조 유지).
 interface ShellOutletContext {
@@ -149,6 +197,8 @@ export function MotorDetailPage() {
 
   return (
     <>
+      {/* v2.8 고정 셸 — 헤더·차트·[측정]은 고정, 기록 목록만 스크롤한다 */}
+      <Box sx={pageShellSx}>
       {/* [H] 화면 헤더 — [←] [h1 모터명] [수정][삭제] [ThemeToggle] */}
       <PageHeader
         onBack={handleBack}
@@ -182,7 +232,7 @@ export function MotorDetailPage() {
       />
 
       {corrupted ? (
-        <Box sx={{px: 2, py: 2}}>
+        <Box sx={scrollAreaSx}>
           <RecoveryPanel
             onRetry={shell.retryPersistence}
             retryPending={shell.persistenceRetryPending}
@@ -194,11 +244,11 @@ export function MotorDetailPage() {
           />
         </Box>
       ) : motorQuery.isPending ? (
-        <Typography color="text.secondary" sx={{px: 2, py: 2}}>
-          불러오는 중…
-        </Typography>
+        <Box sx={scrollAreaSx}>
+          <Typography color="text.secondary">불러오는 중…</Typography>
+        </Box>
       ) : motorQuery.isError ? (
-        <Box sx={{px: 2, py: 2}}>
+        <Box sx={scrollAreaSx}>
           <Alert
             severity="error"
             action={
@@ -216,67 +266,46 @@ export function MotorDetailPage() {
         </Box>
       ) : notFound || motor === null ? (
         // in-place not-found — URL 보존, 라우트 404 금지 (layout-spec §2.2)
-        <EmptyState
-          title="모터를 찾을 수 없습니다"
-          description="삭제되었거나 잘못된 주소입니다"
-          actionLabel="모터 목록으로"
-          onAction={() => {
-            void navigate('/motors', {replace: true})
-          }}
-        />
+        <Box sx={scrollAreaSx}>
+          <EmptyState
+            title="모터를 찾을 수 없습니다"
+            description="삭제되었거나 잘못된 주소입니다"
+            actionLabel="모터 목록으로"
+            onAction={() => {
+              void navigate('/motors', {replace: true})
+            }}
+          />
+        </Box>
       ) : (
-        <Box sx={{px: 2, py: 2, display: 'flex', flexDirection: 'column', gap: 1.5}}>
-          {deleteFlow.countError !== null && (
-            <Alert
-              severity="error"
-              action={
-                <Button color="inherit" size="small" onClick={deleteFlow.retryCount}>
-                  다시 시도
-                </Button>
-              }>
-              {deleteFlow.countError}
-            </Alert>
-          )}
+        <>
+          {/* ── 고정 영역: 알림 · 종류 칩 · 차트 (스크롤 대상 아님) ── */}
+          <Box sx={fixedTopSx}>
+            {deleteFlow.countError !== null && (
+              <Alert
+                severity="error"
+                action={
+                  <Button color="inherit" size="small" onClick={deleteFlow.retryCount}>
+                    다시 시도
+                  </Button>
+                }>
+                {deleteFlow.countError}
+              </Alert>
+            )}
 
-          {/* 왕복 수집 실패 고지 (v2.5) — 성공 위장 금지. 닫기 = slot 파기(고지의 원천 제거) */}
-          {measureFailed && (
-            <Alert severity="error" onClose={cancelRaceMeasure}>
-              측정값을 저장하지 못했습니다 — 다시 측정해 주세요
-            </Alert>
-          )}
+            {/* 왕복 수집 실패 고지 (v2.5) — 성공 위장 금지. 닫기 = slot 파기(고지의 원천 제거) */}
+            {measureFailed && (
+              <Alert severity="error" onClose={cancelRaceMeasure}>
+                측정값을 저장하지 못했습니다 — 다시 측정해 주세요
+              </Alert>
+            )}
 
-          <Box>
-            <MotorKindChip kind={motor.kind} />
-          </Box>
+            <Box>
+              <MotorKindChip kind={motor.kind} />
+            </Box>
 
-          {recordsQuery.isPending ? (
-            <Typography variant="body2" sx={{color: 'text.secondary'}}>
-              기록 불러오는 중…
-            </Typography>
-          ) : recordsQuery.isError ? (
-            // D-10: 읽기 실패는 오류로 표면화 — 빈 목록 위장 금지
-            <Alert
-              severity="error"
-              action={
-                <Button
-                  color="inherit"
-                  size="small"
-                  onClick={() => {
-                    void recordsQuery.refetch()
-                  }}>
-                  다시 시도
-                </Button>
-              }>
-              기록을 불러오지 못했습니다
-            </Alert>
-          ) : records === undefined || records.length === 0 ? (
-            // 기록 0건 — 안내 텍스트 블록 (오류 위장 금지). v2.5: 하단 [측정]으로 유도
-            <Typography variant="body2" sx={{color: 'text.secondary'}}>
-              아직 기록 없음 — 아래 [측정]으로 첫 기록을 수집하세요
-            </Typography>
-          ) : (
-            <>
-              {/* 차트는 추세 보조(aria-hidden) — canonical 데이터는 아래 기록 리스트 텍스트 */}
+            {/* 차트는 추세 보조(aria-hidden) — canonical 데이터는 아래 기록 리스트 텍스트.
+                기록이 있을 때만 렌더한다(0건에 빈 축만 남기지 않는다) */}
+            {records !== undefined && records.length > 0 && (
               <PanoLineChart
                 points={records.map(record => ({
                   id: record.id,
@@ -284,7 +313,38 @@ export function MotorDetailPage() {
                   panoHz: record.panoHz,
                 }))}
               />
-              {/* 기록 리스트 ≤10행 — 오래된 순 01부터(차트 X축과 정렬 일치, CD2-A1) */}
+            )}
+          </Box>
+
+          {/* ── 스크롤 영역: 기록 목록만 ── */}
+          <Box sx={scrollAreaSx}>
+            {recordsQuery.isPending ? (
+              <Typography variant="body2" sx={{color: 'text.secondary'}}>
+                기록 불러오는 중…
+              </Typography>
+            ) : recordsQuery.isError ? (
+              // D-10: 읽기 실패는 오류로 표면화 — 빈 목록 위장 금지
+              <Alert
+                severity="error"
+                action={
+                  <Button
+                    color="inherit"
+                    size="small"
+                    onClick={() => {
+                      void recordsQuery.refetch()
+                    }}>
+                    다시 시도
+                  </Button>
+                }>
+                기록을 불러오지 못했습니다
+              </Alert>
+            ) : records === undefined || records.length === 0 ? (
+              // 기록 0건 — 안내 텍스트 블록 (오류 위장 금지). 하단 고정 [측정]으로 유도
+              <Typography variant="body2" sx={{color: 'text.secondary'}}>
+                아직 기록 없음 — 아래 [측정]으로 첫 기록을 수집하세요
+              </Typography>
+            ) : (
+              // 기록 리스트 ≤10행 — 오래된 순 01부터(차트 X축과 정렬 일치, CD2-A1)
               <Box
                 component="ol"
                 sx={{listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 0.5}}>
@@ -314,25 +374,24 @@ export function MotorDetailPage() {
                   </Box>
                 ))}
               </Box>
-            </>
-          )}
+            )}
+          </Box>
 
           {/*
-            v2.5 하단 [측정] — 레이스 왕복과 동일 방식(S1 자동 확정 후 자동 복귀).
+            ── 하단 고정 [측정] (v2.8) — 기록이 늘어도 화면 밖으로 밀리지 않는다.
+            레이스 왕복과 동일 방식(S1 자동 확정 후 자동 복귀).
             기록 0건에서도 노출한다(첫 수집 진입점). primary contained 48px.
           */}
-          <Box sx={{mt: `${layoutTokens.sectionGap}px`}}>
-            <Button
-              variant="contained"
-              fullWidth
-              onClick={handleMeasure}
-              sx={{minHeight: 48}}>
+          <Box sx={footerSx}>
+            <Button variant="contained" fullWidth onClick={handleMeasure} sx={{minHeight: 48}}>
               측정
             </Button>
           </Box>
-        </Box>
+        </>
       )}
+      </Box>
 
+      {/* 시트·다이얼로그는 portal 렌더 — 고정 셸 밖에 둬 높이 계산에 끼어들지 않게 한다 */}
       {/* 수정 시트 — 닫힘 = 폼 파기, pending 중 닫힘 차단(single-flight) */}
       {motor !== null && (
         <MotorFormSheet

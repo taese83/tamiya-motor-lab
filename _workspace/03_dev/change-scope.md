@@ -225,3 +225,46 @@
 - **브라우저 한계 명시**: headless preview는 실제 오디오 입력이 없어 measuring에 도달하지 못한다
   (status='starting' → 기록 비활성). 따라서 카운트다운·안정대기·취소·최신값 캡처는 unit으로 검증하고,
   브라우저에서는 3버튼 렌더·라벨·비활성 시 탭 무시만 확인했다. 실기기 확인 필요 항목으로 남긴다.
+
+## v2.8 라운드 (2026-07-29 — 모터 상세 고정 셸: 하단 [측정] 고정 + 기록만 스크롤)
+
+### TARGET_BEHAVIOR
+모터 상세를 뷰포트 높이 고정 셸로 바꾼다. 헤더·종류 칩·차트·[측정]은 스크롤을 타지 않고,
+기록 목록만 내부 스크롤한다. 기록이 늘어도 [측정]이 화면 밖으로 밀리지 않는다.
+
+### 설계 판단
+- 높이는 `calc(100dvh - bottomNavHeight - safeAreaBottom)` — <main>이 이미 탭 바를 pb로 예약하므로
+  같은 값을 빼면 문서 스크롤이 생기지 않는다(S1 MeasurePage와 동일 관례를 따랐다).
+- 스크롤 컨테이너에 `minHeight: 0`이 필수다: flex 자식은 기본적으로 콘텐츠 높이만큼 부풀어
+  이것 없이는 overflow가 동작하지 않고 문서가 늘어난다.
+- `overscrollBehaviorY: contain` — 목록 끝에서 문서·상위로 스크롤이 연쇄되지 않게 한다.
+- 알림(삭제 count 오류·왕복 수집 실패)은 스크롤 영역이 아니라 고정 상단에 둔다 — 스크롤로
+  가려지면 놓칠 수 있다.
+- 차트는 기록 0건이면 렌더하지 않는다(빈 축만 남기지 않는다) — 기존 동작 유지.
+- 시트·다이얼로그는 고정 셸 밖에 둬 높이 계산에 끼어들지 않게 한다(portal 렌더).
+
+### ALLOWED_PATHS
+- `src/pages/motor-detail/ui/MotorDetailPage.tsx` (레이아웃 재구성 단독)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 모든 분기 유지: corrupted(RecoveryPanel)·loading·읽기 오류(D-10)·in-place not-found·성공
+- 기록 리스트 순서(오래된 순 01부터, 차트 X축과 정렬 일치 CD2-A1)·rolling 10
+- 44px 타깃·[측정] 왕복 동작(v2.5)·다크/라이트
+
+### NON_GOALS
+- 다른 화면(모터 목록·레이스 상세·측정 탭) 레이아웃 변경
+- 기록 목록 가상화·페이지네이션(rolling 10건 상한이라 불필요)
+- 차트도 스크롤 대상에 포함(요청은 "측정 기록만 스크롤")
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build 클린, vitest 40건 회귀 없음
+- 브라우저 실측(375×812): 문서 스크롤 없음(scrollHeight=clientHeight=812) · 목록 overflow auto ·
+  [측정]이 탭 바 위 12px에 고정 · 차트 표시
+- 브라우저 실측(375×600, 10건이 넘치는 높이): 목록 내부 스크롤 engaged(scrollTop 0→124,
+  10행까지 도달) · **[측정] top 484 → 484 불변** · 문서 scrollTop 0 유지
+- 타 화면 회귀 없음(모터 목록·레이스·측정 탭 정상 렌더)
+- 스크린샷 도구가 이 라운드에서 timeout으로 실패해 시각 캡처는 없다 — 스크롤·고정 동작은
+  위 좌표·치수 실측으로 검증했다(앱 콘솔 오류 0).
