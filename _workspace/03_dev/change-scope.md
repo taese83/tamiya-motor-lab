@@ -1229,3 +1229,48 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   - 파노 높은순: 415>380>335, 측정 없는 모터 뒤로 · 선택 영속(`mml-motor-sort-1`={sort:pano})
 - **미검증(마이크 필요)**: 게이지 미세조정(트랙 5px·레드라인 opacity 1·라벨 6.5px·간격 13)의
   measuring 실제 표시 — 대기 상태 렌더는 정상, 실기기 확인 대상
+
+---
+
+## v2.27 — 정렬 컨트롤 정제: 종류 필터와 동일 톤의 둥근 세그먼트 (실기기 피드백)
+
+### TARGET_BEHAVIOR
+- v2.26에서 정렬에 쓴 폼용 풀폭 SegmentControl(각진 0 모서리·48px·큰 라임 블록)이 바로 위
+  종류 필터(pill 칩 999·44px)와 **이질적·육중·촌스럽다**는 피드백.
+- 사용자 결정: "위 필터와 **동일한 크기**의 버튼 그룹, **왼쪽·오른쪽 바깥 모서리 라운딩**"
+  → iOS식 둥근 세그먼트로 정제(단일선택·3옵션 가시성은 유지).
+
+### 원인·해석
+- 앱은 의도적으로 **각진 편집 톤**(세그먼트·버튼 radius 0, 컷코너)이나 **종류 필터 칩만 pill(999)**.
+  정렬을 각진 세그먼트로 두니 필터와 톤이 어긋났다. 정렬 컨트롤을 칩과 같은 pill 언어로 맞춘다.
+- 공유 SegmentControl은 폼(종류 10택·등급 등)에서도 쓰이고 **체크 아이콘·formControlHeight(48)
+  ·borderless** 계약이 있다. 폼 사용처를 안 건드리게 **opt-in `rounded` prop**만 추가(기본 false).
+
+### 변경
+- `SegmentControl`에 `rounded?: boolean` 추가. true면:
+  - 그룹 `borderRadius: 999` + `overflow: hidden`, 첫 버튼은 좌측·끝 버튼은 우측 코너만 999
+    (안쪽 구분선은 직각 유지 — 둥근 세그먼트). 선택 bg가 둥근 모서리를 넘지 않게 클립.
+  - 버튼 높이 48→**44**로 낮춰 위 종류 필터 칩(minHeight 44)과 **동일한 크기**로 정합.
+- `MotorsPage` 정렬 컨트롤에 `rounded` 전달. 나머지(3옵션·영속·단일선택·onChange 계약)는 무변경.
+- 선택 3중 표시(라임 bg + weight 800 + 체크 아이콘)는 유지 — 색 단독 구분 금지(REQ-NFR-003)·
+  forced-colors 대응 계약 보존.
+
+### ALLOWED_PATHS
+- `src/shared/ui/segment-control/SegmentControl.tsx` (rounded prop 추가 — 순수 additive)
+- `src/pages/motors/ui/MotorsPage.tsx` (정렬 컨트롤에 rounded 전달)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- SegmentControl 기존 계약: allowDeselect·wrap·error·borderless·disabled·aria-label — 무변경
+- 폼 사용처(MotorKindSelect 등)는 rounded 기본 false라 시각·높이 불변 · 정렬 3옵션·영속·단일선택
+
+### NON_GOALS
+- 정렬 상호작용/로직 변경 · 폼 세그먼트 톤 변경 · 종류 필터 변경 · 체크 아이콘 제거(a11y 계약)
+
+### CHANGE_BUDGET
+- 신규 의존성 0 · 2파일(공용 prop 1 + 배선 1) · 로직/데이터 무변경(순수 시각)
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 85건
+- 브라우저(375px, 다크) `/motors`: 정렬 그룹 radius=칩 radius(999 pill), 첫 버튼 좌측만·끝 버튼
+  우측만 라운딩(999/0, 0/999), overflow hidden, **그룹 높이 44 = 칩 높이 44**로 정합.
+  정렬 전환 동작 정상(이름순 클릭→ko locale 재정렬), 필터×정렬 함께 동작.

@@ -23,6 +23,12 @@ export interface SegmentControlProps<T extends string> {
    * 옵션 사이 구분선만 남겨 2택 경계를 유지한다.
    */
   borderless?: boolean | undefined
+  /**
+   * v2.27(사용자): 목록 정렬처럼 폼 밖 리스트 컨트롤로 쓸 때 그룹 바깥 좌·우 모서리를
+   * 종류 필터 칩과 동일한 pill(999)로 라운딩해 톤을 맞춘다(앱 기본 세그먼트는 각진 0).
+   * 안쪽 구분선은 직각 유지 — iOS식 둥근 세그먼트. 폼 사용처는 기본값(false)이라 무변경.
+   */
+  rounded?: boolean | undefined
   'aria-describedby'?: string | undefined
   disabled?: boolean | undefined
 }
@@ -40,6 +46,7 @@ export function SegmentControl<T extends string>({
   wrap = null,
   error = false,
   borderless = false,
+  rounded = false,
   disabled = false,
   'aria-label': ariaLabel,
   'aria-describedby': ariaDescribedby,
@@ -58,6 +65,19 @@ export function SegmentControl<T extends string>({
       aria-describedby={ariaDescribedby}
       sx={[
         wrap === '2x2' && {flexWrap: 'wrap'},
+        // v2.27: pill 바깥 모서리 — 첫/끝 버튼의 바깥 코너만 둥글리고 안쪽 구분선은 직각 유지.
+        // overflow:hidden으로 선택 bg가 둥근 모서리를 넘지 않게 클립(칩과 동일한 999 radius).
+        rounded && {
+          borderRadius: 999,
+          overflow: 'hidden',
+          '& .MuiToggleButton-root': {
+            // 위 종류 필터 칩(minHeight 44)과 동일한 높이로 맞춘다(폼용 48 대신 — 사용자: "동일한 크기")
+            height: 44,
+            minHeight: 44,
+            '&:first-of-type': {borderTopLeftRadius: 999, borderBottomLeftRadius: 999},
+            '&:last-of-type': {borderTopRightRadius: 999, borderBottomRightRadius: 999},
+          },
+        },
         // FormField가 면을 소유할 때: 그룹을 꽉 채우고 외곽 테두리를 제거, 옵션 경계만 남긴다
         borderless && {
           width: '100%',

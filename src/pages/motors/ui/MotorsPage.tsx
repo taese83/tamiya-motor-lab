@@ -177,9 +177,11 @@ export function MotorsPage() {
             onClear={kindFilter.clear}
           />
 
-          {/* v2.26 정렬 — 최근 등록순(기본)·파노 높은순·이름순. 선택은 영속(재시작 유지) */}
+          {/* v2.26 정렬 — 최근 등록순(기본)·파노 높은순·이름순. 선택은 영속(재시작 유지).
+              v2.27: rounded — 위 종류 필터 칩과 동일한 pill 톤으로 세그먼트 바깥 모서리를 라운딩 */}
           <SegmentControl
             aria-label="모터 정렬"
+            rounded
             options={motorSort.options.map(o => ({value: o.key, label: o.label}))}
             value={motorSort.sort}
             onChange={next => {
