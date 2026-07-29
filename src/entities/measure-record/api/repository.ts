@@ -1,0 +1,91 @@
+import {MEASURE_RECORD_LIMIT} from '@shared/config/domain'
+import {DOMAIN_ERROR_MESSAGES, DomainError, fromZodError} from '@shared/lib/errors'
+import {mapStorageError, requireDb, withTransaction} from '@shared/lib/persistence'
+import {err} from '@shared/lib/result'
+
+import {collectMeasureInputSchema, parseMeasureRecordRow} from '../model/schema'
+
+import type {CollectMeasureInput, MeasureRecord} from '../model/schema'
+import type {Result} from '@shared/lib/result'
+
+// MeasureRecord command 1건 + query 1건 (api-schema v2 §0·§4.3·§5 — F6-M, 수집 전용 T-2).
+// update·개별 delete command는 존재하지 않는다 (T-2·RV-A1·INV-05).
+// motors store 접근은 entity 코드 import가 아닌 shared/lib/persistence 경유 store 접근이다
+// (state-contract 위임 계약 5). store·index 이름은 state-contract v2 표기(measureRecords·by-motorId).
+
+const BY_MOTOR_INDEX = 'by-motorId'
+
+/**
+ * INV-08 (v2): measuredAt 오름차순, 동률 시 id 오름차순 — 목록 query·rolling eviction 동일 비교자.
+ * 최신 파노 = 마지막 요소 (레이스 폼 자동 입력 R-3①은 이 결과의 select 파생 — AR-5).
+ */
+const byMeasuredAtAscIdAsc = (a: MeasureRecord, b: MeasureRecord): number => {
+  if (a.measuredAt !== b.measuredAt) return a.measuredAt < b.measuredAt ? -1 : 1
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+}
+
+/**
+ * command: collectMeasureRecord (M-6 [기록] · RV-1 레이스 왕복 자동 수집 — 같은 command).
+ * id=crypto.randomUUID(), measuredAt=now — command가 생성. 입력은 write-strict
+ * (panoHz F0_RANGE·소수 1자리 + 쌍 불변식 INV-06).
+ *
+ * rolling 10 (T-3·INV-20): motors+measureRecords **단일 트랜잭션**에서
+ * ① motor 존재 확인(부재 → not-found — FK와 add 같은 tx, INV-03)
+ * ② 해당 motorId 기존 건수 ≥ MEASURE_RECORD_LIMIT이면 최고령(measuredAt asc·동률 id asc)부터
+ *    초과분 삭제 ③ add — 중간 실패 시 삽입도 롤백, 11건 상태 관측 불가.
+ * postcondition: 해당 모터 건수 ≤ 10.
+ * 오류: validation · not-found · storage-unavailable · quota-exceeded · transaction-failed.
+ */
+export async function collectMeasureRecord(
+  input: CollectMeasureInput,
+): Promise<Result<MeasureRecord>> {
+  const parsed = collectMeasureInputSchema.safeParse(input)
+  if (!parsed.success) return err(fromZodError(parsed.error))
+
+  // 비-IDB 작업(id·시각 생성)은 tx 열기 전 완료 — auto-commit 방어 (위임 계약 2)
+  const record: MeasureRecord = {
+    id: crypto.randomUUID(),
+    motorId: parsed.data.motorId,
+    panoHz: parsed.data.panoHz,
+    rpm: parsed.data.rpm,
+    measuredAt: new Date().toISOString(),
+  }
+
+  return withTransaction(['motors', 'measureRecords'], 'readwrite', async tx => {
+    const motor = await tx.objectStore('motors').get(record.motorId)
+    if (motor === undefined) {
+      // FK 확인 실패 — abort로 무변경 보장, DomainError는 withTransaction이 그대로 보존한다
+      throw new DomainError('not-found', DOMAIN_ERROR_MESSAGES['not-found'])
+    }
+
+    const store = tx.objectStore('measureRecords')
+    const rows = await store.index(BY_MOTOR_INDEX).getAll(record.motorId)
+    const existing = rows.map(parseMeasureRecordRow).sort(byMeasuredAtAscIdAsc)
+
+    // eviction: 삽입 후 건수 > LIMIT이 되지 않도록 최고령부터 (count − (LIMIT−1))건 삭제
+    const excess = existing.length - (MEASURE_RECORD_LIMIT - 1)
+    for (const oldest of existing.slice(0, Math.max(0, excess))) {
+      await store.delete(oldest.id)
+    }
+
+    await store.add(record) // add — id 중복 시 실패 (INV-02)
+    return record
+  })
+}
+
+/**
+ * query: listMeasureRecordsByMotor (T-4 기록 표시 · T-5 라인 차트).
+ * by-motorId index → measuredAt 오름차순(동률 시 id 오름차순), 항상 ≤ MEASURE_RECORD_LIMIT(10).
+ * 최신 파노 = 마지막 요소 — 별도 query 없음(이중 원본 금지, AR-5).
+ * 실패는 DomainError throw — 빈 목록 위장 금지 (D-10).
+ */
+export async function listMeasureRecordsByMotor(motorId: string): Promise<MeasureRecord[]> {
+  const db = requireDb() // ready가 아니면 storage-unavailable throw
+  let rows: unknown[]
+  try {
+    rows = await db.getAllFromIndex('measureRecords', BY_MOTOR_INDEX, motorId)
+  } catch (e) {
+    throw mapStorageError(e)
+  }
+  return rows.map(parseMeasureRecordRow).sort(byMeasuredAtAscIdAsc)
+}

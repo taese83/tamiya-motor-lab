@@ -1,24 +1,53 @@
+import {useEffect} from 'react'
+
 import {Box, Typography} from '@mui/material'
+import {useQuery} from '@tanstack/react-query'
+import {useNavigate, useOutletContext} from 'react-router'
+
+import {motorQueries} from '@entities/motor'
+import {MotorPickSheet, useCollectFlow} from '@features/collect-measure'
 import {
-  startCapture,
-  stopCapture,
+  restartCaptureOnVisible,
   resumeAudio,
   retryPermission,
+  startCapture,
+  stopCapture,
+  stopCaptureForHidden,
   toggleSettingsHelp,
   useMeasureAnnouncement,
   useMeasureView,
 } from '@features/measure-session/model'
-import {MeasureActionDock, MeasureFigures} from '@features/measure-session/ui'
+import {MeasureActionDock, MeasureFigures, deriveMeasureAction} from '@features/measure-session/ui'
+import {useCreateMotor} from '@features/motor-management/api'
+import {MotorFormSheet} from '@features/motor-management/ui'
+import {
+  RaceMeasureStrip,
+  useRaceAutoCollect,
+  useRaceMeasureSlot,
+} from '@features/race-measure-handoff'
 import {MeasureStatusLabel} from '@shared/ui/measure-status-label'
 import {ThemeToggle} from '@shared/ui/theme-toggle'
-import {useEffect} from 'react'
-import {useNavigate} from 'react-router'
+
+import type {MotorPickItem} from '@features/collect-measure'
+import type {MeasureView} from '@features/measure-session/model'
+import type {MotorKind} from '@shared/config/domain'
+import type {PersistenceStatus} from '@shared/lib/persistence'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// S1 측정 ('/') — layout-spec §4 3단 골격(Z1/Z2/Z3) 조립 (component-spec §1.4).
-// 상태 6종 어느 전환에서도 존 높이·위치는 불변 — 바뀌는 것은 각 존 내부 내용뿐 (§4.1).
-// store 직접 구독은 이 페이지만 (component-spec §2.1).
+// S1 측정 ('/') v2 — 자동 시작(M-1)·연속 측정(M-3) 3존 조립 (layout-spec v2 §4).
+// Z1 상태 라벨 / Z2 수치 / Z3 단일 슬롯 액션 — 존 높이·위치는 상태 전환에도 불변(§4.1).
+// [기록] 수집 플로우(M-5/M-6)는 @features/collect-measure, 레이스 왕복(RV-1)은
+// @features/race-measure-handoff 소비 — store 직접 구독은 이 페이지만 (component-spec §2.1).
 // ─────────────────────────────────────────────────────────────────────────────
+
+// RootLayout Outlet context의 로컬 구조 선언 — pages는 app을 import할 수 없다
+// (FSD, app/routes/Routes.tsx RootOutletContext와 동일 구조 유지).
+interface ShellOutletContext {
+  persistenceStatus: PersistenceStatus | null
+  retryPersistence: () => void
+  persistenceRetryPending: boolean
+  resetPersistedData: () => Promise<boolean>
+}
 
 // S1의 h1은 visually-hidden "측정" — Z1 상태 라벨이 heading을 대체하지 않는다 (layout-spec §1).
 const visuallyHiddenSx = {
@@ -33,15 +62,37 @@ const visuallyHiddenSx = {
   border: 0,
 } as const
 
+// view 7종 → MeasureStatusLabel(measureStatusTokens) 키 매핑 — MeasureFigures.statusTokenKey와
+// 동일 규칙(component-spec v2 §2.3): starting·insecure·awaiting-gesture → 'idle'.
+function statusLabelKey(
+  view: MeasureView,
+): 'idle' | 'measuring' | 'weak-signal' | 'no-permission' | 'suspended' {
+  switch (view.status) {
+    case 'starting':
+    case 'insecure':
+    case 'awaiting-gesture':
+      return 'idle'
+    default:
+      return view.status
+  }
+}
+
 export function MeasurePage() {
   const view = useMeasureView()
   const announcement = useMeasureAnnouncement()
   const navigate = useNavigate()
+  const shell = useOutletContext<ShellOutletContext>()
+  const persistenceReady = shell.persistenceStatus?.status === 'ready'
 
-  // UX-A2: 라우트 이탈·백그라운드 전환 시 세션 종료 — stale 캡처 방지
+  // RV-1 왕복 slot — 존재 = 왕복 모드 (INV-21: [기록] 진입점 0개, deriveMeasureAction이 치환)
+  const slot = useRaceMeasureSlot()
+
+  // M-1 자동 시작 + 이탈 종료 + visibilitychange 배선 (UX-A2 — 배선은 페이지 소유 계약)
   useEffect(() => {
+    void startCapture()
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') stopCapture()
+      if (document.visibilityState === 'hidden') stopCaptureForHidden()
+      else void restartCaptureOnVisible()
     }
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
@@ -50,23 +101,73 @@ export function MeasurePage() {
     }
   }, [])
 
-  // H-5: handoff set은 세션이 stable 확정 전이 시점에 이미 수행(INV-14) —
-  // 페이지 CTA는 이동만 한다 (중복 set 금지, confidence·capturedAt은 세션 소유)
-  const handleCreateRecord = () => {
-    if (view.status !== 'stable') return
-    void navigate('/record/new')
+  // RV-1 왕복 자동 확정 — slot 없으면 훅 내부 no-op. isStable은 UI 상태가 아니라 내부 신호(M-3):
+  // 소비처는 이 트리거뿐이다. 성공/실패 모두 레이스로 복귀(결과 표시는 레이스 화면 소유),
+  // 측정 중 모터 삭제만 레이스 목록으로 replace 복귀.
+  useRaceAutoCollect({
+    isStable: view.status === 'measuring' ? view.isStable : false,
+    panoHz: view.status === 'measuring' ? view.panoHz : null,
+    rpm: view.status === 'measuring' ? view.rpm : null,
+    onOutcome: outcome => {
+      if (outcome.kind === 'motor-deleted') {
+        void navigate('/race', {replace: true})
+        return
+      }
+      void navigate(-1) // collected · collect-failed
+    },
+  })
+
+  // M-5/M-6 [기록] 수집 플로우 — 왕복 모드에서는 진입점이 없어 시트도 렌더하지 않는다
+  const flow = useCollectFlow()
+  const createMotor = useCreateMotor()
+  const summariesQuery = useQuery({
+    ...motorQueries.summaries(),
+    enabled: persistenceReady && slot === null,
+  })
+  const pickItems: MotorPickItem[] = (summariesQuery.data ?? []).map(summary => ({
+    id: summary.motor.id,
+    name: summary.motor.name,
+    kind: summary.motor.kind,
+    lastPanoHz: summary.lastMeasure?.panoHz ?? null,
+  }))
+
+  const action = deriveMeasureAction(
+    view,
+    slot === null ? null : {motorName: slot.motorName},
+    persistenceReady,
+  )
+
+  // [기록] 탭 시점 스냅샷 고정(SC2-A3·MR-2) — measuring 밖에서는 액션이 이미 disabled/치환
+  const handleRecord = () => {
+    if (view.status !== 'measuring') return
+    flow.open({panoHz: view.panoHz, rpm: view.rpm})
   }
 
-  // stable → 새 세션: 확정 잠금 해제 후 즉시 재캡처 (INV-14 slot clear는 dock 계약)
-  const handleRemeasure = () => {
-    stopCapture()
-    void startCapture()
+  // 행 이벤트는 id 기준 — 이름은 summaries에서 역참조해 flow에 전달 (토스트 문구 소유)
+  const handlePickSelect = (motorId: string) => {
+    const name = pickItems.find(item => item.id === motorId)?.name
+    if (name === undefined) return
+    flow.select(motorId, name)
+  }
+
+  // 모터 0개 → 등록 시트 교체(§3.2) — 등록 성공 시 그 모터로 즉시 수집
+  const handleRegisterSubmit = (values: {name: string; kind: MotorKind}) => {
+    createMotor.mutate(values, {
+      onSuccess: motor => {
+        flow.completeRegister({id: motor.id, name: motor.name})
+      },
+    })
+  }
+
+  const handleRegisterClose = () => {
+    if (createMotor.isPending) return // single-flight — 저장 중 닫기 금지
+    createMotor.reset()
+    flow.cancelRegister()
   }
 
   return (
     <Box
       sx={{
-        px: 2,
         display: 'flex',
         flexDirection: 'column',
         // RootLayout <main>의 탭 바 예약 padding(56px + safe-area)을 제외한 세로 공간을
@@ -77,7 +178,10 @@ export function MeasurePage() {
         측정
       </Typography>
 
-      {/* 테마 토글 — S1 우상단 고정, 수치 영역 밖 (design-system v2 §7.3) */}
+      {/* 왕복 모드 스트립 (component-spec §7.1) — slot 존재와 렌더가 동치(INV-21), 최상단 */}
+      {slot !== null && <RaceMeasureStrip motorName={slot.motorName} />}
+
+      {/* 테마 토글 — S1 우상단 고정, 수치 영역 밖 (design-system §7.3 — 기존 패턴 승계) */}
       <Box
         sx={{
           position: 'absolute',
@@ -88,31 +192,56 @@ export function MeasurePage() {
         <ThemeToggle />
       </Box>
 
-      {/* [Z1] 상태 라벨 존 — h 48px 고정 (라벨+색+아이콘 3요소 + sr 단일 채널) */}
-      <Box sx={{height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-        <MeasureStatusLabel status={view.status} announcement={announcement} />
+      <Box sx={{px: 2, flex: 1, display: 'flex', flexDirection: 'column'}}>
+        {/* [Z1] 상태 라벨 존 — h 48px 고정 (라벨+색+아이콘 3요소 + sr 단일 채널) */}
+        <Box sx={{height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+          <MeasureStatusLabel status={statusLabelKey(view)} announcement={announcement} />
+        </Box>
+
+        <Box sx={{flex: 1}} />
+
+        {/* [Z2] 수치 존 — 고정 높이는 MeasureFigures가 소유 (component-spec §2.4) */}
+        <MeasureFigures view={view} />
+
+        <Box sx={{flex: 1}} />
+
+        {/* [Z3] 액션 존 — 단일 슬롯 h56, action은 deriveMeasureAction 순수 산출 (§2.7) */}
+        <Box sx={{pb: 2}}>
+          <MeasureActionDock
+            action={action}
+            onRecord={handleRecord}
+            onActivate={() => void startCapture()}
+            onRetryPermission={() => void retryPermission()}
+            onToggleSettingsHelp={toggleSettingsHelp}
+            onResume={() => void resumeAudio()}
+            onBackToRace={() => void navigate(-1)}
+          />
+        </Box>
       </Box>
 
-      <Box sx={{flex: 1}} />
-
-      {/* [Z2] 수치 존 — 고정 높이(--s1-figure-h)는 MeasureFigures가 소유 (component-spec §2.4) */}
-      <MeasureFigures view={view} />
-
-      <Box sx={{flex: 1}} />
-
-      {/* [Z3] 액션 존 — [A] h56 + [B] h44 슬롯 예약은 dock이 소유 (component-spec §2.5) */}
-      <Box sx={{pb: 2}}>
-        <MeasureActionDock
-          view={view}
-          onActivate={() => void startCapture()}
-          onStop={stopCapture}
-          onCreateRecord={handleCreateRecord}
-          onRemeasure={handleRemeasure}
-          onRetryPermission={() => void retryPermission()}
-          onToggleSettingsHelp={toggleSettingsHelp}
-          onResume={() => void resumeAudio()}
-        />
-      </Box>
+      {/* 수집 시트 2종 — 왕복 모드에서는 진입점 0개라 렌더 자체를 생략 (INV-21) */}
+      {slot === null && (
+        <>
+          <MotorPickSheet
+            open={flow.pickOpen}
+            snapshot={flow.snapshot}
+            motors={pickItems}
+            pendingMotorId={flow.pendingMotorId}
+            errorMessage={flow.errorMessage}
+            onSelect={handlePickSelect}
+            onRequestRegister={flow.requestRegister}
+            onClose={flow.close}
+          />
+          <MotorFormSheet
+            open={flow.registerOpen}
+            mode="create"
+            pending={createMotor.isPending}
+            errorMessage={createMotor.isError ? createMotor.error.message : null}
+            onSubmit={handleRegisterSubmit}
+            onClose={handleRegisterClose}
+          />
+        </>
+      )}
     </Box>
   )
 }

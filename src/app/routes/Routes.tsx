@@ -6,14 +6,18 @@ import {
   createBrowserRouter,
   Link,
   Outlet,
+  redirect,
   ScrollRestoration,
+  useLocation,
   useMatches,
   useNavigate,
 } from 'react-router'
 
-import {layoutTokens} from '@app/theme'
+import {layoutTokens, motionTokens} from '@app/theme'
+import {measureRecordSchema} from '@entities/measure-record'
 import {motorSchema} from '@entities/motor'
-import {runRecordSchema} from '@entities/run-record'
+import {raceRecordSchema} from '@entities/race-record'
+import {cancelRaceMeasure} from '@features/race-measure-handoff'
 import {config} from '@shared/config'
 import {getPersistenceStatus, initPersistence, resetAllData} from '@shared/lib/persistence'
 import {MicIcon} from '@shared/ui/icons'
@@ -25,7 +29,9 @@ import type {IconProps} from '@shared/ui/icons'
 import type {ReactElement} from 'react'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// layout-spec.md §2.1~§2.3 라우팅 계약 구현.
+// layout-spec v2 §2 라우팅 계약 구현 — 측정('/')·모터('/motors')·레이스('/race')·
+// 레이스 상세('/race/:motorId' 스택)·'/guide' → '/race' redirect·'*' 404.
+// v2 제거 라우트: '/record/new'(S2 폐지 — [기록] 수집 팝업으로 대체)·'/motors/:id'.
 // 문서상 파일 배치는 app/routes/router.tsx + app/layouts/* + app/ui/*지만, 본 하네스의
 // ownership 경계상 라우팅은 이 파일(Routes.tsx)에 둔다 — RootLayout·RootErrorFallback·
 // BottomTabBar·GlobalPersistenceBanner도 여기에 함께 있다.
@@ -34,11 +40,11 @@ import type {ReactElement} from 'react'
 // pages는 app을 import할 수 없으므로(FSD) useOutletContext가 유일한 전달 경로다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// handle 메타 — document.title·하단 탭 활성·탭 바 표시를 결정한다 (layout-spec §2.3)
+// handle 메타 — document.title·하단 탭 활성을 결정한다 (layout-spec §2.3).
+// v2: hideTabBar 폐지 — 전 화면이 탭 바를 유지한다 ('/record/new' 제거).
 export interface RouteHandle {
   title: string
-  tab?: 'measure' | 'motors' | 'guide' // 하단 탭 활성 매핑 (prefix 아님 — handle이 명시)
-  hideTabBar?: boolean // true면 탭 바 대신 화면 소유 하단 도크 (/record/new)
+  tab?: 'measure' | 'motors' | 'race' // 하단 탭 활성 매핑 (prefix 아님 — handle이 명시)
 }
 
 /**
@@ -56,9 +62,13 @@ export interface RootOutletContext {
   resetPersistedData: () => Promise<boolean>
 }
 
-// 부팅 full-scan 의미 검증기 주입 (SC-A9 · AD-7) — rehydrate(read-lenient) 스키마.
+// 부팅 full-scan 의미 검증기 주입 (SC-A9 · AD-7) — rehydrate(read-lenient) 스키마 3종.
 // shared/lib/persistence는 entities를 import할 수 없어 app 부트스트랩이 주입한다.
-const SCAN_VALIDATION = {motor: motorSchema, record: runRecordSchema}
+const SCAN_VALIDATION = {
+  motor: motorSchema,
+  measureRecord: measureRecordSchema,
+  raceRecord: raceRecordSchema,
+}
 
 // [G] 전역 배너 (layout-spec §8) — persistence 3-상태. 부팅 시 1회 결정되는 지속형 배너 —
 // 'ready'/init 진행 중(null)이면 null. corrupt의 복구 진입점은 데이터 화면 본문 RecoveryPanel.
@@ -117,10 +127,11 @@ function BoltIcon({size = 24}: IconProps) {
   )
 }
 
+// v2 탭 3종 — 측정(mic)·모터(list)·레이스(bolt) (design-system §9)
 const TAB_ITEMS = [
   {key: 'measure', label: '측정', to: '/', Icon: MicIcon},
-  {key: 'motors', label: '이력', to: '/motors', Icon: ListIcon},
-  {key: 'guide', label: '가이드', to: '/guide', Icon: BoltIcon},
+  {key: 'motors', label: '모터', to: '/motors', Icon: ListIcon},
+  {key: 'race', label: '레이스', to: '/race', Icon: BoltIcon},
 ] as const satisfies readonly {
   key: NonNullable<RouteHandle['tab']>
   label: string
@@ -128,8 +139,10 @@ const TAB_ITEMS = [
   Icon: (props: IconProps) => ReactElement
 }[]
 
-// [N] 하단 탭 바 (component-spec §1.4 BottomTabBar) — 아이콘+라벨 병행(디자인 §9 mic/list/bolt),
+// [N] 하단 탭 바 (component-spec §1.4 BottomTabBar) — 아이콘+라벨 병행(mic/list/bolt),
 // showLabels로 비활성 탭 라벨도 상시 노출한다 (아이콘 단독 구분 금지).
+// 탭 클릭 = 왕복 파기 계약(RV-1): 왕복 중 하단 탭 이탈이면 slot을 파기한다 —
+// cancelRaceMeasure는 멱등이라 slot이 없으면 no-op (조건 분기 불요).
 function BottomTabBar({active}: {active?: RouteHandle['tab']}) {
   return (
     <Box
@@ -148,6 +161,9 @@ function BottomTabBar({active}: {active?: RouteHandle['tab']}) {
             icon={<item.Icon size={24} />}
             component={Link}
             to={item.to}
+            onClick={() => {
+              cancelRaceMeasure()
+            }}
             aria-current={active === item.key ? 'page' : undefined}
           />
         ))}
@@ -197,6 +213,7 @@ export function RootErrorFallback() {
 // ToastHost(성공 토스트 단일 host — component-spec §3.9)를 여기 1곳에 mount한다.
 export function RootLayout() {
   const matches = useMatches()
+  const location = useLocation()
   const handle = matches.at(-1)?.handle as RouteHandle | undefined
   const title = handle?.title
 
@@ -210,6 +227,9 @@ export function RootLayout() {
   const [persistenceStatus, setPersistenceStatus] = useState<PersistenceStatus | null>(() =>
     getPersistenceStatus(),
   )
+  // RV-3 recreated 1회성 고지 — Toast는 showSuccess 전용(성공 확인)이라 부적합,
+  // StatusBanner를 부팅 1회 노출하고 [닫기]로 해제한다 (지속형 3-상태 배너와 별개).
+  const [recreatedNoticeOpen, setRecreatedNoticeOpen] = useState(false)
   const [retryPending, setRetryPending] = useState(false)
   const retryInFlightRef = useRef(false)
 
@@ -218,7 +238,9 @@ export function RootLayout() {
   useEffect(() => {
     let cancelled = false
     void initPersistence({validation: SCAN_VALIDATION}).then(status => {
-      if (!cancelled) setPersistenceStatus(status)
+      if (cancelled) return
+      setPersistenceStatus(status)
+      if (status.status === 'ready' && status.detail === 'recreated') setRecreatedNoticeOpen(true)
     })
     return () => {
       cancelled = true
@@ -253,7 +275,6 @@ export function RootLayout() {
     return true
   }, [queryClient])
 
-  const showTabBar = !handle?.hideTabBar
   const outletContext: RootOutletContext = {
     persistenceStatus,
     retryPersistence,
@@ -283,6 +304,16 @@ export function RootLayout() {
         본문으로 건너뛰기
       </Box>
       <GlobalPersistenceBanner status={persistenceStatus} />
+      {recreatedNoticeOpen && (
+        <StatusBanner
+          tone="warning"
+          message="앱 데이터 형식이 바뀌어 저장소를 새로 준비했습니다 — 이전 기록은 초기화되었습니다"
+          actionLabel="닫기"
+          onAction={() => {
+            setRecreatedNoticeOpen(false)
+          }}
+        />
+      )}
       <Box
         component="main"
         id="main"
@@ -290,28 +321,42 @@ export function RootLayout() {
           maxWidth: layoutTokens.contentMaxWidth,
           mx: 'auto',
           minHeight: '100dvh',
-          // 탭 바(fixed) 높이 예약 — hideTabBar 화면은 화면 소유 하단 도크가 자기 높이를 예약한다
-          pb: showTabBar
-            ? `calc(${layoutTokens.bottomNavHeight}px + ${layoutTokens.safeAreaBottom})`
-            : layoutTokens.safeAreaBottom,
+          // 탭 바(fixed) 높이 예약 — v2는 전 화면 탭 바 유지 (hideTabBar 폐지)
+          pb: `calc(${layoutTokens.bottomNavHeight}px + ${layoutTokens.safeAreaBottom})`,
         }}>
-        {/* 부팅 init 완료 전(null)에는 페이지를 렌더하지 않는다 — full-scan 예산 <500ms */}
-        {persistenceStatus !== null && <Outlet context={outletContext} />}
+        {/*
+          OPTION-M1 페이지 전환 페이드 — pathname key로 wrapper를 리마운트해 enter 페이드 1회.
+          토큰 관례(motionTokens.enterMs — OPTION-M1 페이드 지정 토큰)·easeStandard,
+          prefers-reduced-motion: reduce면 애니메이션 없음(즉시 표시).
+        */}
+        <Box
+          key={location.pathname}
+          sx={{
+            '@keyframes mml-route-fade': {
+              from: {opacity: 0},
+              to: {opacity: 1},
+            },
+            animation: `mml-route-fade ${motionTokens.enterMs}ms ${motionTokens.easeStandard} both`,
+            '@media (prefers-reduced-motion: reduce)': {animation: 'none'},
+          }}>
+          {/* 부팅 init 완료 전(null)에는 페이지를 렌더하지 않는다 — full-scan 예산 <500ms */}
+          {persistenceStatus !== null && <Outlet context={outletContext} />}
+        </Box>
       </Box>
-      {showTabBar && <BottomTabBar active={handle?.tab} />}
+      <BottomTabBar active={handle?.tab} />
       <ScrollRestoration />
     </ToastHost>
   )
 }
 
-// 라우팅 맵 (layout-spec §2.1/§2.3 — 본 테이블이 계약 전체).
+// 라우팅 맵 (layout-spec v2 §2.1/§2.3 — 본 테이블이 계약 전체).
 // - 각 페이지 모듈은 lazy route 규약으로 Component를 named export 한다:
 //   `export {MeasurePage as Component}` (layout-spec §2.3).
-// - 라우트 분할 경계는 layout-spec §2.3이 지정한 페이지 모듈 단위가 전부다 — 임의 분할 금지.
-// - loader 미사용 — 읽기는 전부 react-query(AD-4a)가 페이지 내부 소유, 라우터는 내비게이션만
-//   담당한다 (layout-spec §0).
-// - '/motors/:id'의 미존재 id는 라우트 404가 아니라 S4 화면 내 in-place not-found로 처리한다
-//   (layout-spec §2.2) — '*' splat은 진짜 미등록 경로 전용이며 URL을 보존한 채 제자리 렌더한다.
+// - 라우트 분할 경계는 페이지 모듈 단위가 전부다 — 임의 분할 금지.
+// - loader 미사용('/guide' redirect 제외) — 읽기는 전부 react-query가 페이지 내부 소유,
+//   라우터는 내비게이션만 담당한다 (layout-spec §0).
+// - '/race/:motorId'의 미존재 id는 라우트 404가 아니라 화면 내 in-place 처리 — '*' splat은
+//   진짜 미등록 경로 전용이며 URL을 보존한 채 제자리 렌더한다.
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -320,29 +365,29 @@ export const router = createBrowserRouter([
     ErrorBoundary: RootErrorFallback,
     children: [
       {
-        index: true, // S1 측정
+        index: true, // S1 측정 (자동 시작·연속 측정 v2)
         lazy: () => import('@pages/measure'),
         handle: {title: '측정', tab: 'measure'} satisfies RouteHandle,
       },
       {
-        path: 'motors', // S3 이력·모터 목록
+        path: 'motors', // 모터 목록·관리
         lazy: () => import('@pages/motors'),
-        handle: {title: '이력', tab: 'motors'} satisfies RouteHandle,
+        handle: {title: '모터', tab: 'motors'} satisfies RouteHandle,
       },
       {
-        path: 'motors/:id', // S4 모터 상세·이력 (스택) — 이력 탭 활성 유지
-        lazy: () => import('@pages/motor-detail'),
-        handle: {title: '모터 상세', tab: 'motors'} satisfies RouteHandle,
+        path: 'race', // 레이스 진입 목록
+        lazy: () => import('@pages/race'),
+        handle: {title: '레이스', tab: 'race'} satisfies RouteHandle,
       },
       {
-        path: 'record/new', // S2 기록 입력 (스택·작업) — 탭 바 숨김, [저장] 도크 대체
-        lazy: () => import('@pages/record-new'),
-        handle: {title: '기록 입력', hideTabBar: true} satisfies RouteHandle,
+        path: 'race/:motorId', // 레이스 상세 (스택) — 레이스 탭 활성 유지
+        lazy: () => import('@pages/race-detail'),
+        handle: {title: '레이스 기록', tab: 'race'} satisfies RouteHandle,
       },
       {
-        path: 'guide', // S5 전압 가이드
-        lazy: () => import('@pages/guide'),
-        handle: {title: '가이드', tab: 'guide'} satisfies RouteHandle,
+        // 구 '/guide' 진입(북마크 등) — 레이스로 흡수 (Component 없음, 항상 redirect)
+        path: 'guide',
+        loader: () => redirect('/race'),
       },
       {
         path: '*', // 클라이언트 404 — 탭 바 유지(활성 탭 없음), URL 보존

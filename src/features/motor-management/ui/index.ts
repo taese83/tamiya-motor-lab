@@ -1,10 +1,12 @@
-// motor-management ui segment public API (component-builder 소유).
-// useMotorDeleteFlow/useRecordDeleteFlow(model 조립 훅)는 후속 owner가 추가한다.
-// 참고: MotorListItem·GradeChip은 component-spec §1.2에서 entities/motor/ui 소유였으나
-// 본 wave 소유 경계(entities 금지)에 따라 이 slice에 배치 — 이관 여부는 entity owner 판단.
+// motor-management ui segment public API (v2 — component-spec v2 §5).
+// GradeChip·MotorListItem(v1)은 제거 대상 — export하지 않는다(물리 삭제는 오케스트레이터 소관).
 export {MotorFormSheet} from './MotorFormSheet'
 export type {MotorFormSheetProps, MotorFormValues} from './MotorFormSheet'
-export {MotorListItem} from './MotorListItem'
-export type {MotorListItemProps, MotorSummaryView} from './MotorListItem'
-export {GradeChip} from './GradeChip'
-export type {GradeChipProps} from './GradeChip'
+export {MotorKindSelect} from './MotorKindSelect'
+export type {MotorKindSelectProps} from './MotorKindSelect'
+export {MotorList} from './MotorList'
+export type {MotorListProps} from './MotorList'
+export {MotorRow} from './MotorRow'
+export type {MotorRowProps} from './MotorRow'
+export {PanoLineChart} from './PanoLineChart'
+export type {PanoLineChartPoint, PanoLineChartProps} from './PanoLineChart'

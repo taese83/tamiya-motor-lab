@@ -27,3 +27,35 @@ export function formatVoltage(voltage: number): string {
 export function formatVoltageRange(min: number, max: number): string {
   return `${min.toFixed(1)} ~ ${max.toFixed(1)} V`
 }
+
+// ── v2 신설 (component-spec v2 §1.5) ─────────────────────────────────────────
+
+/** 파노 주지표(히어로): 소수 1자리·단위 없음 — `309 → "309.0"` (단위 "Hz"는 히어로 단위 행 별도) */
+export function formatPanoValue(panoHz: number): string {
+  return panoHz.toFixed(1)
+}
+
+/** 랩타임: ms → 초 소수 2자리 + "s" — `32450 → "32.45s"` (저장은 ms 정수, 표시만 초) */
+export function formatLapTimeSec(lapTimeMs: number): string {
+  return `${(lapTimeMs / 1000).toFixed(2)}s`
+}
+
+// Intl.DateTimeFormat 파생 — 로케일/타임존 규칙은 Intl에 위임하고 구분자만 조립한다.
+// 인스턴스는 모듈 스코프 1회 생성(위 rpmFormatter와 동일 근거).
+const dateTimeShortFormatter = new Intl.DateTimeFormat('ko-KR', {
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
+/** 차트 X축·기록 행 일시: ISO(UTC) → 로컬 "MM-DD HH:mm" — `"2026-07-26T00:11:00.000Z" → "07-26 09:11"` */
+export function formatDateTimeShort(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return EM_DASH // 방어 — rehydrate 검증 통과 데이터에선 미발생
+  const parts = dateTimeShortFormatter.formatToParts(date)
+  const part = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find(p => p.type === type)?.value ?? ''
+  return `${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`
+}

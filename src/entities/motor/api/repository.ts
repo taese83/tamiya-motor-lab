@@ -1,66 +1,79 @@
 import {z} from 'zod'
 
 import {DOMAIN_ERROR_MESSAGES, DomainError, fromZodError} from '@shared/lib/errors'
-import {
-  RECORDS_BY_MOTOR_INDEX,
-  mapStorageError,
-  requireDb,
-  withTransaction,
-} from '@shared/lib/persistence'
+import {mapStorageError, requireDb, withTransaction} from '@shared/lib/persistence'
 import {err} from '@shared/lib/result'
+import {panoHzStoredSchema} from '@shared/lib/schema/pano'
+import {RACE_RESULTS} from '@shared/config/domain'
 
-import {createMotorInputSchema, motorSchema, parseMotorRow, updateMotorPatchSchema} from '../model/schema'
+import {
+  createMotorInputSchema,
+  motorSchema,
+  parseMotorRow,
+  reorderMotorsInputSchema,
+  updateMotorPatchSchema,
+} from '../model/schema'
 
-import type {CreateMotorInput, Motor, UpdateMotorPatch} from '../model/schema'
+import type {CreateMotorInput, Motor, ReorderMotorsInput, UpdateMotorPatch} from '../model/schema'
+import type {MotorSummary, MotorSummaryMeasure, MotorSummaryRace} from '../model/types'
 import type {Result} from '@shared/lib/result'
 
-// Motor command 3건 + query 3건 (api-schema §0·§4.2·§5 — F5/F7).
+// Motor command 4건 + query 4건 (api-schema v2 §0·§4.2·§5 — F5).
 // 채널 규약: command는 Result<T, DomainError> 봉투, query는 성공 값 직접 반환 + DomainError throw.
-// deleteMotorCascade·countRecordsByMotor의 records store 접근은 entity 코드 import가 아닌
-// shared/lib/persistence 경유 store 접근이다 (state-contract 위임 1 계약 5 — entity 간 import 금지 유지).
+// countRecordsByMotor·listMotorSummaries·deleteMotorCascade의 record store 접근은
+// entity 코드 import가 아닌 shared/lib/persistence 경유 store 접근이다 (state-contract 위임 계약 5).
+// store·index 이름은 state-contract v2 §Storage Schema 표기(motors/measureRecords/raceRecords·by-motorId).
+
+const BY_MOTOR_INDEX = 'by-motorId'
 
 /**
- * INV-08: createdAt 내림차순, 동률 시 id 사전순 오름차순 — 모든 목록 query 동일 비교자.
- * (entity 간 import 금지로 run-record 쪽과 각자 보유 — shared/lib 승격 후보로 보고됨)
+ * INV-08 (v2): motors는 sortOrder 오름차순 — 동률 시 createdAt·id 오름차순
+ * (정상 상태에선 INV-19로 동률 없음 — 방어적 2차 키).
  */
-const byCreatedAtDescIdAsc = (a: {createdAt: string; id: string}, b: {createdAt: string; id: string}): number => {
-  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1
+const bySortOrderAsc = (a: Motor, b: Motor): number => {
+  if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 }
 
 /**
- * command: createMotor (REQ-F-003).
- * id=crypto.randomUUID(), createdAt=updatedAt=now — command가 생성, 호출자 지정 불가 (FP-A3).
+ * command: createMotor (T-1).
+ * id=crypto.randomUUID(), createdAt=updatedAt=now — command가 생성, 호출자 지정 불가.
+ * sortOrder = 현재 max+1(리스트 끝 추가 — AR-1, 빈 목록이면 0). max 산출과 add가 같은 tx —
+ * INV-19(연속성)는 cross-tab 직렬화로 성립.
  * 오류: validation · storage-unavailable · quota-exceeded · transaction-failed.
  */
 export async function createMotor(input: CreateMotorInput): Promise<Result<Motor>> {
   const parsed = createMotorInputSchema.safeParse(input)
   if (!parsed.success) return err(fromZodError(parsed.error))
 
-  // 비-IDB 작업(id·시각 생성)은 tx 열기 전 완료 — auto-commit 방어 (위임 1 계약 2)
+  // 비-IDB 작업(id·시각 생성)은 tx 열기 전 완료 — auto-commit 방어 (위임 계약 2)
   const now = new Date().toISOString()
-  const motor: Motor = {
+  const base = {
     id: crypto.randomUUID(),
     name: parsed.data.name,
-    statusGrade: parsed.data.statusGrade,
-    // undefined 필드는 IndexedDB에 저장하지 않는다 ('' → 생략 정규화 포함, api-schema §2.1)
-    ...(parsed.data.statusMemo !== undefined ? {statusMemo: parsed.data.statusMemo} : {}),
+    kind: parsed.data.kind,
     createdAt: now,
     updatedAt: now,
   }
 
   return withTransaction(['motors'], 'readwrite', async tx => {
-    await tx.objectStore('motors').add(motor) // add — id 중복 시 실패 (INV-01)
+    const store = tx.objectStore('motors')
+    const rows = await store.getAll()
+    const maxOrder = rows.reduce<number>((max, row) => {
+      const motor = parseMotorRow(row)
+      return motor.sortOrder > max ? motor.sortOrder : max
+    }, -1)
+    const motor: Motor = {...base, sortOrder: maxOrder + 1}
+    await store.add(motor) // add — id 중복 시 실패 (INV-01)
     return motor
   })
 }
 
 /**
- * command: updateMotor (REQ-F-003).
- * patch는 편집 필드(name·statusGrade·statusMemo)만 — 구조 필드는 타입에서 배제 + 런타임 재검증.
- * postcondition: id·createdAt 불변, updatedAt만 추가 갱신 (INV-04).
- * statusMemo 키가 patch에 존재하고 값이 undefined(빈 문자열 정규화 포함)면 메모 제거,
- * 키 자체가 없으면 무변경 — null vs 생략 규칙 (api-schema §2.1).
+ * command: updateMotor (T-1).
+ * patch는 편집 필드(name·kind)만 — sortOrder(reorderMotors 전용)·구조 필드는 타입에서 배제 + 런타임 재검증.
+ * postcondition: id·createdAt·sortOrder 불변, updatedAt만 추가 갱신 (INV-04).
  * 오류: validation · not-found(동시 탭 선삭제 — C-8) · storage-unavailable · quota-exceeded ·
  * transaction-failed · data-corrupt(read 경계).
  */
@@ -70,7 +83,6 @@ export async function updateMotor(id: string, patch: UpdateMotorPatch): Promise<
   const patchParsed = updateMotorPatchSchema.safeParse(patch)
   if (!patchParsed.success) return err(fromZodError(patchParsed.error))
 
-  const memoKeyPresent = Object.prototype.hasOwnProperty.call(patch, 'statusMemo')
   const updatedAt = new Date().toISOString()
 
   return withTransaction(['motors'], 'readwrite', async tx => {
@@ -83,11 +95,7 @@ export async function updateMotor(id: string, patch: UpdateMotorPatch): Promise<
 
     const next: Motor = {...current, updatedAt}
     if (patchParsed.data.name !== undefined) next.name = patchParsed.data.name
-    if (patchParsed.data.statusGrade !== undefined) next.statusGrade = patchParsed.data.statusGrade
-    if (memoKeyPresent) {
-      if (patchParsed.data.statusMemo === undefined) delete next.statusMemo
-      else next.statusMemo = patchParsed.data.statusMemo
-    }
+    if (patchParsed.data.kind !== undefined) next.kind = patchParsed.data.kind
 
     // postcondition 보증 — merge 결과가 엔티티 계약을 만족하는지 write 직전 재검증
     const validated = motorSchema.safeParse(next)
@@ -99,32 +107,93 @@ export async function updateMotor(id: string, patch: UpdateMotorPatch): Promise<
 }
 
 /**
- * command: deleteMotorCascade (REQ-ST-007, CP-3).
- * motors+records 단일 트랜잭션 — 완료 후 dangling reference 0건(INV-03), abort 시 무변경(INV-12).
- * 삭제 건수는 tx 내 index 재조회 실측치 — confirm 표시 n이 stale이어도 잔존 없음.
- * 대상 부재 시 멱등 성공 {deletedRecordCount:0} (SC-A4 baseline 확정, checkpoint-phase2 —
- * LWW 수렴, 잔존 dangling 기록도 index 기준 정리되는 self-healing).
- * confirm("기록 n건이 함께 삭제됩니다")은 호출 feature 책임.
+ * command: deleteMotorCascade (cascade — Measure+Race).
+ * motors+measureRecords+raceRecords **3-store 단일 트랜잭션** — 완료 후 dangling reference 0건(INV-03),
+ * abort 시 무변경(INV-12). 삭제 건수는 tx 내 index 재조회 실측치(measure+race 합산) —
+ * confirm 표시 n·m이 stale이어도 잔존 없음.
+ * ④ compaction: 삭제 대상보다 큰 sortOrder 전건 −1 — 잔존 모터 sortOrder 연속(INV-19).
+ * 대상 부재 → not-found (api-schema §4.2). confirm(n·m 분리 고지, D-1)은 호출 feature 책임.
  */
 export async function deleteMotorCascade(id: string): Promise<Result<{deletedRecordCount: number}>> {
   const idParsed = z.uuid().safeParse(id)
   if (!idParsed.success) return err(fromZodError(idParsed.error))
 
-  return withTransaction(['motors', 'records'], 'readwrite', async tx => {
-    const records = tx.objectStore('records')
-    const keys = await records.index(RECORDS_BY_MOTOR_INDEX).getAllKeys(idParsed.data)
-    for (const key of keys) {
-      await records.delete(key)
+  return withTransaction(['motors', 'measureRecords', 'raceRecords'], 'readwrite', async tx => {
+    const motors = tx.objectStore('motors')
+    const targetRow = await motors.get(idParsed.data)
+    if (targetRow === undefined) {
+      throw new DomainError('not-found', DOMAIN_ERROR_MESSAGES['not-found'])
     }
-    await tx.objectStore('motors').delete(idParsed.data)
-    return {deletedRecordCount: keys.length}
+    const target = parseMotorRow(targetRow)
+
+    const measures = tx.objectStore('measureRecords')
+    const measureKeys = await measures.index(BY_MOTOR_INDEX).getAllKeys(idParsed.data)
+    for (const key of measureKeys) {
+      await measures.delete(key)
+    }
+
+    const races = tx.objectStore('raceRecords')
+    const raceKeys = await races.index(BY_MOTOR_INDEX).getAllKeys(idParsed.data)
+    for (const key of raceKeys) {
+      await races.delete(key)
+    }
+
+    await motors.delete(idParsed.data)
+
+    // sortOrder compaction — 같은 tx (INV-19: gap 0건)
+    const remaining = await motors.getAll()
+    for (const row of remaining) {
+      const motor = parseMotorRow(row)
+      if (motor.sortOrder > target.sortOrder) {
+        await motors.put({...motor, sortOrder: motor.sortOrder - 1})
+      }
+    }
+
+    return {deletedRecordCount: measureKeys.length + raceKeys.length}
   })
 }
 
 /**
- * query: listMotors (REQ-F-003/005) — S2/S5 모터 선택 리스트 원본.
- * 정렬 INV-08. "최근 사용순"은 summaries 파생 계산 소관 (FP-A1).
- * 실패는 DomainError throw — 빈 목록 위장 금지 (D-10).
+ * command: reorderMotors (T-6 — sortOrder의 유일 진입점).
+ * motors 단일 트랜잭션: ① 전건 read ② 순열 실측 검증(개수 일치·전건 존재·중복 없음 — 불일치 시
+ * abort ⇒ 무변경, 'permutation' 실패: 동시 탭 add/delete 경합 감지 계기. UI는 목록 refetch 후
+ * 재시도 안내) ③ 전 행 sortOrder = 배열 인덱스(0..n−1) 재부여. updatedAt 미갱신(AR-3 — 배치 메타).
+ * 오류: validation(permutation 포함) · storage-unavailable · transaction-failed.
+ */
+export async function reorderMotors(input: ReorderMotorsInput): Promise<Result<void>> {
+  const parsed = reorderMotorsInputSchema.safeParse(input)
+  if (!parsed.success) return err(fromZodError(parsed.error))
+  const orderedIds = parsed.data.orderedIds
+
+  return withTransaction(['motors'], 'readwrite', async tx => {
+    const store = tx.objectStore('motors')
+    const rows = await store.getAll()
+    const motors = rows.map(parseMotorRow)
+
+    // 집합 동일성 검증 — set(orderedIds) === set(현재 id) (SO-2)
+    const idSet = new Set(orderedIds)
+    const isPermutation =
+      idSet.size === orderedIds.length &&
+      motors.length === orderedIds.length &&
+      motors.every(motor => idSet.has(motor.id))
+    if (!isPermutation) {
+      throw new DomainError('validation', '모터 목록이 변경되었습니다. 목록을 새로고침한 뒤 다시 시도해 주세요', {
+        fieldErrors: {orderedIds: 'permutation'},
+      })
+    }
+
+    const orderIndex = new Map(orderedIds.map((motorId, index) => [motorId, index]))
+    for (const motor of motors) {
+      const nextOrder = orderIndex.get(motor.id)
+      if (nextOrder === undefined) continue // 순열 검증 통과 후엔 도달 불가 — 타입 방어
+      await store.put({...motor, sortOrder: nextOrder})
+    }
+  })
+}
+
+/**
+ * query: listMotors (T-6) — 모터 리스트·모터 선택 팝업(M-6)·레이스 진입 리스트의 순서 원천.
+ * 정렬: sortOrder 오름차순 (INV-08 v2). 실패는 DomainError throw — 빈 목록 위장 금지 (D-10).
  */
 export async function listMotors(): Promise<Motor[]> {
   const db = requireDb() // ready가 아니면 storage-unavailable throw
@@ -134,12 +203,12 @@ export async function listMotors(): Promise<Motor[]> {
   } catch (e) {
     throw mapStorageError(e)
   }
-  return rows.map(parseMotorRow).sort(byCreatedAtDescIdAsc)
+  return rows.map(parseMotorRow).sort(bySortOrderAsc)
 }
 
 /**
- * query: getMotorById (REQ-F-005) — S4 헤더.
- * undefined는 오류가 아니라 "부재"라는 정상 도메인 결과 (S4 not-found UI 분기), throw는 읽기 실패.
+ * query: getMotorById — 차트·레이스 페이지(/race/:motorId) 헤더.
+ * undefined는 오류가 아니라 "부재"라는 정상 도메인 결과 (라우트 가드 분기), throw는 읽기 실패.
  */
 export async function getMotorById(id: string): Promise<Motor | undefined> {
   const db = requireDb()
@@ -153,14 +222,124 @@ export async function getMotorById(id: string): Promise<Motor | undefined> {
 }
 
 /**
- * query: countRecordsByMotor (REQ-ST-007) — cascade confirm "기록 n건" 실측치.
- * query 캐시 미사용 — confirm 직전 명령형 직접 호출(stale 건수 고지 방지, api-schema §11).
+ * query: countRecordsByMotor — cascade confirm "측정 n건·레이스 m건" 분리 실측치 (D-1).
+ * query 캐시 미사용 — confirm 직전 명령형 직접 호출(stale 건수 고지 방지, api-schema §5).
  */
-export async function countRecordsByMotor(motorId: string): Promise<number> {
+export async function countRecordsByMotor(
+  motorId: string,
+): Promise<{measureCount: number; raceCount: number}> {
   const db = requireDb()
   try {
-    return await db.countFromIndex('records', RECORDS_BY_MOTOR_INDEX, motorId)
+    const [measureCount, raceCount] = await Promise.all([
+      db.countFromIndex('measureRecords', BY_MOTOR_INDEX, motorId),
+      db.countFromIndex('raceRecords', BY_MOTOR_INDEX, motorId),
+    ])
+    return {measureCount, raceCount}
   } catch (e) {
     throw mapStorageError(e)
   }
+}
+
+// ── listMotorSummaries 재료 — AR-4: entity 간 import 금지 아래 record 행을 요약이 소비하는
+// 최소 필드 projection으로만 검증한다 (canonical 스키마는 각 record entity model 1곳 소유 —
+// 여기는 view projection, 이중 canonical 정의 아님). read 경계 zod 검증은 유지 (INV-16).
+const summaryMeasureRowSchema = z.object({
+  id: z.uuid(),
+  motorId: z.uuid(),
+  panoHz: panoHzStoredSchema, // read-lenient (SC-A8)
+  rpm: z.number().int().positive(),
+  measuredAt: z.iso.datetime(),
+})
+
+const summaryRaceRowSchema = z.object({
+  id: z.uuid(),
+  motorId: z.uuid(),
+  panoHz: panoHzStoredSchema,
+  result: z.enum(RACE_RESULTS),
+  voltage: z.number(),
+  lapTimeMs: z.number().int().positive().optional(),
+  createdAt: z.iso.datetime(),
+})
+
+function parseSummaryMeasureRow(row: unknown): MotorSummaryMeasure {
+  const parsed = summaryMeasureRowSchema.safeParse(row)
+  if (!parsed.success) {
+    throw new DomainError('data-corrupt', DOMAIN_ERROR_MESSAGES['data-corrupt'], {
+      cause: parsed.error,
+    })
+  }
+  return parsed.data
+}
+
+function parseSummaryRaceRow(row: unknown): MotorSummaryRace {
+  const parsed = summaryRaceRowSchema.safeParse(row)
+  if (!parsed.success) {
+    throw new DomainError('data-corrupt', DOMAIN_ERROR_MESSAGES['data-corrupt'], {
+      cause: parsed.error,
+    })
+  }
+  return parsed.data
+}
+
+interface Rollup<T> {
+  count: number
+  last: T
+}
+
+/** 단일 스캔 집계 — timestamp 내림차순 기준 최신 1건 유지 (동률 시 id 최대 — INV-08 역방향 선두) */
+function rollupBy<T extends {motorId: string; id: string}>(
+  rows: readonly T[],
+  timestampOf: (row: T) => string,
+): Map<string, Rollup<T>> {
+  const rollups = new Map<string, Rollup<T>>()
+  for (const row of rows) {
+    const current = rollups.get(row.motorId)
+    if (current === undefined) {
+      rollups.set(row.motorId, {count: 1, last: row})
+      continue
+    }
+    current.count += 1
+    const rowTs = timestampOf(row)
+    const lastTs = timestampOf(current.last)
+    if (rowTs > lastTs || (rowTs === lastTs && row.id > current.last.id)) current.last = row
+  }
+  return rollups
+}
+
+/**
+ * query: listMotorSummaries — 3-store 조인 파생 view (T-4 · R-1).
+ * motors+measureRecords+raceRecords 전건 read → 메모리 조인. 영속·캐시 금지(INV-09) — 매 조회 계산.
+ * 정렬: sortOrder 오름차순(listMotors와 동일 순서 — 화면 간 순서 불일치 금지).
+ * 읽기 사이에 삭제된 모터의 record 잔재는 조인에서 자연 탈락 (LWW 정합).
+ */
+export async function listMotorSummaries(): Promise<MotorSummary[]> {
+  const db = requireDb()
+  let motorRows: unknown[]
+  let measureRows: unknown[]
+  let raceRows: unknown[]
+  try {
+    ;[motorRows, measureRows, raceRows] = await Promise.all([
+      db.getAll('motors'),
+      db.getAll('measureRecords'),
+      db.getAll('raceRecords'),
+    ])
+  } catch (e) {
+    throw mapStorageError(e)
+  }
+
+  const motors = motorRows.map(parseMotorRow).sort(bySortOrderAsc)
+  const measureRollups = rollupBy(measureRows.map(parseSummaryMeasureRow), record => record.measuredAt)
+  const raceRollups = rollupBy(raceRows.map(parseSummaryRaceRow), record => record.createdAt)
+
+  return motors.map((motor): MotorSummary => {
+    const measure = measureRollups.get(motor.id)
+    const race = raceRollups.get(motor.id)
+    return {
+      motor,
+      measureCount: measure?.count ?? 0,
+      ...(measure !== undefined ? {lastMeasure: measure.last} : {}),
+      raceCount: race?.count ?? 0,
+      ...(race !== undefined ? {lastRace: race.last} : {}),
+    }
+  })
 }

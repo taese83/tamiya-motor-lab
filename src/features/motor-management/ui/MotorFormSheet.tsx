@@ -1,38 +1,46 @@
-import {Alert, Box, Button, TextField, Typography} from '@mui/material'
-import {MOTOR_MEMO_MAX_LENGTH, MOTOR_NAME_MAX_LENGTH} from '@shared/config/domain'
-import type {MotorStatusGrade} from '@shared/config/domain'
+import {Alert, Box, Button, FormHelperText, TextField, Typography} from '@mui/material'
+import {MOTOR_NAME_MAX_LENGTH} from '@shared/config/domain'
 import {BottomSheet} from '@shared/ui/bottom-sheet'
-import {GradeSegment} from '@shared/ui/segment-control'
 import {useRef, useState} from 'react'
+
+import {MotorKindSelect} from './MotorKindSelect'
+
+import type {MotorKind} from '@shared/config/domain'
 import type {FormEvent, RefObject} from 'react'
+
+// MotorFormSheet v2 (component-spec v2 §5.4 — T-1).
+// 필드 = 이름 + 종류 9택(MotorKindSelect)만 — v1의 statusGrade·memo 행 제거.
+// create/edit 2모드 유지. 닫힘(취소·ESC·backdrop) = 폼 파기 + 트리거 focus 복귀(MUI 기본).
 
 export interface MotorFormValues {
   name: string
-  /** null = 미지정 — 기본값 상수 없음, 초기값은 항상 미선택(CP2-3) */
-  grade: MotorStatusGrade | null
-  memo: string
+  /** null = 미선택 — 기본값 상수 없음, create 초기값은 항상 미선택 */
+  kind: MotorKind | null
 }
 
 export interface MotorFormSheetProps {
   open: boolean
   mode: 'create' | 'edit'
-  /** edit 시 기존 값 채움 — 구조 필드(id·createdAt)는 폼에 노출하지 않음 */
+  /** edit 시 기존 name·kind 채움 — 구조 필드(id·createdAt·sortOrder)는 폼에 노출하지 않음 */
   initial?: MotorFormValues | undefined
-  /** createMotor/updateMotor 실행 중 — [저장] disabled "저장 중…" */
+  /** createMotor/updateMotor 실행 중 — [저장] disabled "저장 중…" (single-flight) */
   pending: boolean
-  /** 저장 실패 인라인 Alert + [저장] 재활성 — 문구 매핑은 feature model 계층 */
+  /**
+   * 저장 실패 인라인 Alert + [저장] 재활성 — 문구 매핑은 feature model/api 계층.
+   * not-found(동시 탭 선삭제 — C-8): 시트 유지 + 오류 + 목록 갱신(invalidate는 mutation 훅 소관).
+   */
   errorMessage?: string | null | undefined
-  onSubmit: (values: MotorFormValues) => void
+  /** 검증 통과 값만 — kind는 non-null로 좁혀 전달 */
+  onSubmit: (values: {name: string; kind: MotorKind}) => void
   onClose: () => void
 }
 
-const EMPTY_VALUES: MotorFormValues = {name: '', grade: null, memo: ''}
+const EMPTY_VALUES: MotorFormValues = {name: '', kind: null}
 
 /**
- * 모터 등록/수정 시트 (component-spec §5.3) — BottomSheet 소비.
- * C-7 이름 검증: trim 후 1자 미만 → 인라인 오류 + input focus, 저장 거부.
- * 길이 상한은 스키마 상수(MOTOR_NAME_MAX_LENGTH=30, CP2-4) 소비만.
- * 닫힘(취소·ESC·backdrop) = 폼 파기, 트리거 focus 복귀(MUI 기본).
+ * 모터 등록/수정 시트 — BottomSheet 소비. 초기 포커스는 이름 input.
+ * 검증: 이름 trim 1~30(스키마 상수 소비) → 인라인 오류 + input focus /
+ * 종류 미선택 저장 → 인라인 오류 "종류를 선택하세요" + 그리드 첫 버튼 focus.
  */
 export function MotorFormSheet({
   open,
@@ -52,7 +60,7 @@ export function MotorFormSheet({
       onClose={onClose}
       onOpened={() => nameInputRef.current?.focus()}>
       {/*
-        닫힘 = 폼 파기(§5.3). 열릴 때만 마운트하므로 initial(또는 빈 값)이 useState 초기값으로 들어가고,
+        닫힘 = 폼 파기(§5.4). 열릴 때만 마운트하므로 initial(또는 빈 값)이 useState 초기값으로 들어가고,
         열려 있는 동안 initial identity가 바뀌어도 사용자 입력은 유지된다 — 동기화 effect 불요.
       */}
       {open && (
@@ -74,7 +82,7 @@ interface MotorFormFieldsProps {
   pending: boolean
   errorMessage: string | null
   nameInputRef: RefObject<HTMLInputElement | null>
-  onSubmit: (values: MotorFormValues) => void
+  onSubmit: (values: {name: string; kind: MotorKind}) => void
   onClose: () => void
 }
 
@@ -88,9 +96,10 @@ function MotorFormFields({
 }: MotorFormFieldsProps) {
   const initialValues = initial ?? EMPTY_VALUES
   const [name, setName] = useState(initialValues.name)
-  const [grade, setGrade] = useState<MotorStatusGrade | null>(initialValues.grade)
-  const [memo, setMemo] = useState(initialValues.memo)
+  const [kind, setKind] = useState<MotorKind | null>(initialValues.kind)
   const [nameError, setNameError] = useState<string | null>(null)
+  const [kindError, setKindError] = useState<string | null>(null)
+  const kindGroupRef = useRef<HTMLDivElement>(null)
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -107,7 +116,14 @@ function MotorFormFields({
       return
     }
     setNameError(null)
-    onSubmit({name: trimmedName, grade, memo: memo.trim()})
+    if (kind === null) {
+      // 종류 미선택 — 인라인 오류 + 그리드 첫 버튼 focus (§5.4 검증 계약)
+      setKindError('종류를 선택하세요')
+      kindGroupRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
+      return
+    }
+    setKindError(null)
+    onSubmit({name: trimmedName, kind})
   }
 
   const hasSubmitError = errorMessage !== null && errorMessage !== ''
@@ -133,16 +149,23 @@ function MotorFormFields({
       />
       <Box>
         <Typography variant="body1" component="p" sx={{mb: 1}}>
-          상태 등급 (선택)
+          종류 (필수)
         </Typography>
-        <GradeSegment value={grade} onChange={setGrade} disabled={pending} />
+        <Box ref={kindGroupRef}>
+          <MotorKindSelect
+            value={kind}
+            onChange={next => {
+              setKind(next)
+              if (kindError !== null) setKindError(null)
+            }}
+            error={kindError !== null}
+          />
+        </Box>
+        {/* 오류 슬롯 1줄 상시 확보 — 오류 등장으로 필드가 이동하지 않는다(§10 고정 높이 원칙) */}
+        <FormHelperText error sx={{minHeight: '1.25em'}}>
+          {kindError ?? ' '}
+        </FormHelperText>
       </Box>
-      <TextField
-        label="상태 메모 (선택)"
-        value={memo}
-        onChange={event => setMemo(event.target.value)}
-        slotProps={{htmlInput: {maxLength: MOTOR_MEMO_MAX_LENGTH}}}
-      />
       {hasSubmitError && (
         <Alert severity="error" role="alert">
           {errorMessage}

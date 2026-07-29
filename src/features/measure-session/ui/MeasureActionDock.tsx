@@ -1,173 +1,177 @@
 import {Box, Button} from '@mui/material'
-import {MicIcon} from '@shared/ui/icons'
 import {S1_SETTINGS_HELP_ID} from './constants'
 import type {MeasureView} from './measure-view'
 
+/**
+ * Z3 단일 슬롯 액션 union (component-spec v2 §2.7 — 작업 계약의 kind 명명 채택).
+ * boolean prop 조합 금지 — 3분기 이상은 discriminated union(재사용 원칙 §0.3).
+ */
+export type MeasureAction =
+  | {kind: 'record'; disabled: boolean} // 일반 모드 상시 [기록] — onPress는 소비자(collect-flow) 주입
+  | {kind: 'activate'} // awaiting-gesture — [탭하여 시작] primary, 1탭 계약(M-1, QA 대상)
+  | {kind: 'retry-permission'} // [권한 다시 요청] primary
+  | {kind: 'settings-help'; expanded: boolean} // [설정 방법 보기] — aria-expanded 토글
+  | {kind: 'resume'} // [탭하여 다시 시작] primary
+  | {kind: 'back-to-race'; motorName: string} // 왕복 모드 — [레이스로 돌아가기] secondary
+
+/**
+ * view → action 순수 산출 (unit 대상 — §2.7).
+ * - raceReturn(왕복 slot 존재) 시 **모든 view-status에서 back-to-race로 치환** —
+ *   [기록] 진입점 0개(INV-21).
+ * - [기록] 활성 = measuring && persistence ready (M-5 — measuring이면 수치 비null 타입 보장).
+ *   persistence `unavailable` → disabled 상시(사유는 전역 배너 소관).
+ */
+export function deriveMeasureAction(
+  view: MeasureView,
+  raceReturn: {motorName: string} | null,
+  persistenceReady: boolean,
+): MeasureAction {
+  if (raceReturn !== null) return {kind: 'back-to-race', motorName: raceReturn.motorName}
+  switch (view.status) {
+    case 'starting':
+    case 'insecure':
+    case 'weak-signal':
+      return {kind: 'record', disabled: true}
+    case 'measuring':
+      return {kind: 'record', disabled: !persistenceReady}
+    case 'awaiting-gesture':
+      return {kind: 'activate'}
+    case 'no-permission':
+      return view.permanent
+        ? {kind: 'settings-help', expanded: view.settingsHelpOpen}
+        : {kind: 'retry-permission'}
+    case 'suspended':
+      return {kind: 'resume'}
+  }
+}
+
 export interface MeasureActionDockProps {
-  view: MeasureView
-  /** idle → startCapture (탭 핸들러 내 getUserMedia+resume — REQ-F-001) */
+  action: MeasureAction
+  /** [기록] 탭 — 스냅샷 캡처·시트 오픈은 소비자(collect-flow) 소유 (§4.3) */
+  onRecord: () => void
+  /** awaiting-gesture [탭하여 시작] — 캡처 재시도는 탭 핸들러 내 호출(제스처 요건, M-1) */
   onActivate: () => void
-  /** measuring | weak-signal → stopCapture */
-  onStop: () => void
-  /** stable → page가 handoff set + navigate */
-  onCreateRecord: () => void
-  /** stable → 새 세션 (slot clear — INV-14) */
-  onRemeasure: () => void
-  /** no-permission 일시 */
+  /** no-permission 일시 — getUserMedia 재시도 (제스처 내) */
   onRetryPermission: () => void
   /** no-permission 영구 — view.settingsHelpOpen 토글 */
   onToggleSettingsHelp: () => void
   /** suspended — 탭 핸들러 내 resume() */
   onResume: () => void
+  /** 왕복 모드 — cancel 아님: 슬롯 생존 복귀는 소비자(page)가 조립 (§7.2 ⑤) */
+  onBackToRace: () => void
 }
 
-interface SlotAConfig {
+interface SlotConfig {
   label: string
   variant: 'contained' | 'outlined'
-  size: 'large' | 'medium'
   onClick: () => void
-  /** aria-disabled 소프트 비활성 — 사유는 Z2 안내가 전달(§2.5), 포커스 도달 유지 */
+  /** aria-disabled 소프트 비활성 — 상시 렌더·자리 이동 없음(M-5). 사유 전달은 Z2 문구/전역 배너 소관 */
   softDisabled: boolean
-  withMicIcon: boolean
   ariaExpanded?: boolean | undefined
   ariaControls?: string | undefined
 }
 
-type SlotAHandlers = Pick<
+type SlotHandlers = Pick<
   MeasureActionDockProps,
-  | 'onActivate'
-  | 'onStop'
-  | 'onCreateRecord'
-  | 'onRetryPermission'
-  | 'onToggleSettingsHelp'
-  | 'onResume'
+  'onRecord' | 'onActivate' | 'onRetryPermission' | 'onToggleSettingsHelp' | 'onResume' | 'onBackToRace'
 >
 
-// §2.2 표 — 슬롯 내용이 유일한 가변 요소. 모든 상태에서 primary 버튼 정확히 1개.
-function slotAConfig(view: MeasureView, handlers: SlotAHandlers): SlotAConfig {
-  switch (view.status) {
-    case 'idle':
+// §2.2 표 — 슬롯 내용이 유일한 가변 요소. record 외 전부 primary contained(라임 컷코너 — theme 자동),
+// back-to-race만 outlined secondary. 실패 톤 버튼 없음(awaiting-gesture 중립 계약 — M-1).
+function slotConfig(action: MeasureAction, handlers: SlotHandlers): SlotConfig {
+  switch (action.kind) {
+    case 'record':
       return {
-        label: view.activating ? '마이크 준비 중…' : '녹음 활성화',
+        label: '기록',
         variant: 'contained',
-        size: 'large',
+        onClick: handlers.onRecord,
+        softDisabled: action.disabled,
+      }
+    case 'activate':
+      return {
+        label: '탭하여 시작',
+        variant: 'contained',
         onClick: handlers.onActivate,
-        softDisabled: !view.secureContext || view.activating, // 스피너 없음 — <1s (§2.5)
-        withMicIcon: true,
-      }
-    case 'measuring':
-    case 'weak-signal':
-      // D-9 자동 왕복에서 동일 버튼·동일 위치 — 버튼 불변
-      return {
-        label: '측정 중지',
-        variant: 'outlined',
-        size: 'medium',
-        onClick: handlers.onStop,
         softDisabled: false,
-        withMicIcon: false,
       }
-    case 'stable':
-      // LO-3 확정: 오탭 가드 없음 — stable 진입 시 캡처 이미 자동 정지(UX-A1)
+    case 'retry-permission':
       return {
-        label: '이 측정으로 기록 만들기',
+        label: '권한 다시 요청',
         variant: 'contained',
-        size: 'large',
-        onClick: handlers.onCreateRecord,
+        onClick: handlers.onRetryPermission,
         softDisabled: false,
-        withMicIcon: false,
       }
-    case 'no-permission':
-      return view.permanent
-        ? {
-            label: '설정 방법 보기',
-            variant: 'contained',
-            size: 'large',
-            onClick: handlers.onToggleSettingsHelp,
-            softDisabled: false,
-            withMicIcon: false,
-            ariaExpanded: view.settingsHelpOpen,
-            ariaControls: S1_SETTINGS_HELP_ID,
-          }
-        : {
-            label: '권한 다시 요청',
-            variant: 'contained',
-            size: 'large',
-            onClick: handlers.onRetryPermission,
-            softDisabled: false,
-            withMicIcon: false,
-          }
-    case 'suspended':
+    case 'settings-help':
+      return {
+        label: '설정 방법 보기',
+        variant: 'contained',
+        onClick: handlers.onToggleSettingsHelp,
+        softDisabled: false,
+        ariaExpanded: action.expanded,
+        ariaControls: S1_SETTINGS_HELP_ID,
+      }
+    case 'resume':
       return {
         label: '탭하여 다시 시작',
         variant: 'contained',
-        size: 'large',
         onClick: handlers.onResume,
         softDisabled: false,
-        withMicIcon: false,
+      }
+    case 'back-to-race':
+      return {
+        label: '레이스로 돌아가기',
+        variant: 'outlined',
+        onClick: handlers.onBackToRace,
+        softDisabled: false,
       }
   }
 }
 
 /**
- * S1 Z3 액션 존 (component-spec §2.5) — 슬롯 [A](h56) + [B](h44), 빈 상태여도 높이 예약.
- * [A]는 상태 전환에도 unmount되지 않는 단일 Button 노드 — 슬롯 교체 시 포커스가
- * 유실되지 않고 새 행동으로 그대로 이어진다(§2.5 키보드 연속 조작 계약).
+ * S1 Z3 액션 존 v2 (component-spec §2.7) — 단일 슬롯 h56 고정.
+ * v1의 [B] 세션 슬롯([다시 측정])·[측정 중지] 폐지 — 자동 시작·연속 측정(M-2·M-3).
+ *
+ * 슬롯은 상태 전환에도 unmount되지 않는 단일 Button 노드 — 교체 직전 포커스가 슬롯 내부였으면
+ * 새 행동으로 그대로 이어진다(§2.7 programmatic focus 계약을 노드 유지로 충족).
+ * [기록]은 disabled여도 상시 렌더(aria-disabled — 자리 이동 없음, M-5).
  */
 export function MeasureActionDock({
-  view,
+  action,
+  onRecord,
   onActivate,
-  onStop,
-  onCreateRecord,
-  onRemeasure,
   onRetryPermission,
   onToggleSettingsHelp,
   onResume,
+  onBackToRace,
 }: MeasureActionDockProps) {
-  const a = slotAConfig(view, {
+  const slot = slotConfig(action, {
+    onRecord,
     onActivate,
-    onStop,
-    onCreateRecord,
     onRetryPermission,
     onToggleSettingsHelp,
     onResume,
+    onBackToRace,
   })
   return (
-    <Box sx={{display: 'flex', flexDirection: 'column', gap: 1.5}}>
-      {/* [A] 행동 슬롯 — h 56px 예약 */}
-      <Box sx={{height: '3.5rem', display: 'flex', alignItems: 'center'}}>
-        <Button
-          fullWidth
-          variant={a.variant}
-          size={a.size}
-          onClick={a.softDisabled ? undefined : a.onClick}
-          aria-disabled={a.softDisabled ? true : undefined}
-          aria-expanded={a.ariaExpanded}
-          aria-controls={a.ariaControls}
-          startIcon={a.withMicIcon ? <MicIcon size={20} /> : undefined}
-          sx={[
-            a.size === 'medium' && {minHeight: '2.75rem', height: '2.75rem'},
-            a.softDisabled &&
-              (theme => ({
-                backgroundColor: theme.palette.action.disabledBackground,
-                color: theme.palette.action.disabled,
-                '&:hover': {backgroundColor: theme.palette.action.disabledBackground},
-              })),
-          ]}>
-          {a.label}
-        </Button>
-      </Box>
-      {/* [B] 세션 슬롯 — stable 전용 [다시 측정], 평시 h 44px 빈 슬롯(높이 예약) */}
-      <Box sx={{height: '2.75rem', display: 'flex', alignItems: 'center'}}>
-        {view.status === 'stable' && (
-          <Button
-            fullWidth
-            variant="text"
-            onClick={onRemeasure}
-            sx={{minHeight: '2.75rem', height: '2.75rem'}}>
-            다시 측정
-          </Button>
-        )}
-      </Box>
+    <Box sx={{height: '3.5rem', display: 'flex', alignItems: 'center'}}>
+      <Button
+        fullWidth
+        size="large"
+        variant={slot.variant}
+        onClick={slot.softDisabled ? undefined : slot.onClick}
+        aria-disabled={slot.softDisabled ? true : undefined}
+        aria-expanded={slot.ariaExpanded}
+        aria-controls={slot.ariaControls}
+        sx={[
+          slot.softDisabled &&
+            (theme => ({
+              backgroundColor: theme.palette.action.disabledBackground,
+              color: theme.palette.action.disabled,
+              '&:hover': {backgroundColor: theme.palette.action.disabledBackground},
+            })),
+        ]}>
+        {slot.label}
+      </Button>
     </Box>
   )
 }

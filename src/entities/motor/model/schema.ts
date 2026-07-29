@@ -1,50 +1,46 @@
 import {z} from 'zod'
 
-import {MOTOR_MEMO_MAX_LENGTH, MOTOR_NAME_MAX_LENGTH, MOTOR_STATUS_GRADES} from '@shared/config/domain'
+import {MOTOR_KINDS, MOTOR_NAME_MAX_LENGTH} from '@shared/config/domain'
 import {DOMAIN_ERROR_MESSAGES, DomainError} from '@shared/lib/errors'
 
-// Motor 엔티티 zod 스키마 단일 정의 (api-schema §2.2 canonical, AD-7) —
+// Motor 엔티티 zod 스키마 단일 정의 (api-schema v2 §2.2 canonical, AD-7) —
 // UI 인라인 검증·command precondition·rehydrate(read 경계)가 이 스키마를 공유한다.
-// persisted 데이터는 외부 입력 취급: type assertion 금지 (INV-16, REQ-F-007/NFR-006).
+// persisted 데이터는 외부 입력 취급: type assertion 금지 (INV-16).
+// v2 제거 필드: statusGrade·statusMemo (T-1). 신설: kind(9종 enum)·sortOrder(T-6).
 
-export const motorStatusGradeSchema = z.enum(MOTOR_STATUS_GRADES) // CP-1a — 상수 1곳 참조
+export const motorKindSchema = z.enum(MOTOR_KINDS) // T-1 — 상수 1곳 참조 (@shared/config/domain)
 
 export const motorSchema = z.object({
   id: z.uuid(), // 구조 필드 — 생성 후 불변 (INV-04)
   name: z.string().trim().min(1, '이름을 입력해 주세요').max(MOTOR_NAME_MAX_LENGTH),
-  statusGrade: motorStatusGradeSchema.nullable(), // CP-1: 선택형 enum — null=미지정 (SC-A1)
-  statusMemo: z.string().trim().min(1).max(MOTOR_MEMO_MAX_LENGTH).optional(), // CP-1: 자유 텍스트 병행 — '' 저장 금지(생략)
-  createdAt: z.iso.datetime(), // 구조 필드 — 불변, ISO 8601 UTC Z 고정 (FP-A3)
-  updatedAt: z.iso.datetime(), // updateMotor 성공 시에만 갱신 (INV-04)
+  kind: motorKindSchema, // 필수 — null/생략 없음 (T-1)
+  sortOrder: z.number().int().min(0), // T-6 — 리스트 순서 영속, reorderMotors 전용 변경 (INV-19)
+  createdAt: z.iso.datetime(), // 구조 필드 — 불변, ISO 8601 UTC Z 고정
+  updatedAt: z.iso.datetime(), // updateMotor 성공 시에만 갱신 — reorderMotors는 미갱신 (AR-3/SC2-A4)
 })
 export type Motor = z.infer<typeof motorSchema>
 
-// command 입력 — 구조 필드(id·createdAt·updatedAt)는 타입 차원에서 배제 (FP-A3)
+// command 입력 — 구조 필드(id·createdAt·updatedAt)와 sortOrder는 command가 부여 (AR-1: max+1 append)
 export const createMotorInputSchema = z.object({
   name: z.string().trim().min(1, '이름을 입력해 주세요').max(MOTOR_NAME_MAX_LENGTH),
-  statusGrade: motorStatusGradeSchema.nullable().default(null),
-  statusMemo: z
-    .string()
-    .trim()
-    .max(MOTOR_MEMO_MAX_LENGTH)
-    .optional()
-    .transform(v => (v === '' ? undefined : v)), // 빈 문자열 → 생략 정규화 ('' 저장 금지)
+  kind: motorKindSchema,
 })
 export type CreateMotorInput = z.input<typeof createMotorInputSchema>
 
 export const updateMotorPatchSchema = z
   .object({
     name: z.string().trim().min(1, '이름을 입력해 주세요').max(MOTOR_NAME_MAX_LENGTH),
-    statusGrade: motorStatusGradeSchema.nullable(), // null 지정 = 등급 해제(재탭 deselect → 미지정 복귀)
-    statusMemo: z
-      .string()
-      .trim()
-      .max(MOTOR_MEMO_MAX_LENGTH)
-      .optional()
-      .transform(v => (v === '' ? undefined : v)),
+    kind: motorKindSchema,
   })
-  .partial() // 편집 필드만 — 구조 필드 불변식(INV-04)은 스키마가 강제
+  .partial() // 편집 필드 = name·kind만 — sortOrder는 reorderMotors 전용, 구조 필드는 타입에서 배제
 export type UpdateMotorPatch = z.infer<typeof updateMotorPatchSchema>
+
+export const reorderMotorsInputSchema = z.object({
+  // 전체 모터 id의 순열 — 순열 여부(개수 일치·전건 존재·중복 없음)는 command가
+  // 트랜잭션 내에서 실측 검증한다 (state-contract SO-2 — permutation 오류)
+  orderedIds: z.array(z.uuid()).min(1),
+})
+export type ReorderMotorsInput = z.infer<typeof reorderMotorsInputSchema>
 
 /**
  * read 경계 rehydrate 검증 (INV-16) — persisted 행을 zod parse하고,

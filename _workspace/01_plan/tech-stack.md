@@ -138,6 +138,10 @@ FFT·pitch 추정·추적은 라이브러리를 추가하지 않는다 — `shar
 | @vitejs/plugin-react | 6.0.3 | app dev | 빌드 | templates |
 | vite-plugin-svgr | 4.5.0 | app dev | 아이콘 | templates |
 | @types/node | 22.19.21 | app dev | playwright.config.ts `process.env` (Node 22 계열) | 2026-07-28 Gate A에서 누락 발견해 추가 |
+| @dnd-kit/core | 6.3.1 | app dep | v2 T-6 모터 DnD 정렬 (키보드 접근성 내장) | 2026-07-28 registry 실측 확정 |
+| @dnd-kit/sortable | 10.0.0 | app dep | 〃 (단일 컬럼 sortable) | 〃 |
+| @dnd-kit/utilities | 3.2.2 | app dep | 〃 (CSS transform 유틸) | 〃 |
+| @fontsource-variable/oxanium | 5.3.0 | app dep | v3 RV-4 숫자 디스플레이 가변 폰트 (self-host woff2, 수치 전용 적용) | 〃 |
 | @types/react | 19.2.0 | app dev | — | templates |
 | @types/react-dom | 19.2.0 | app dev | — | templates |
 | vitest | 4.1.0 | app dev | REQ-NFR-005, unit evidence | templates |

@@ -1,18 +1,20 @@
-// measure-session model segment 공개 API (F2) — 명시적 named export만, export * 금지.
+// measure-session model segment 공개 API v2 (F2) — 명시적 named export만, export * 금지.
 // slice 루트 index.ts 조립(ui 재수출 포함)은 slice owner 소관 — 본 segment는 model만 소유한다.
 
 // 셀렉터 훅 (component-spec §2.1 — store 직접 구독은 pages/measure만)
 export {useMeasureAnnouncement, useMeasureView} from './store'
 
-// 세션 command 4건 + settingsHelp 토글 (api-schema §4.5 — 전부 비영속 세션 command)
+// 세션 command (api-schema §4.5 v2 — 전부 비영속·상태는 store 단일 채널, 반환값 없음)
+// stopCaptureForHidden/restartCaptureOnVisible: visibilitychange 배선은 페이지 소유 (UX-A2)
 export {
+  restartCaptureOnVisible,
   resumeAudio,
   retryPermission,
   startCapture,
   stopCapture,
+  stopCaptureForHidden,
   toggleSettingsHelp,
 } from './session'
-export type {CaptureSession} from './session'
 
 // UI 계약 타입 (canonical handoff — ui/measure-view.ts 재수출, 중복 정의 금지)
 export type {MeasureView} from './view'
@@ -21,11 +23,10 @@ export type {MeasureView} from './view'
 export {
   INSTANT_DENIAL_MS,
   canStartCapture,
-  clampConfidence,
   classifyCaptureError,
   createIdleSnapshot,
   resolveDenialPermanence,
-  roundStableEstimate,
+  resolveStartFailure,
   toEngineFrame,
   toMeasureView,
 } from './machine'
@@ -35,6 +36,8 @@ export type {
   MachineSnapshot,
   NoPermissionCause,
   SessionPhase,
+  StartFailureContext,
+  StartFailureResolution,
 } from './machine'
 
 // sr 알림 순수 계층 (component-spec §2.6 — debounce·중복 억제 판정 unit 대상)

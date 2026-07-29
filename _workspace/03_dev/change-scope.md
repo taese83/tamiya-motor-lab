@@ -1,34 +1,29 @@
-# Change Scope — UX/UI 재설계 (다크 레이싱 계기판, 2026-07-28)
+# Change Scope — v2 기능 개편 + v3 UI 병합 (2026-07-28)
+
+> 이전 라운드(v2 다크 테마, v3 증보)는 push 완료로 종결. 본 계약이 현행 유일 계약이다.
 
 ## TARGET_BEHAVIOR
-- 전 화면(S1~S5)의 시각 스타일을 "레이싱 계기판" 무드의 다크 기본 테마로 재설계한다.
-- 라이트 테마를 유지하고 사용자 토글로 전환 가능 (다크가 기본값). 선택은 localStorage 영속.
-- **S1 수치 존에 커스텀 SVG RPM 아크 게이지(타코미터) 추가** (2026-07-28 사용자 결정 — 라이브러리 비교 후 커스텀 SVG 채택, 의존성 0). 측정 대역 170~620Hz(≈10,000~37,000 RPM) 고정 눈금 + 상단 레드존. 데이터 흐름은 기존 MeasureView 그대로 — 표시 형식만 확장.
-- 그 외 기능·데이터·라우팅·상태 머신은 변경하지 않는다.
+`_workspace/01_plan/revision-v2-brief.md`가 canonical — 측정(자동 시작·연속 측정·파노 주지표·[기록]→모터 선택 팝업), 모터(종류 9종·rolling 10·인라인 라인 차트·DnD 정렬), 레이스(가이드 대체·왕복 측정·기록 초기화), 스키마 v2(`mml-db`, 구버전 삭제 재생성), design-system v3(라임 시그니처·컷코너·히어로·Oxanium 숫자 폰트·페이지 페이드) 동시 구현.
 
 ## ALLOWED_PATHS
-- `src/app/theme.ts` (팔레트·토큰 전면 개정, colorSchemes dark/light)
-- `src/app/**` (ThemeProvider 모드 배선, 토글 배치)
-- `src/shared/ui/**` (토큰 소비 스타일 조정 — props 계약 불변)
-- `src/features/*/ui/**`, `src/pages/**` (스타일 sx 조정만)
-- `src/shared/config/design-tokens.ts` (존재 시 토큰 개정)
-- `index.html` (theme-color meta)
-- `_workspace/02_design/design-system.md` (v2 개정)
+- `src/**` 전 계층 (라우트·엔티티·피처·페이지·공용 킷 재편 — 삭제 포함)
+- `index.html`, `package.json`(의존성 4종 추가), `pnpm-lock.yaml`(broker 경유), `vite.config.ts`(폰트 자산 처리 필요 시)
+- `_workspace/02_design/*.md` v2/v3 문서 동기화
+- 삭제 대상: `src/pages/record-new`·`src/pages/guide`·`src/pages/motor-detail`·`src/features/record-entry`·`src/features/voltage-guide`·`src/entities/run-record`·`src/entities/measurement`(왕복 handoff로 대체) — component-spec v2 분류표 기준
 
 ## PUBLIC_CONTRACTS_TO_PRESERVE
-- 모든 컴포넌트 public props 타입 · FSD 경계 · 라우트 테이블 · handle 메타
-- 측정 상태 6종 enum과 상태별 시각 구분(색+라벨+아이콘 3요소 병행 — REQ-NFR-003)
-- 수치 tabular-nums·고정 높이(layout shift 금지) · 터치 타깃 ≥44px · WCAG 2.2 AA 대비
-- IndexedDB 스키마·command·query 일체 불변
+- 분석 엔진 `shared/lib/audio-analysis` **무변경**(안정 판정 내부 재사용) — 엔진 테스트 22건 회귀 기준선
+- persistence 공용 계약(withTransaction·Result 봉투·DomainError 11코드)·FSD 경계·ESLint 규칙
+- WCAG AA(다크/라이트)·44px·tabular-nums·수치 고정 높이·색 단독 구분 금지
+- 다크 기본+라이트 토글(`mml-mode` 결속)·Vercel 배포 계약(vercel.json)
 
 ## NON_GOALS
-- 기능 추가/제거, 화면 구조·IA 변경, 애니메이션 프레임워크 도입(게이지 바늘 전환은 CSS transition만), 웹폰트 추가(성능 예산 재검토 전), 게이지·차트 **라이브러리** 도입(커스텀 SVG만 — 신규 의존성 0 유지), 데이터 분석용 차트/스펙트럼/파형(Won't 유지 — 게이지는 표시 형식이지 분석 시각화가 아님)
+- 엔진 알고리즘 변경, 추천 기능 부활, 서버/계정/동기화, 차트 라이브러리(라인 차트는 커스텀 SVG), 애니메이션 라이브러리, Oxanium 외 추가 폰트
 
 ## CHANGE_BUDGET
-- 소스 변경: 테마 1 + 앱 셸 ≤4 + shared/ui ≤14 + pages/features sx 조정 ≤12 파일
-- 신규 의존성 0개 (MUI colorSchemes 내장 기능만)
+- 신규 의존성 4: @dnd-kit/core 6.3.1, @dnd-kit/sortable 10.0.0, @dnd-kit/utilities 3.2.2, @fontsource-variable/oxanium 5.3.0 (tech-stack 확정)
+- 번들 예산: 초기 로드 gzip +45KB 이내(폰트 woff2 별도 ≤25KB, preload)
 
 ## TEST_EVIDENCE
-- 기존 22건 엔진 테스트 회귀 없음 · typecheck/lint 클린 · 프로덕션 빌드 성공
-- preview 스모크: 다크/라이트 각각 전 화면 렌더 + 콘솔 에러 0 + 토글 영속 확인
-- 다크·라이트 각 팔레트 WCAG AA 대비 계산치 기록 (design-system v2)
+- 엔진 22건 회귀 없음 + persistence/rolling/reorder 신규 unit + typecheck/lint/build 클린
+- preview 스모크: 자동 시작 fallback·기록 수집·rolling 10·DnD·차트·레이스 왕복(폼 보존)·초기화 confirm·다크/라이트

@@ -1,7 +1,9 @@
-// measure-session ui segment public API (component-builder 소유).
-// slice 루트 index.ts는 model/api owner가 이 export를 재수출해 조립한다.
+// measure-session ui segment public API v2 (component-builder 소유) — 명시적 named export만.
+// slice 루트 조립(model 재수출 포함)은 model/api owner가 수행한다.
 export {MeasureFigures} from './MeasureFigures'
 export type {MeasureFiguresProps} from './MeasureFigures'
-export {MeasureActionDock} from './MeasureActionDock'
-export type {MeasureActionDockProps} from './MeasureActionDock'
+export {MeasureActionDock, deriveMeasureAction} from './MeasureActionDock'
+export type {MeasureAction, MeasureActionDockProps} from './MeasureActionDock'
+export {PanoGauge} from './PanoGauge'
+export type {PanoGaugeProps} from './PanoGauge'
 export type {MeasureView} from './measure-view'

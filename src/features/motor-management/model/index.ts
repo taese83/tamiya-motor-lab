@@ -6,7 +6,6 @@ export {MOTOR_DELETE_COUNT_ERROR_MESSAGE, useMotorDeleteFlow} from './use-motor-
 export type {
   MotorDeleteFlow,
   MotorDeleteTarget,
+  MotorRecordCounts,
   UseMotorDeleteFlowOptions,
 } from './use-motor-delete-flow'
-export {useRecordDeleteFlow} from './use-record-delete-flow'
-export type {RecordDeleteFlow, UseRecordDeleteFlowOptions} from './use-record-delete-flow'

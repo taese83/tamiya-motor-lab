@@ -17,11 +17,21 @@ const DELETE_FALLBACK_MESSAGE = '삭제하지 못했습니다 — 다시 시도�
 
 const motorDeleteTitle = (name: string): string => `'${name}' 모터를 삭제할까요?`
 
-// §3.1 copy 고정 — n=0이면 문구 변형 (CD-A4)
-const motorDeleteImpact = (name: string, recordCount: number): string =>
-  recordCount >= 1
-    ? `'${name}'과 기록 ${recordCount}건이 함께 삭제됩니다. 되돌릴 수 없습니다.`
+/** cascade 삭제 대상 실측 건수 (v2 — countRecordsByMotor 분리 반환, D-1) */
+export interface MotorRecordCounts {
+  readonly measureCount: number
+  readonly raceCount: number
+}
+
+// v2 copy — n·m 분리 고지 (D-4 baseline), 둘 다 0이면 문구 변형 (CD-A4 승계)
+const motorDeleteImpact = (name: string, counts: MotorRecordCounts): string => {
+  const parts: string[] = []
+  if (counts.measureCount >= 1) parts.push(`측정 기록 ${counts.measureCount}건`)
+  if (counts.raceCount >= 1) parts.push(`레이스 기록 ${counts.raceCount}건`)
+  return parts.length > 0
+    ? `'${name}'과 ${parts.join('·')}이 함께 삭제됩니다. 되돌릴 수 없습니다.`
     : `'${name}'이(가) 삭제됩니다. 되돌릴 수 없습니다.`
+}
 
 export interface MotorDeleteTarget {
   readonly id: string
@@ -61,7 +71,7 @@ type FlowState =
   | {
       readonly step: 'confirming'
       readonly target: MotorDeleteTarget
-      readonly recordCount: number
+      readonly counts: MotorRecordCounts
       readonly pending: boolean
       readonly errorMessage: string | null
     }
@@ -81,9 +91,9 @@ export function useMotorDeleteFlow(options: UseMotorDeleteFlowOptions): MotorDel
     setState({step: 'counting', target})
     void (async () => {
       try {
-        const recordCount = await countRecordsByMotor(target.id)
+        const counts = await countRecordsByMotor(target.id)
         if (requestSeq.current !== seq) return
-        setState({step: 'confirming', target, recordCount, pending: false, errorMessage: null})
+        setState({step: 'confirming', target, counts, pending: false, errorMessage: null})
       } catch {
         if (requestSeq.current !== seq) return
         setState({step: 'count-error', target})
@@ -109,8 +119,8 @@ export function useMotorDeleteFlow(options: UseMotorDeleteFlowOptions): MotorDel
 
   const confirm = (): void => {
     if (state.step !== 'confirming' || state.pending) return
-    const {target, recordCount} = state
-    setState({step: 'confirming', target, recordCount, pending: true, errorMessage: null})
+    const {target, counts} = state
+    setState({step: 'confirming', target, counts, pending: true, errorMessage: null})
     void (async () => {
       try {
         await options.deleteMotor(target.id)
@@ -122,7 +132,7 @@ export function useMotorDeleteFlow(options: UseMotorDeleteFlowOptions): MotorDel
         setState({
           step: 'confirming',
           target,
-          recordCount,
+          counts,
           pending: false,
           errorMessage: isDomainError(e) ? e.message : DELETE_FALLBACK_MESSAGE,
         })
@@ -135,7 +145,7 @@ export function useMotorDeleteFlow(options: UseMotorDeleteFlowOptions): MotorDel
       ? {
           open: true,
           title: motorDeleteTitle(state.target.name),
-          impact: motorDeleteImpact(state.target.name, state.recordCount),
+          impact: motorDeleteImpact(state.target.name, state.counts),
           confirmLabel: '삭제',
           pending: state.pending,
           errorMessage: state.errorMessage,

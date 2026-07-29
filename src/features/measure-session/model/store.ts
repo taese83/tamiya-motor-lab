@@ -11,7 +11,7 @@ import {
   buildAnnouncement,
   shouldDebounceAnnouncement,
 } from './announcement'
-import {toMeasureView} from './machine'
+import {createIdleSnapshot, toMeasureView} from './machine'
 
 import type {AnnouncementKey} from './announcement'
 import type {MachineSnapshot} from './machine'
@@ -23,11 +23,9 @@ interface MeasureSessionUiState {
   announcement: string
 }
 
-const INITIAL_VIEW: MeasureView = {
-  status: 'idle',
-  secureContext: globalThis.isSecureContext === true,
-  activating: false,
-}
+// v2: 초기 view도 머신 매핑 1곳을 경유 — idle 스냅샷은 starting(자동 시작 전) 또는
+// insecure(비보안 컨텍스트)로 투영된다. view 모양을 store가 중복 정의하지 않는다.
+const INITIAL_VIEW: MeasureView = toMeasureView(createIdleSnapshot(globalThis.isSecureContext === true))
 
 /** 내부 store — 공개 API는 아래 셀렉터 훅 2개와 session.ts의 command 뿐 */
 export const useMeasureSessionStore = create<MeasureSessionUiState>()(() => ({

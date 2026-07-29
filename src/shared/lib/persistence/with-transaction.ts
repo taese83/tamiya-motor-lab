@@ -4,14 +4,15 @@ import {err, ok} from '@shared/lib/result'
 import {getDb} from './db'
 import {mapStorageError} from './map-storage-error'
 
-import type {DomainStoreName, MotorLabDB} from './schema'
+import type {DomainStoreName, MmlDB} from './schema'
 import type {Result} from '@shared/lib/result'
 import type {IDBPTransaction} from 'idb'
 
 export type TransactionMode = 'readonly' | 'readwrite'
 
 /**
- * 다중 store 원자성의 유일한 진입점 (state-contract 위임 1 — deleteMotorCascade·createRecord가 사용).
+ * 다중 store 원자성의 유일한 진입점 (state-contract v2 §트랜잭션 원자성 —
+ * deleteMotorCascade·reorderMotors·collectMeasureRecord·createRaceRecord·resetAllRecords가 사용).
  *
  * 계약 (state-contract §다중 store 트랜잭션 원자성 1~4):
  * 1. 단일 IDBTransaction — fn 내부의 모든 read/write는 전달된 tx 파생 request만 사용한다.
@@ -21,7 +22,8 @@ export type TransactionMode = 'readonly' | 'readwrite'
  *    폐기(rollback은 IDB 엔진 보장). commit 확인(tx.done resolve) 후에만 ok를 반환한다.
  *    query 캐시 invalidation은 호출 command가 ok 수신 후에만 수행 — abort 시 캐시도 불변.
  * 4. 직렬화 — 같은 store가 겹치는 readwrite tx는 IDB가 cross-tab 포함 직렬화한다.
- *    createRecord의 FK 확인과 deleteMotorCascade가 어느 순서로 경합해도 INV-03이 성립하는 근거.
+ *    FK 확인·rolling count·permutation 검증을 mutation과 같은 tx에서 수행하므로
+ *    어떤 교차 실행에서도 INV-03·INV-19·INV-20이 성립한다.
  *
  * 오류 매핑: fn이 던진 DomainError(예: createRecord의 FK not-found 판정)는 그대로 보존하고,
  * QuotaExceededError → 'quota-exceeded', 그 외 → 'transaction-failed'로 수렴한다.
@@ -30,14 +32,14 @@ export type TransactionMode = 'readonly' | 'readwrite'
 export async function withTransaction<Name extends DomainStoreName, Mode extends TransactionMode, T>(
   storeNames: readonly Name[],
   mode: Mode,
-  fn: (tx: IDBPTransaction<MotorLabDB, Name[], Mode>) => Promise<T> | T,
+  fn: (tx: IDBPTransaction<MmlDB, Name[], Mode>) => Promise<T> | T,
 ): Promise<Result<T>> {
   const db = getDb()
   if (db === null) {
     return err(new DomainError('storage-unavailable', DOMAIN_ERROR_MESSAGES['storage-unavailable']))
   }
 
-  let tx: IDBPTransaction<MotorLabDB, Name[], Mode>
+  let tx: IDBPTransaction<MmlDB, Name[], Mode>
   try {
     tx = db.transaction([...storeNames], mode)
   } catch (e) {
