@@ -38,7 +38,37 @@ const MINOR_TICK_INNER_R = TICK_OUTER_R - 4
  * 라벨 글자를 관통한다(실측 확인). 라벨 위치가 하단 양옆이라 중앙 오버레이와는 겹치지 않는다.
  */
 const LABEL_R = 40
-const LABELED_HZ = [200, 600] as const
+/**
+ * v2.19: 라벨을 **실제 대역 끝점**(170/620)으로 바꿨다. 이전에는 200·600만 적어서 대역이
+ * 200~600인 것처럼 읽혔고, 610 Hz 같은 정상값이 '600 라벨 밖'에 놓여 범위를 넘어선 것처럼
+ * 보였다(사용자 지적). 눈금은 그대로 25/100 Hz 간격이고 라벨만 끝점으로 옮긴다 —
+ * 계기판에서 축의 시작·끝을 적지 않으면 읽는 사람이 스케일을 추측하게 된다.
+ */
+const LABELED_HZ = [F0_RANGE.min, F0_RANGE.max] as const
+
+/**
+ * v2.19 가시성 — 트랙·보조 눈금이 `action.hover`·`divider`였는데 실측 대비가
+ * **다크 1.18:1 / 라이트 1.09:1**로 사실상 보이지 않았다(양 모드 모두 사용자 지적).
+ * 두께 13px 트랙이 4~8% 알파면 계기판이 아니라 빈 공간이다.
+ *
+ * 고정 색 대신 `text.primary` + opacity를 쓴다: text.primary는 모드에 따라 흑↔백으로
+ * 뒤집히므로 알파 하나로 양 모드에서 같은 대비를 얻는다(모드별 하드코딩 불필요).
+ * 0.48은 WCAG 1.4.11(비텍스트 ≥3:1)을 **양 모드에서** 만족하도록 실측으로 맞춘 값이다.
+ * (0.42로 계산했다가 라이트에서 2.61:1이 나와 올렸다 — text.primary가 순수 흑이 아니라
+ *  rgb(28,27,31)이어서 합성 결과가 예상보다 밝았다. 계산이 아니라 실측이 기준이다.)
+ */
+const TRACK_OPACITY = 0.48
+/** 보조 눈금은 주 눈금(text.secondary)보다 약해야 위계가 유지된다 — 보이되 종속 */
+const MINOR_TICK_OPACITY = 0.42
+/**
+ * dim(값 없음) 감쇠 — 0.45 **유지**(올리지 않았다).
+ * 이 게이지는 전경 텍스트의 장식 배경층이고(MeasureFigures: absolute inset 0, aria-hidden),
+ * 값이 없는 상태에서만 긴 상태 문구(예: '브라우저 설정에서 마이크 권한을 허용해야 합니다')가
+ * 중앙에 놓여 **링을 가로지른다**. dim을 올리면 트랙이 그 문구와 겹쳐 읽기를 방해한다.
+ * 반대로 measuring 상태의 전경은 중앙의 큰 수치뿐이고 그 자리는 링 안쪽 빈 공간이라
+ * 트랙을 강하게 해도 충돌하지 않는다 — 그래서 **active만 대비를 올리고 dim은 그대로** 둔다.
+ */
+const DIM_OPACITY = 0.45
 
 const HZ_MIN = F0_RANGE.min // 170
 const HZ_MAX = F0_RANGE.max // 620
@@ -122,8 +152,13 @@ const buildTick = (hz: number, major: boolean, labeled: boolean): GaugeTick => {
 
 /** 눈금 전수(모듈 스코프 1회 계산) — 끝점 170/620 무라벨 주 틱 + 주 100 Hz(라벨) + 보조 25 Hz */
 const TICKS: readonly GaugeTick[] = (() => {
-  const ticks: GaugeTick[] = [buildTick(HZ_MIN, true, false), buildTick(HZ_MAX, true, false)]
-  for (let hz = Math.ceil(HZ_MIN / MINOR_STEP_HZ) * MINOR_STEP_HZ; hz < HZ_MAX; hz += MINOR_STEP_HZ) {
+  // 끝점은 라벨을 붙인다(v2.19) — 대역의 시작·끝이 곧 스케일 정보다
+  const ticks: GaugeTick[] = [buildTick(HZ_MIN, true, true), buildTick(HZ_MAX, true, true)]
+  for (
+    let hz = Math.ceil(HZ_MIN / MINOR_STEP_HZ) * MINOR_STEP_HZ;
+    hz < HZ_MAX;
+    hz += MINOR_STEP_HZ
+  ) {
     const major = hz % MAJOR_STEP_HZ === 0
     // 라벨은 LABELED_HZ 2개만 — 두꺼운 트랙 때문에 라벨 반지름이 안쪽으로 들어와
     // 5개를 다 쓰면 중앙 BigNumber 오버레이와 겹친다(레퍼런스도 2개만 표기)
@@ -157,14 +192,14 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
       viewBox={VIEW_BOX}
       aria-hidden="true"
       style={{display: 'block', width: '100%', height: '100%'}}>
-      <g style={{opacity: dim ? 0.45 : 1}}>
+      <g style={{opacity: dim ? DIM_OPACITY : 1}}>
         {/* 트랙 — 두꺼운 라운드 캡(레퍼런스). action.hover로 면을 만들어 divider보다 존재감을 준다 */}
         <path
           d={TRACK_PATH}
           fill="none"
           strokeWidth={STROKE_W}
           strokeLinecap="round"
-          style={{stroke: palette.action.hover}}
+          style={{stroke: palette.text.primary, opacity: TRACK_OPACITY}}
         />
         {/* 레드라인 580~620 Hz — 트랙과 같은 반지름·두께로 그 구간을 덮는다 (DS §9.4 · DS-A15 장식) */}
         {/*
@@ -186,7 +221,10 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
               x2={tick.line[2]}
               y2={tick.line[3]}
               strokeWidth={tick.major ? 1.5 : 1}
-              style={{stroke: tick.major ? palette.text.secondary : palette.divider}}
+              style={{
+                stroke: tick.major ? palette.text.secondary : palette.text.primary,
+                ...(tick.major ? {} : {opacity: MINOR_TICK_OPACITY}),
+              }}
             />
             {tick.label !== null && (
               <text
@@ -231,7 +269,13 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
               fill="none"
               // 트랙과 동일 두께 — 진행분이 트랙을 "채우는" 것으로 읽힌다(이전엔 2 위에 4로 어긋났다)
               strokeWidth={STROKE_W}
-              strokeLinecap="round"
+              /*
+               * v2.19 butt — round 캡은 보이는 dash의 **양 끝을 각각 6.5단위(≈10 Hz) 넘어**
+               * 부풀어서, 라임 아크 끝이 바늘보다 앞서 나갔다. 사용자가 '측정값이 범위를
+               * 넘어서는 것 같다'고 본 지점이다. 같은 이유로 레드라인은 이미 butt였는데
+               * 진행 아크만 round로 남아 있었다 — 이제 아크 끝 = 바늘 = 실제 값이 일치한다.
+               */
+              strokeLinecap="butt"
               strokeDasharray={TRACK_ARC_LENGTH}
               sx={{
                 stroke: limeFg,

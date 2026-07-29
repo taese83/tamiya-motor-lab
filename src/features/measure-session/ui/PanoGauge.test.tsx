@@ -31,6 +31,54 @@ const progressDashOffset = (container: HTMLElement): string | null => {
   return path === undefined ? null : getComputedStyle(path).strokeDashoffset
 }
 
+describe('PanoGauge v2.19 — 범위 표기·아크 끝 정합', () => {
+  it('진행 아크는 butt 캡이다 — round면 값 위치를 넘어 바늘보다 앞서 나간다', () => {
+    // 사용자 지적('측정값이 게이지 범위를 넘어서는 것 같다')의 실제 원인.
+    // round 캡은 보이는 dash의 양 끝을 각각 strokeWidth/2(=6.5단위 ≈ 10 Hz)만큼 넘어 부풀어서
+    // 라임 아크 끝 ≠ 바늘 ≠ 실제 값이 됐다. 레드라인은 같은 이유로 이미 butt였다.
+    const {container} = render(<PanoGauge panoHz={400} />)
+    const arc = progressPath(container)
+    expect(arc).toBeDefined()
+    expect(arc?.getAttribute('stroke-linecap')).toBe('butt')
+  })
+
+  it('눈금 라벨은 실제 대역 끝점(170·620)을 적는다', () => {
+    // 200·600만 적으면 대역이 200~600으로 읽혀 610 Hz 같은 정상값이 범위 밖처럼 보인다.
+    const {container} = render(<PanoGauge panoHz={400} />)
+    const labels = [...container.querySelectorAll('text')].map(t => t.textContent)
+    expect(labels).toContain('170')
+    expect(labels).toContain('620')
+  })
+
+  it('대역을 벗어난 값은 끝점으로 클램프된다 — 바늘·아크가 트랙을 넘지 않는다', () => {
+    const below = render(<PanoGauge panoHz={50} />)
+    expect(needleTransform(below.container)).toContain('rotate(-110deg)')
+    // 하한 아래 → 진행분 0: dashoffset이 dasharray(트랙 전체 길이)와 같아 아무것도 그려지지 않는다
+    const arc = progressPath(below.container)
+    const dashArray = arc?.getAttribute('stroke-dasharray')
+    expect(Number(progressDashOffset(below.container)?.replace('px', ''))).toBeCloseTo(
+      Number(dashArray),
+      1,
+    )
+
+    const above = render(<PanoGauge panoHz={5_000} />)
+    expect(needleTransform(above.container)).toContain('rotate(110deg)')
+    // 상한 위 → 진행분 전체: 남는 구간 0
+    expect(Number(progressDashOffset(above.container)?.replace('px', ''))).toBe(0)
+  })
+
+  it('트랙과 보조 눈금은 투명 배경색이 아니라 전경색 + opacity로 그린다', () => {
+    // action.hover(4~8% 알파)는 다크 1.18:1 / 라이트 1.09:1로 사실상 보이지 않았다(실측).
+    // text.primary는 모드에 따라 뒤집히므로 알파 하나로 양 모드 대비를 함께 만족한다.
+    const {container} = render(<PanoGauge panoHz={400} />)
+    const track = paths(container)[0]
+    expect(track).toBeDefined()
+    const opacity = Number(getComputedStyle(track as SVGPathElement).opacity)
+    expect(opacity).toBeGreaterThan(0.3)
+    expect(opacity).toBeLessThan(1)
+  })
+})
+
 describe('PanoGauge', () => {
   it('값이 없으면 진행 아크는 없지만 바늘은 최소 위치에 남는다 (dim 상태)', () => {
     // v2.13: 바늘을 숨기면 빈 트랙만 남아 "고장난 계기판"으로 보인다 —
