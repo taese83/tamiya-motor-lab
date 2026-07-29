@@ -1,7 +1,5 @@
 import {Box, Button} from '@mui/material'
 
-import {MIN_MEASURE_DURATION_MS} from '@shared/config/domain'
-
 import type {MeasureView} from './measure-view'
 
 /**
@@ -9,10 +7,8 @@ import type {MeasureView} from './measure-view'
  * boolean prop 조합 금지 — 3분기 이상은 discriminated union(재사용 원칙 §0.3).
  */
 export type MeasureAction =
-  // 일반 모드 상시 [기록] — onPress는 소비자(collect-flow) 주입.
-  // v2.18 waitRemainingMs: 최소 측정시간 하한까지 남은 ms. 있으면 disabled 사유가 "아직 덜 측정"이며
-  // 라벨에 남은 초를 노출한다 — 이유 없는 비활성(무음 비활성) 금지 계약을 지킨다.
-  | {kind: 'record'; disabled: boolean; waitRemainingMs?: number}
+  // standalone 모드 상시 [기록] — onPress는 소비자(collect-flow) 주입. v2.23: 5초 하한 제거(즉시)
+  | {kind: 'record'; disabled: boolean}
   | {kind: 'activate'} // awaiting-gesture — [탭하여 시작] primary, 1탭 계약(M-1, QA 대상)
   | {kind: 'retry-permission'} // [권한 다시 요청] primary
   | {kind: 'settings-help'; expanded: boolean} // [설정 방법 보기] — aria-expanded 토글
@@ -44,14 +40,12 @@ export function deriveMeasureAction(
     case 'insecure':
     case 'weak-signal':
       return {kind: 'record', disabled: true}
-    case 'measuring': {
-      // persistence 불가가 우선 — 사유가 다르고(전역 배너 소관) 시간이 지나도 풀리지 않는다
-      if (!persistenceReady) return {kind: 'record', disabled: true}
-      // v2.18 최소 측정시간 하한. 엔진 stable(1.5s CV)만으로는 모터 회전이 안정됐다고 볼 수 없다.
-      const remainingMs = MIN_MEASURE_DURATION_MS - view.measuredMs
-      if (remainingMs > 0) return {kind: 'record', disabled: true, waitRemainingMs: remainingMs}
-      return {kind: 'record', disabled: false}
-    }
+    case 'measuring':
+      // v2.23(사용자): standalone 측정([기록])은 **5초 하한 없이 즉시 기록**한다.
+      // 이 record 액션은 handoffReturn===null일 때만 도달한다(왕복 모드는 위에서 back-to-origin으로
+      // 치환) — 즉 여기는 항상 standalone이다. 따라서 v2.18의 measuredMs 게이트를 여기서 제거한다.
+      // 왕복(모터·레이스) 자동 확정의 5초 하한은 MeasurePage의 useRaceAutoCollect가 그대로 유지한다.
+      return {kind: 'record', disabled: !persistenceReady}
     case 'awaiting-gesture':
       return {kind: 'activate'}
     case 'no-permission':
@@ -105,11 +99,7 @@ function slotConfig(action: MeasureAction, handlers: SlotHandlers): SlotConfig {
   switch (action.kind) {
     case 'record':
       return {
-        // 하한 대기 중에는 남은 초를 라벨에 담는다 — 왜 못 누르는지가 버튼 자체에서 읽힌다
-        label:
-          action.waitRemainingMs !== undefined
-            ? `측정 중… ${Math.ceil(action.waitRemainingMs / 1000)}초`
-            : '기록',
+        label: '기록',
         variant: 'contained',
         onClick: handlers.onRecord,
         softDisabled: action.disabled,

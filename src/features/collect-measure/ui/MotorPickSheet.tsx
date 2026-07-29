@@ -1,4 +1,4 @@
-import {Alert, List, ListItemButton, Typography} from '@mui/material'
+import {Alert, Button, List, ListItemButton, Typography} from '@mui/material'
 import {MotorKindChip} from '@entities/motor'
 import {numericTypography} from '@shared/config/design-tokens'
 import {formatFanoHz, formatRpm} from '@shared/lib/format'
@@ -68,29 +68,45 @@ export function MotorPickSheet({
           onAction={onRequestRegister}
         />
       ) : (
-        <List disablePadding>
-          {motors.map(motor => (
-            <ListItemButton
-              key={motor.id}
-              disabled={pending}
-              onClick={() => onSelect(motor.id)}
-              sx={{minHeight: '3.5rem', gap: 1, px: 1.5}}>
-              <Typography variant="body1" noWrap sx={{fontWeight: 600, flex: 1, minWidth: 0}}>
-                {motor.name}
-              </Typography>
-              <MotorKindChip kind={motor.kind} />
-              <Typography
-                component="span"
-                sx={{...numericTypography.listValue, color: 'text.secondary'}}>
-                {motor.id === pendingMotorId
-                  ? '기록 중…'
-                  : motor.lastPanoHz !== null
-                    ? formatFanoHz(motor.lastPanoHz)
-                    : '기록 없음'}
-              </Typography>
-            </ListItemButton>
-          ))}
-        </List>
+        <>
+          <List disablePadding>
+            {motors.map(motor => (
+              <ListItemButton
+                key={motor.id}
+                disabled={pending}
+                onClick={() => onSelect(motor.id)}
+                sx={{minHeight: '3.5rem', gap: 1, px: 1.5}}>
+                <Typography variant="body1" noWrap sx={{fontWeight: 600, flex: 1, minWidth: 0}}>
+                  {motor.name}
+                </Typography>
+                <MotorKindChip kind={motor.kind} />
+                <Typography
+                  component="span"
+                  sx={{...numericTypography.listValue, color: 'text.secondary'}}>
+                  {motor.id === pendingMotorId
+                    ? '기록 중…'
+                    : motor.lastPanoHz !== null
+                      ? formatFanoHz(motor.lastPanoHz)
+                      : '기록 없음'}
+                </Typography>
+              </ListItemButton>
+            ))}
+          </List>
+          {/*
+          v2.23(사용자): 모터 리스트가 있어도 그 아래에 [새 모터 추가]를 노출한다. 이전에는
+          모터 0개일 때만 등록 유도가 있어, 측정값을 새 모터로 기록하려면 화면을 나갔다 와야 했다.
+          onRequestRegister는 empty 상태와 동일 오케스트레이션(useCollectFlow가 시트 교체)을 쓴다 —
+          등록 성공 시 그 모터로 즉시 이 스냅샷을 수집한다.
+        */}
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={onRequestRegister}
+            disabled={pending}
+            sx={{mt: 1.5, minHeight: 48}}>
+            + 새 모터 추가
+          </Button>
+        </>
       )}
     </BottomSheet>
   )

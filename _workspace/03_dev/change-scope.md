@@ -1061,3 +1061,45 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   Y 파노. "측정 기록 9건" 헤딩·하단 [측정] 고정 유지
 - 미검증: rolling 20 경계(21번째 삽입 시 최고령 삭제)는 마이크 수집 경로라 실측 못 함 — INV-20
   로직은 상수 참조라 값만 바뀌고 기존 eviction 테스트 커버(엔티티 단위 테스트 존재)
+
+---
+
+## v2.23 — 측정 흐름: standalone 즉시 기록 + 모터 선택 시트에 새 모터 추가 (req2·3)
+
+### TARGET_BEHAVIOR
+- **standalone 측정([기록])은 5초 하한 없이 즉시** 기록 (req3). 왕복(모터·레이스) 자동 확정의
+  5초 하한은 유지.
+- 모터 선택 시트(측정 후 [기록] → 리스트)에 **[+ 새 모터 추가]** 버튼을 리스트 아래 노출 (req2).
+
+### 설계 결정 (req3)
+- v2.18의 5초 게이트가 `deriveMeasureAction`의 `measuring` 케이스에 있었는데, **이 record
+  액션은 handoffReturn===null일 때만 도달**한다(왕복이면 위에서 back-to-origin으로 치환) —
+  즉 게이트는 **원래부터 standalone에만** 걸려 있었다. 그 케이스에서 measuredMs 판정을 제거하니
+  standalone이 즉시 기록으로 바뀐다. 왕복 자동 확정의 하한은 별도로 MeasurePage의
+  `useRaceAutoCollect`(isStable && measuredMs≥MIN)가 소유하므로 **그대로 유지**된다.
+- 부수 정리: MeasureAction의 `waitRemainingMs`·라벨 카운트다운·MIN_MEASURE_DURATION_MS import 제거.
+
+### 설계 결정 (req2)
+- `onRequestRegister`는 이미 존재(empty 상태 전용). 리스트가 있을 때도 하단에 같은 핸들러의
+  버튼을 노출한다 — useCollectFlow의 시트 교체 오케스트레이션(등록 성공 시 그 모터로 즉시 수집)을
+  재사용하므로 새 배선 없음. pending 중 disabled(single-flight).
+
+### ALLOWED_PATHS
+- `src/features/measure-session/ui/MeasureActionDock.tsx` (+ `.test.tsx`)
+- `src/features/collect-measure/ui/MotorPickSheet.tsx`
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 왕복 자동 확정 5초 하한(MeasurePage) 불변 · SC2-A3 스냅샷 고정 · single-flight
+- MeasureActionDock 슬롯 단일 노드·자리 이동 없음 · MotorPickSheet 공개 props·onRequestRegister 계약
+
+### NON_GOALS
+- 왕복 하한 제거(standalone만 대상) · 새 모터 추가 흐름 신규 오케스트레이션(기존 재사용)
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 79건(dock 5초 게이트 테스트 3건 제거·즉시 활성 테스트로 대체)
+- dock unit: standalone은 측정 시간 무관 즉시 활성(100ms·800ms도 활성), persistence 불가만 비활성
+- 미검증(마이크 필요): 실제 measuring 상태에서 [기록] 즉시 동작·MotorPickSheet 표시.
+  순수 산출은 unit 고정, [새 모터 추가]는 기존 onRequestRegister 경로 재사용(기존 empty 경로 검증됨)
