@@ -69,25 +69,22 @@ export async function resetAllRecords(): Promise<
 }
 
 /**
- * 모터별 기록 초기화 (v2.2 — 사용자 결정: 초기화는 모터 단위로만 수행).
- * 해당 모터의 측정·레이스 기록만 삭제, 모터 자체와 다른 모터의 기록은 유지.
- * 원자성은 resetAllRecords와 동일 — 두 store 단일 트랜잭션, abort 시 무변경.
+ * 모터별 레이스 기록 초기화 (v2.3 — 사용자 결정 정정: 초기화는 **레이스 기록만** 삭제).
+ * 해당 모터의 raceRecords만 삭제 — measureRecords(파노 값의 출처)·모터 자체·다른 모터의
+ * 기록은 모두 유지한다. (이전 v2.2는 측정 기록까지 함께 삭제해 모터 상세의 파노 그래프
+ * 데이터가 사라지는 문제가 있었다 — 그 동작을 정정한다.)
+ * 원자성: raceRecords 단일 store 트랜잭션 — abort 시 무변경(한쪽만 빈 상태 관찰 불가).
+ * measureRecords·motors·meta store에는 접근하지 않는다.
  * 대상 모터 부재 검증은 하지 않는다(멱등 — 이미 삭제된 모터의 잔존 기록도 정리 가능).
+ * 반환 건수는 delete 직전 같은 tx의 실측치(성공 토스트 등 표시용).
  */
-export async function resetRecordsByMotor(
+export async function resetRaceRecordsByMotor(
   motorId: string,
-): Promise<Result<{deletedMeasureCount: number; deletedRaceCount: number}>> {
-  return withTransaction(['measureRecords', 'raceRecords'], 'readwrite', async tx => {
-    const measureIndex = tx.objectStore('measureRecords').index('by-motorId')
-    const raceIndex = tx.objectStore('raceRecords').index('by-motorId')
-    const [measureKeys, raceKeys] = await Promise.all([
-      measureIndex.getAllKeys(motorId),
-      raceIndex.getAllKeys(motorId),
-    ])
-    const measureStore = tx.objectStore('measureRecords')
+): Promise<Result<{deletedRaceCount: number}>> {
+  return withTransaction(['raceRecords'], 'readwrite', async tx => {
     const raceStore = tx.objectStore('raceRecords')
-    for (const key of measureKeys) await measureStore.delete(key)
-    for (const key of raceKeys) await raceStore.delete(key)
-    return {deletedMeasureCount: measureKeys.length, deletedRaceCount: raceKeys.length}
+    const keys = await raceStore.index('by-motorId').getAllKeys(motorId)
+    for (const key of keys) await raceStore.delete(key)
+    return {deletedRaceCount: keys.length}
   })
 }

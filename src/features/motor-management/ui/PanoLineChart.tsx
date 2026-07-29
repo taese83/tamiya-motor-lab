@@ -1,13 +1,17 @@
-import {Box, Typography, useTheme} from '@mui/material'
-import {EM_DASH, formatDateTimeShort, formatPanoValue} from '@shared/lib/format'
+import {Box, useTheme} from '@mui/material'
+import {LineChart} from '@mui/x-charts/LineChart'
+import {EM_DASH, formatDateTimeShort, formatFanoHz, formatPanoValue} from '@shared/lib/format'
 
 // PanoLineChart (component-spec v2 §5.5 · layout-spec v2 §5.2 — T-5).
-// 커스텀 SVG(차트 라이브러리 금지) — width 100% × height 160px 고정.
-// a11y: 전체 aria-hidden — canonical 데이터는 MotorRow 확장 패널의 기록 리스트 텍스트(§5.2).
-// 차트 단독 사용 금지(기록 리스트 없는 소비 금지). 애니메이션 트윈 금지(패널 enter 페이드에 포함).
+// v2.3: 커스텀 SVG → @mui/x-charts LineChart 교체(사용자 요구 — 시각 품질 개선).
+// a11y 계약 유지: 전체 aria-hidden — canonical 데이터는 소비 화면의 기록 리스트 텍스트(§5.2).
+// 차트 단독 사용 금지(기록 리스트 없는 소비 금지).
+// hover 툴팁·crosshair는 **포인터 전용 보조 표시**다(v2.3 추가): tab 스톱·포커스 가능 자손을
+// 만들지 않으므로 aria-hidden 계약과 정합하고, 키보드·스크린리더 사용자는 동일 정보를
+// 기록 리스트 텍스트에서 얻는다(툴팁이 유일한 정보 경로가 되어서는 안 된다).
 
 export interface PanoLineChartPoint {
-  /** stable entity id — 렌더 key(index 금지) */
+  /** stable entity id — 상위 렌더 key(index 금지) */
   id: string
   measuredAt: string
   panoHz: number
@@ -18,135 +22,97 @@ export interface PanoLineChartProps {
   points: ReadonlyArray<PanoLineChartPoint>
 }
 
-const CHART_HEIGHT = 160
-/** 플롯 영역 인셋(px) — 라벨은 HTML 오버레이(비율 스케일 SVG의 글자 왜곡 회피) */
-const PLOT_INSET = {top: 8, right: 8, bottom: 22, left: 8} as const
+const CHART_HEIGHT = 200
+
+/** X축 전체 라벨 — "MM-DD HH:mm" (툴팁용 — 측정 시각까지 표시) */
+const dateTimeLabel = (value: Date | number | string): string =>
+  formatDateTimeShort(new Date(value).toISOString())
+
+/** X축 tick 라벨 — 날짜부만 (시간축 tick 밀집 회피) */
+const datePart = (value: Date | number | string): string =>
+  dateTimeLabel(value).split(' ')[0] ?? EM_DASH
 
 /**
- * X = measuredAt 실제 시간 축(등간격 아님), Y = panoHz(점 min/max ±5% 패딩, 점 1개면 중앙).
- * SVG는 0..100 정규화 viewBox + preserveAspectRatio="none"으로 width 기준 스케일하고,
- * 선/점은 vector-effect="non-scaling-stroke"로 두께 왜곡을 막는다(점 = 0길이 round 선분).
- * points=0은 렌더하지 않는다 — 상위(MotorRow)가 "아직 기록 없음" 블록 소유(h160 비유지).
+ * X = measuredAt 실제 시간 축(time scale — 등간격 아님), Y = panoHz(라이브러리 자동 도메인).
+ * 라임 시그니처 라인 + 완만한 곡선(monotoneX) + 영역 tint로 추세를 강조한다.
+ * points=0은 렌더하지 않는다 — 상위(소비 화면)가 "아직 기록 없음" 블록 소유(고정 높이 비유지).
  */
 export function PanoLineChart({points}: PanoLineChartProps) {
   const theme = useTheme()
-  const firstPoint = points[0]
-  const lastPoint = points[points.length - 1]
-  if (firstPoint === undefined || lastPoint === undefined) return null
+  if (points.length === 0) return null
 
-  const lime = (theme.vars ?? theme).palette.primary.main // 시그니처 라임 — hex 금지, theme 경유
-  const hairline = (theme.vars ?? theme).palette.divider
+  const palette = (theme.vars ?? theme).palette
+  const lime = palette.primary.main // 시그니처 라임 — hex 금지, theme 경유
+  const hairline = palette.divider
+  const markStroke = palette.background.paper // 마커 외곽선 = 배경색(면과 분리)
 
-  const times = points.map(point => new Date(point.measuredAt).getTime())
-  const values = points.map(point => point.panoHz)
-  const minTime = Math.min(...times)
-  const maxTime = Math.max(...times)
-  const minValue = Math.min(...values)
-  const maxValue = Math.max(...values)
-  const valueRange = maxValue - minValue
-  const pad = valueRange * 0.05
+  const xData = points.map(point => new Date(point.measuredAt))
+  const yData = points.map(point => point.panoHz)
+
+  // Y 도메인 — 실측 min/max에 여유(range의 15%, 단일값은 ±5%)를 둬 파노 변화를 넓게 보인다
+  // (0 기준 자동 스케일은 170~620 Hz 대역 변화를 상단에 눌러 붙여 추세가 안 보인다).
+  const minValue = Math.min(...yData)
+  const maxValue = Math.max(...yData)
+  const pad = maxValue > minValue ? (maxValue - minValue) * 0.15 : Math.max(maxValue * 0.05, 1)
   const domainMin = minValue - pad
   const domainMax = maxValue + pad
-  const timeSpan = maxTime - minTime
-  const single = points.length === 1
-
-  const xOf = (index: number): number => {
-    const time = times[index]
-    if (points.length === 1 || time === undefined) return 50
-    // 동시각 전건(degenerate)만 index 등간격 fallback — 정상 경로는 실제 시간 비례
-    if (timeSpan === 0) return (index / (points.length - 1)) * 100
-    return ((time - minTime) / timeSpan) * 100
-  }
-  const yOf = (value: number): number =>
-    domainMax === domainMin ? 50 : ((domainMax - value) / (domainMax - domainMin)) * 100
-
-  const coords = points.map((point, index) => ({
-    id: point.id,
-    x: xOf(index),
-    y: yOf(point.panoHz),
-  }))
-  const linePath = coords.map((c, index) => `${index === 0 ? 'M' : 'L'}${c.x} ${c.y}`).join(' ')
-  const lastId = lastPoint.id
-
-  const datePart = (iso: string): string => formatDateTimeShort(iso).split(' ')[0] ?? EM_DASH
-  const labelSx = {color: 'text.secondary', lineHeight: 1, position: 'absolute'} as const
 
   return (
-    // 장식 채널 전체 숨김 — 수치·추세의 canonical은 아래 기록 리스트(§5.5 a11y 계약)
-    <Box aria-hidden="true" sx={{position: 'relative', width: '100%', height: CHART_HEIGHT}}>
-      <Box
+    // 장식 채널 전체 숨김 — 수치·추세의 canonical은 소비 화면의 기록 리스트(§5.5 a11y 계약)
+    <Box aria-hidden="true" sx={{width: '100%'}}>
+      <LineChart
+        height={CHART_HEIGHT}
+        margin={{top: 16, right: 16, bottom: 8, left: 8}}
+        hideLegend
+        // aria-hidden 컨테이너 안에 tabindex=0 surface가 생기면 "포커스는 가되 AT에는 없는"
+        // 요소가 되어 WCAG 위반이다 — 키보드 탐색을 끄고 tab 스톱을 0으로 유지한다.
+        disableKeyboardNavigation
+        // hover crosshair — 포인터 전용 보조선(세로만, 값 축은 툴팁이 담당)
+        axisHighlight={{x: 'line', y: 'none'}}
+        grid={{horizontal: true}}
+        xAxis={[
+          {
+            data: xData,
+            scaleType: 'time',
+            // tick은 날짜만(밀집 회피), 툴팁 헤더는 측정 시각까지 — location으로 분기
+            valueFormatter: (value: Date | number | string, context) =>
+              context.location === 'tooltip' ? dateTimeLabel(value) : datePart(value),
+            tickNumber: 3,
+            disableLine: true,
+            disableTicks: true,
+          },
+        ]}
+        yAxis={[
+          {
+            valueFormatter: (value: number) => formatPanoValue(value),
+            min: domainMin,
+            max: domainMax,
+            tickNumber: 3,
+            disableLine: true,
+            disableTicks: true,
+          },
+        ]}
+        series={[
+          {
+            data: yData,
+            label: '파노', // 툴팁 행 라벨 (hideLegend이므로 범례에는 노출되지 않는다)
+            color: lime,
+            area: true,
+            curve: 'monotoneX',
+            showMark: true,
+            valueFormatter: value => (value === null ? EM_DASH : formatFanoHz(value)),
+          },
+        ]}
         sx={{
-          position: 'absolute',
-          top: PLOT_INSET.top,
-          right: PLOT_INSET.right,
-          bottom: PLOT_INSET.bottom,
-          left: PLOT_INSET.left,
-        }}>
-        <svg
-          width="100%"
-          height="100%"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          style={{display: 'block', overflow: 'visible'}}>
-          {/* 그리드 — hairline 수평 ≤2줄. 점 1개면 점을 지나는 수평 기준선 1줄 */}
-          {single ? (
-            <line x1={0} y1={50} x2={100} y2={50} stroke={hairline} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          ) : (
-            <>
-              <line x1={0} y1={33.3} x2={100} y2={33.3} stroke={hairline} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-              <line x1={0} y1={66.7} x2={100} y2={66.7} stroke={hairline} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-            </>
-          )}
-          {/* 꺾은선 — 점 ≥2일 때만 (점 1개 = 점만) */}
-          {!single && (
-            <path d={linePath} fill="none" stroke={lime} strokeWidth={2} vectorEffect="non-scaling-stroke" />
-          )}
-          {/* 점 r3(지름 6) · 마지막 점 강조 r4(지름 8) — 0길이 round 선분(비균등 스케일에서도 원형 유지) */}
-          {coords.map(coord => (
-            <line
-              key={coord.id}
-              x1={coord.x}
-              y1={coord.y}
-              x2={coord.x}
-              y2={coord.y}
-              stroke={lime}
-              strokeWidth={coord.id === lastId ? 8 : 6}
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-        </svg>
-      </Box>
-      {/* Y 라벨 min/max 2개 (overline 톤) — 도메인이 아닌 실측 min/max 표기 */}
-      <Typography variant="overline" component="span" sx={{...labelSx, top: 0, left: PLOT_INSET.left}}>
-        {formatPanoValue(maxValue)}
-      </Typography>
-      {!single && (
-        <Typography
-          variant="overline"
-          component="span"
-          sx={{...labelSx, bottom: PLOT_INSET.bottom, left: PLOT_INSET.left}}>
-          {formatPanoValue(minValue)}
-        </Typography>
-      )}
-      {/* X 라벨 처음/끝 날짜 2개 — 점 1개면 중앙 1개 */}
-      {single ? (
-        <Typography
-          variant="overline"
-          component="span"
-          sx={{...labelSx, bottom: 0, left: '50%', transform: 'translateX(-50%)'}}>
-          {datePart(firstPoint.measuredAt)}
-        </Typography>
-      ) : (
-        <>
-          <Typography variant="overline" component="span" sx={{...labelSx, bottom: 0, left: PLOT_INSET.left}}>
-            {datePart(firstPoint.measuredAt)}
-          </Typography>
-          <Typography variant="overline" component="span" sx={{...labelSx, bottom: 0, right: PLOT_INSET.right}}>
-            {datePart(lastPoint.measuredAt)}
-          </Typography>
-        </>
-      )}
+          '& .MuiAreaElement-root': {fillOpacity: 0.16},
+          '& .MuiLineElement-root': {strokeWidth: 2.5},
+          '& .MuiMarkElement-root': {fill: lime, stroke: markStroke, strokeWidth: 1.5},
+          '& .MuiChartsGrid-line': {stroke: hairline, strokeDasharray: '3 3'},
+          '& .MuiChartsAxis-tickLabel': {fill: palette.text.secondary, fontSize: '0.7rem'},
+          // hover crosshair — 그리드보다 뚜렷하되 라인보다 약하게(장식 위계 유지)
+          '& .MuiChartsAxisHighlight-root': {stroke: palette.text.secondary, strokeDasharray: '4 3'},
+        }}
+      />
     </Box>
   )
 }

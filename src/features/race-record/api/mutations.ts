@@ -1,17 +1,21 @@
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 
-import {measureKeys} from '@entities/measure-record'
 import {motorKeys} from '@entities/motor'
-import {createRaceRecord, deleteRaceRecord, raceKeys} from '@entities/race-record'
+import {
+  createRaceRecord,
+  deleteRaceRecord,
+  raceKeys,
+  updateRaceRecord,
+} from '@entities/race-record'
 import {isDomainError} from '@shared/lib/errors'
-import {resetRecordsByMotor} from '@shared/lib/persistence'
+import {resetRaceRecordsByMotor} from '@shared/lib/persistence'
 import {unwrap} from '@shared/lib/result'
 
-import type {CreateRaceRecordDraft, RaceRecord} from '@entities/race-record'
+import type {CreateRaceRecordDraft, RaceRecord, UpdateRaceRecordPatch} from '@entities/race-record'
 import type {DomainError} from '@shared/lib/errors'
 
-// RaceRecord mutation 훅 3건 (v2 — F6-R: 생성 R-3/R-4 · 개별 삭제 RV-A3 · 전체 초기화 RV-A4).
-// RaceRecord는 immutable — update mutation은 존재하지 않는다 (INV-05).
+// RaceRecord mutation 훅 4건 (F6-R: 생성 R-3/R-4 · 수정 · 개별 삭제 RV-A3 · 레이스 기록 초기화).
+// v2.3: RaceRecord는 result·voltage·lapTimeMs만 수정 가능 (panoHz·구조 필드는 불변 — INV-05 완화).
 // 채널 규약: repository/persistence command의 Result<T, DomainError>를 unwrap()으로 통과시켜
 // 실패를 throw로 변환 — useMutation error 채널 접속. invalidation은 §6.4 매트릭스 그대로
 // commit 성공(onSuccess) 시에만 수행 — 실패/abort 시 캐시 불변 (state-contract §Derived view 무결성).
@@ -19,10 +23,15 @@ import type {DomainError} from '@shared/lib/errors'
 // (§6.4 어댑터 규약, 삭제·초기화는 확인 응답 후 반영). 제출 single-flight 가드·confirm은 UI/model 소관.
 // TanStack Query 로컬 정책(networkMode·retry)은 query-client 전역 설정 소관 — 재정의 금지.
 
-/** resetAllRecords 응답 — clear 직전 같은 tx의 실측 건수 (confirm 고지·성공 토스트 표시용). */
-export interface ResetAllRecordsResult {
-  deletedMeasureCount: number
+/** resetRaceRecordsByMotor 응답 — delete 직전 같은 tx의 실측 레이스 기록 건수 (성공 토스트 표시용). */
+export interface ResetRaceRecordsResult {
   deletedRaceCount: number
+}
+
+/** updateRaceRecord 변수 — 편집 필드(result·voltage·lapTimeMs)만 patch, 구조 필드·panoHz는 불변. */
+export interface UpdateRaceRecordVariables {
+  id: string
+  patch: UpdateRaceRecordPatch
 }
 
 /**
@@ -51,6 +60,31 @@ export const useCreateRaceRecord = () => {
 }
 
 /**
+ * mutation: updateRaceRecord (v2.3 — 오입력 정정. result·voltage·lapTimeMs만 갱신).
+ * panoHz(측정값)·motorId·createdAt(정렬 키)은 command가 보존하므로 리스트 순서는 불변.
+ * §6.4: 성공 시 raceKeys.byMotor(record.motorId) · motorKeys.summaries() invalidate.
+ * not-found(동시 탭 선삭제) 시 stale 목록 정정을 위해 raceKeys.root 추가 invalidate — 시트는
+ * 배너로 실패 고지 + 입력 유지(성공 위장 금지). optimistic update 금지(§6.4).
+ */
+export const useUpdateRaceRecord = () => {
+  const queryClient = useQueryClient()
+  return useMutation<RaceRecord, DomainError, UpdateRaceRecordVariables>({
+    mutationFn: async ({id, patch}) => unwrap(await updateRaceRecord(id, patch)),
+    onSuccess: record =>
+      Promise.all([
+        queryClient.invalidateQueries({queryKey: raceKeys.byMotor(record.motorId)}),
+        queryClient.invalidateQueries({queryKey: motorKeys.summaries()}),
+      ]),
+    onError: error => {
+      if (isDomainError(error) && error.code === 'not-found') {
+        return queryClient.invalidateQueries({queryKey: raceKeys.root})
+      }
+      return undefined
+    },
+  })
+}
+
+/**
  * mutation: deleteRaceRecord (RV-A3 — destructive, confirm은 호출 feature UI 책임).
  * 대상 부재 시 멱등 성공 (SC-A4 — LWW 수렴, not-found 경로 없음).
  * §6.4: 성공 시 raceKeys.root · motorKeys.summaries() invalidate.
@@ -69,18 +103,18 @@ export const useDeleteRaceRecord = () => {
 }
 
 /**
- * mutation: resetRecordsByMotor (v2.2 — 사용자 결정: 초기화는 모터 단위, destructive confirm은 UI 책임).
- * 해당 모터의 measureRecords + raceRecords만 단일 tx 삭제 — 모터·타 모터 기록 유지.
- * 성공 시 해당 모터의 기록 캐시 + summaries invalidate — motors 목록·detail 캐시는 유지.
+ * mutation: resetRaceRecordsByMotor (v2.3 — 사용자 결정 정정: 초기화는 **레이스 기록만** 삭제).
+ * 해당 모터의 raceRecords만 단일 tx 삭제 — measureRecords(파노)·모터·타 모터 기록은 유지.
+ * 성공 시 해당 모터의 raceKeys + summaries invalidate — measure 캐시·motors 목록·detail은 유지
+ * (측정 기록을 건드리지 않으므로 measureKeys invalidate하지 않는다).
  * optimistic 완료 처리 금지 — 성공 응답 후에만 UI 반영.
  */
-export const useResetMotorRecords = () => {
+export const useResetMotorRaceRecords = () => {
   const queryClient = useQueryClient()
-  return useMutation<ResetAllRecordsResult, DomainError, string>({
-    mutationFn: async motorId => unwrap(await resetRecordsByMotor(motorId)),
+  return useMutation<ResetRaceRecordsResult, DomainError, string>({
+    mutationFn: async motorId => unwrap(await resetRaceRecordsByMotor(motorId)),
     onSuccess: (_result, motorId) =>
       Promise.all([
-        queryClient.invalidateQueries({queryKey: measureKeys.byMotor(motorId)}),
         queryClient.invalidateQueries({queryKey: raceKeys.byMotor(motorId)}),
         queryClient.invalidateQueries({queryKey: motorKeys.summaries()}),
       ]),

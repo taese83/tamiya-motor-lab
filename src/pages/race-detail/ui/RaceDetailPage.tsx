@@ -84,7 +84,7 @@ export function RaceDetailPage() {
     lastMeasure !== undefined ? {kind: 'auto', panoHz: lastMeasure.panoHz} : {kind: 'none'}
 
   const entry = useRaceEntry(motorId, initialPano)
-  const resetFlow = useResetRecordsFlow(motorId) // v2.2 — 모터별 [기록 초기화] (상세 하단)
+  const resetFlow = useResetRecordsFlow(motorId) // v2.3 — 모터별 [레이스 기록 초기화] (상세 하단)
   const deleteFlow = useRaceDeleteFlow()
 
   // 왕복 복귀 소비(§7.2) — mount 시 1회. consume은 read-and-clear라 StrictMode 이중
@@ -216,6 +216,7 @@ export function RaceDetailPage() {
                   <RaceRecordRow
                     record={record}
                     index={races.length - arrayIndex}
+                    onEdit={entry.editRecord}
                     onDelete={id => deleteFlow.requestDelete(id, formatDateTimeShort(record.createdAt))}
                     deletePending={deleteFlow.pendingId === record.id}
                   />
@@ -224,7 +225,7 @@ export function RaceDetailPage() {
             </Stack>
           )}
 
-          {/* v2.2 — 모터별 [기록 초기화]: 이 모터의 측정·레이스 기록만 삭제 (목록 하단, sectionGap 이격) */}
+          {/* v2.3 — 모터별 [레이스 기록 초기화]: 이 모터의 레이스 기록만 삭제, 측정(파노)은 유지 (목록 하단, sectionGap 이격) */}
           {motor !== null && (
             <Box sx={{mt: `${layoutTokens.sectionGap}px`}}>
               <ResetRecordsBlock motorName={motor.name} onReset={resetFlow.reset} />
@@ -237,6 +238,7 @@ export function RaceDetailPage() {
       {motor !== null && (
         <RaceEntrySheet
           open={entry.sheetOpen}
+          mode={entry.mode}
           motorName={motor.name}
           pano={entry.pano}
           draft={entry.draft}

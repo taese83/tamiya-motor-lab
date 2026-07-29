@@ -24,4 +24,4 @@ export type {InitPersistenceOptions, PersistenceScanValidation, RowValidator} fr
 export {mapStorageError} from './map-storage-error'
 export {withTransaction} from './with-transaction'
 export type {TransactionMode} from './with-transaction'
-export {resetAllData, resetAllRecords, resetRecordsByMotor} from './reset'
+export {resetAllData, resetAllRecords, resetRaceRecordsByMotor} from './reset'
