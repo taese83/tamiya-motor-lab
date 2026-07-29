@@ -966,3 +966,56 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   getUserMedia 거부가 2회 누적되지 않고 세션이 `starting`에서 멈춘다 —
   [설정 방법 보기] 버튼 자체가 노출되지 않아 실제 클릭 경로를 브라우저로 밟을 수 없었다.
   컴포넌트와 "존이 안내를 품지 않는다"는 계약은 unit으로 고정했다.
+
+---
+
+## v2.21 — 게이지: 라이브러리 검토 후 커스텀 유지 + 그라디언트 채움 + 0~700 스케일 (ui/tech)
+
+### 라이브러리 결정 (실측 근거)
+사용자 지시로 게이지를 라이브러리로 그리는 방안을 **실제 설치·구현·실측**했다.
+- **react-gauge-component 2.0.29**: 눈금·라벨·밴드·바늘은 네이티브지만 ① **값 채움 아크 불가**
+  (모델이 색구간+바늘) ② 트랙 기본 대비가 이전 버그(1.2~1.5:1) 재현 → color-mix 우회 필요
+  ③ 측정 기반(ResizeObserver)이라 layout-shift-0 보장·헤드리스 테스트 불가 ④ +31KB gzip.
+- **amCharts5**: bands·gradient-fill·needle 다 되지만 ① **freeware는 차트에 amCharts 로고
+  강제**(제거는 개발자당 ~$180+ 상용) ② unpacked 25MB·트리셰이킹해도 ~200KB+ gzip.
+- **결론: 커스텀 SVG 유지가 우위.** 사용자도 "커스텀 + 그라디언트 채움"을 선택. 라이브러리는
+  롤백(pnpm remove)했고 번들은 +0으로 복귀. amCharts gradient-fill 데모의 룩만 SVG
+  linearGradient로 진행 아크에 얹었다.
+
+### TARGET_BEHAVIOR (사용자 req 5·6·7 + opt1)
+- 진행 채움 아크에 라임 **그라디언트**(어두→밝) 적용 (opt1 — amCharts gradient-fill 룩)
+- 게이지 스케일 **0~700, 100단위 라벨** (req5)
+- 파노 주지표·rpm 보조 유지 + 중앙 수치를 게이지 **안쪽**에 두되 그래프와 **겹치지 않게** (req6)
+- 트랙 색 강화 — "너무 흐림" 개선 (req7)
+
+### 설계 결정
+- **눈금 라벨을 아크 바깥 코너로 이동.** 0~700 100단위 8개를 안쪽에 찍으면 300·400이 12시
+  근처에서 **중앙 파노 수치와 겹친다**. 라벨을 트랙 바깥으로 빼면 아크 내부가 비어 중앙 수치가
+  겹침 없이 들어앉는다(req6 — "숫자는 안쪽, 그래프와 안 겹치게"를 동시 충족). 지오메트리 재튜닝:
+  TRACK_R 73→58, STROKE 13→12, CY 88→84, LABEL_R = 트랙 바깥, 바늘 팁 60→46.
+- **게이지 표시 스케일과 측정 유효 대역(F0_RANGE 170~620) 분리.** 게이지는 aria-hidden 장식이라
+  판정에 관여하지 않으므로 0~700 표시가 유효성 검증(스키마)에 영향 없다. PanoGauge는 F0_RANGE를
+  더 이상 import하지 않는다.
+- 트랙 opacity 0.48→0.6(req7). text.primary라 모드별 흑↔백 반전 유지 → 양 모드 대비 함께 상승.
+- 그라디언트는 `userSpaceOnUse` + 트랙 span 좌표에 고정 → dashoffset 변해도 색 위치 불변.
+
+### ALLOWED_PATHS
+- `src/features/measure-session/ui/PanoGauge.tsx` (+ `.test.tsx`)
+- `package.json`·`pnpm-lock.yaml` (react-gauge-component 추가→제거, 순변화 0)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 게이지 aria-hidden 장식층 · 고정 viewBox layout-shift-0 · 220° 스윕 · 대역 밖 끝점 클램프
+- dim에서 바늘 유지 · reduced-motion 0ms · 바늘 중성색 · PanoGauge 공개 props(panoHz) 무변경
+
+### NON_GOALS
+- react-gauge-component/amCharts 도입(실측 후 기각) · 측정 유효 대역(F0_RANGE) 변경
+
+### CHANGE_BUDGET
+- 신규 의존성 0 (라이브러리 추가했다가 롤백 — 최종 순변화 0)
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 82건, 번들 354KB gzip(라이브러리 전과 동일)
+- PanoGauge unit 재작성(0~700): 0/350/700 각도, 클램프, 채움 최소0/최대참, 100단위 라벨, 그라디언트 stroke
+- 브라우저(375px, 라이트·다크): 라벨 0~700이 아크 **바깥**, 중앙 placeholder가 라벨과 겹치지 않음,
+  레드라인 600~700, 바늘 0 위치. layout-shift 0(고정 viewBox)
+- **미검증(마이크 필요)**: measuring 상태의 그라디언트 채움 실제 모습·바늘 이동. 순수 기하는 unit 고정.

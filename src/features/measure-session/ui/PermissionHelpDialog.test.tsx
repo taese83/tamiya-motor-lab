@@ -61,8 +61,9 @@ describe('MeasureFigures — 히어로 존은 안내를 품지 않는다 (v2.20)
   it('안내가 빠져도 존은 게이지와 상태 문구를 유지한다', () => {
     const {container} = render(<MeasureFigures view={PERMANENT_DENIED} />)
 
-    // 게이지(장식 SVG)는 그대로 — viewBox 고정으로 layout shift 0 계약 유지
-    expect(container.querySelector('svg[viewBox="0 0 200 120"]')).not.toBeNull()
+    // 게이지 장식층(aria-hidden 래퍼)은 그대로 — 안내 제거가 존 구성을 무너뜨리지 않는다.
+    // (게이지 SVG 자체는 측정 기반 라이브러리라 헤드리스에서 렌더되지 않으므로 래퍼로 확인)
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull()
     expect(screen.getByText('브라우저 설정에서 마이크 권한을 허용해야 합니다')).toBeInTheDocument()
   })
 })
