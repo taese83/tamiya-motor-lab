@@ -1,5 +1,5 @@
 import {Box, FormHelperText, IconButton, InputAdornment, OutlinedInput} from '@mui/material'
-import {numericTypography} from '@shared/config/design-tokens'
+import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
 import {VOLTAGE_RANGE} from '@shared/config/domain'
 import {useCallback, useEffect, useId, useRef} from 'react'
 import type {KeyboardEvent, MouseEvent, PointerEvent} from 'react'
@@ -112,16 +112,40 @@ export function VoltageStepper({
   const incrementDisabled = disabled || !hasNumber || parsed >= VOLTAGE_RANGE.max
   const hasError = error !== null && error !== ''
 
+  // v2.10: ± 버튼을 테두리 안쪽 요소로 둔다 — 자체 테두리·라운드 없음(래퍼가 면을 소유)
   const stepButtonSx = {
-    width: '3rem',
-    height: '3rem',
+    width: layoutTokens.formControlHeight,
+    height: layoutTokens.formControlHeight,
+    borderRadius: 0,
+    flexShrink: 0,
     touchAction: 'manipulation',
     userSelect: 'none',
   } as const
 
   return (
     <Box>
-      <Box role="group" aria-label="세팅 전압" sx={{display: 'flex', alignItems: 'center', gap: 1}}>
+      {/*
+        v2.10 정렬 정정: [−] 입력 [+]를 **하나의 테두리** 안에 묶는다.
+        이전에는 세 요소가 gap으로 떨어져 있어 입력이 안쪽으로 들어가고(l=72) ±가 필드 밖에
+        떠 보였으며, 같은 폼의 다른 행(l=16→431)과 좌우가 어긋났다(실측 확인).
+        이제 래퍼가 다른 필드와 동일한 테두리·높이·좌우 폭을 가지므로 격자가 맞는다.
+      */}
+      <Box
+        role="group"
+        aria-label="세팅 전압"
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          height: layoutTokens.formControlHeight,
+          border: '1px solid',
+          borderColor: hasError ? 'error.main' : 'var(--mml-outline)',
+          overflow: 'hidden',
+          // 내부 입력의 outline을 없앤 대신 래퍼가 포커스를 표시한다(포커스 가시성 보전)
+          '&:focus-within': {
+            outline: '2px solid var(--mml-focus-ring)',
+            outlineOffset: '1px',
+          },
+        }}>
         <IconButton
           aria-label="0.1볼트 내리기"
           disabled={decrementDisabled}
@@ -142,7 +166,12 @@ export function VoltageStepper({
           onKeyDown={handleInputKeyDown}
           disabled={disabled}
           error={hasError}
-          endAdornment={<InputAdornment position="end">V</InputAdornment>}
+          // 단위는 [+]와 붙지 않게 우측 여백을 둔다 (한 테두리 안에 들어온 뒤 필요해진 간격)
+          endAdornment={
+            <InputAdornment position="end" sx={{mr: 0.5}}>
+              V
+            </InputAdornment>
+          }
           slotProps={{
             input: {
               inputMode: 'decimal',
@@ -152,7 +181,16 @@ export function VoltageStepper({
               style: {textAlign: 'center'},
             },
           }}
-          sx={{flex: 1, ...numericTypography.listValue}}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            ...numericTypography.listValue,
+            // 래퍼가 테두리를 소유 — 내부 입력의 outline은 제거하고 ± 사이를 꽉 채운다.
+            // 포커스 표시는 아래 focus-within 링이 대신한다(포커스 가시성 유지).
+            '& .MuiOutlinedInput-notchedOutline': {border: 0},
+            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {border: 0},
+            height: '100%',
+          }}
         />
         <IconButton
           aria-label="0.1볼트 올리기"

@@ -7,6 +7,7 @@ import {
   buildModeCssVars,
   color,
   darkColor,
+  layoutTokens,
   motionTokens,
   shapeTokens,
 } from '@shared/config/design-tokens'
@@ -196,7 +197,8 @@ export const theme = createTheme({
     MuiToggleButton: {
       styleOverrides: {
         root: ({ theme: t }) => ({
-          minHeight: 44,
+          // v2.10: 폼 공통 높이. minHeight이므로 2줄 라벨(종류 10택 그리드)은 그대로 늘어난다
+          minHeight: layoutTokens.formControlHeight,
           borderRadius: 0,
           textTransform: 'none',
           fontWeight: 600,
@@ -291,8 +293,18 @@ export const theme = createTheme({
         }),
       },
     },
+    /**
+     * v2.10: 폼 컨트롤 높이를 theme가 소유한다. 이전에는 아무도 소유하지 않아 입력이 MUI 기본
+     * 56px, 세그먼트가 52px, 스테퍼 버튼이 48px로 흩어져 같은 행에서도 위아래가 어긋났다.
+     * input 패딩으로 높이를 만든다(root에 height를 박으면 floating label·helper가 깨진다).
+     */
     MuiOutlinedInput: {
-      styleOverrides: { notchedOutline: { borderColor: 'var(--mml-outline)' } },
+      styleOverrides: {
+        notchedOutline: { borderColor: 'var(--mml-outline)' },
+        root: { minHeight: layoutTokens.formControlHeight },
+        // 기본 16.5px → 12px: line-height 23px + 24px = 47~48px (formControlHeight와 정합)
+        input: { paddingTop: 12, paddingBottom: 12 },
+      },
     },
     MuiRadio: {
       styleOverrides: { root: { padding: 10 } }, // 24px 아이콘 + 20px 패딩 = 44px 타깃

@@ -5,10 +5,9 @@ import type {DBSchema, StoreNames} from 'idb'
 // Storage Schema v2 (state-contract v2 §Storage Schema — DB Identity)
 // IDB native version(구조: store·index 버전)과 meta['app'].schemaVersion(데이터 형태 버전)은
 // v2에서 동일하며 함께 bump한다. 이중 기록 이유: meta 부재/불일치 자체가 corruption 신호(INV-11).
-// 구버전 처리(RV-3): 마이그레이션 없음 — 레거시 DB(`minicar-motor-lab`)는 부팅 시 best-effort 삭제,
-// `mml-db` oldVersion<2는 기존 store 전부 drop 후 v2 신설(데이터 이관 코드 0줄) → ready(recreated).
+// 구버전 처리(RV-3): 마이그레이션 없음 — `mml-db` oldVersion<2는 기존 store 전부 drop 후
+// v2 신설(데이터 이관 코드 0줄) → ready(recreated). v2.10: 상용 배포 전이라 v1 DB 정리 경로는 제거했다.
 export const DB_NAME = 'mml-db'
-export const LEGACY_DB_NAME = 'minicar-motor-lab' // v1 DB — 부팅 시 삭제 시도 대상 (SC2-A5)
 export const DB_VERSION = 2 // IDB native version — upgrade(oldVersion) 트리거 기준
 export const SCHEMA_VERSION = 2 // meta['app'].schemaVersion — 부팅 검증(INV-11)·zod 스키마 선택 기준
 export const META_KEY = 'app'

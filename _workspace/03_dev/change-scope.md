@@ -312,3 +312,55 @@ git revert를 쓰지 않은 이유: change-scope.md가 이후 v2.8에서 추가 
 - Node 22 typecheck·lint·build 클린, vitest 31건(40건에서 지연 기록 9건 제거)
 - 복원 4파일이 0bc0105와 byte-exact 동일 · 잔존 참조 grep 0건
 - 브라우저: 측정 탭에 단일 [기록]만 노출(3버튼 그룹 부재 확인), 콘솔 오류 0
+
+## v2.10 라운드 (2026-07-29 — 폼 디자인 정리 + 종류 선택 색상 + 레거시 DB 정리 코드 제거)
+
+### TARGET_BEHAVIOR
+1. 폼 컨트롤 높이를 **48px 하나로 통일**한다. 실측으로 44·48·52·55가 섞여 있었고 같은 행에서도
+   버튼(48)과 입력(55)이 어긋나 있었다 — 이것이 "크기 제각각"의 실체다.
+2. 전압 스테퍼를 **하나의 테두리**로 묶어 다른 필드와 좌우를 맞춘다. 이전에는 입력이 l=72→375로
+   안쪽에 들어가고 ±가 필드 밖에 떠 보여 다른 행(l=16→431)과 격자가 어긋났다 — "정렬 안됨"의 실체.
+3. 파노 읽기전용 값을 **입력과 같은 표면**(테두리·높이·라운드)으로 만든다. 테두리 없는 맨 텍스트 +
+   우측 버튼이 "엉성한" 인상의 주 원인이었다.
+4. 종류 선택(10택)에 **종류색 적용** — 비선택은 색 점, 선택은 종류색 채움. v2.6에서 MotorKindChip에만
+   색을 넣고 이 컴포넌트를 빠뜨린 누락을 메운다.
+5. 레거시 v1 DB(`minicar-motor-lab`) 정리 경로 제거 — 상용 배포 전이라 정리 대상 데이터가 없다.
+
+### 설계 판단
+- 높이를 컴포넌트마다 박지 않고 `layoutTokens.formControlHeight` 1곳 + theme override로 소유한다.
+  이전에는 theme가 폼 높이를 전혀 소유하지 않아(MuiOutlinedInput은 테두리 색만 지정) 값이 흩어졌다.
+- 입력 높이는 root의 height가 아니라 **input 패딩**으로 만든다 — root에 height를 박으면
+  floating label(모터 이름)과 helper 정렬이 깨진다.
+- ToggleButton은 `minHeight`(고정 height 금지) — 종류 10택은 2줄 라벨이 늘어나야 한다.
+  단일 라벨인 SegmentControl만 `height` 고정.
+- 스테퍼 내부 입력의 notchedOutline을 지운 대신 래퍼에 `:focus-within` 링을 둬 포커스 가시성을 보전한다.
+- 종류 선택은 색 단독 구분이 되지 않게 3중 표시 유지(색 + w800 + check). 비선택에도 점을 노출해
+  **선택 전에** 색을 알 수 있게 한다.
+
+### ALLOWED_PATHS
+- `src/shared/config/design-tokens.ts` (formControlHeight)
+- `src/app/theme.ts` (MuiOutlinedInput 높이·MuiToggleButton minHeight, layoutTokens import)
+- `src/shared/ui/segment-control/SegmentControl.tsx`·`src/shared/ui/voltage-stepper/VoltageStepper.tsx`
+- `src/features/race-record/ui/RaceEntrySheet.tsx`·`src/features/motor-management/ui/MotorKindSelect.tsx`
+- `src/shared/lib/persistence/{schema,db,init,index}.ts` (레거시 DB 경로 제거)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 44px 최소 타깃(48 > 44로 자동 충족) · 포커스 가시성 · 색 단독 구분 금지 · 다크/라이트 양립
+- VoltageStepper 롱프레스·키보드 조작·clamp·오류 슬롯 계약 · SegmentControl 3중 선택 표시
+- 폼 검증·제출·왕복([측정]) 동작 무변경 — 이번 라운드는 시각/레이아웃만 건드린다
+- 현행 `mml-db` v2 open·corrupted 판정·oldVersion<2 재생성 경로
+
+### NON_GOALS
+- 폼 구조·필드 순서·검증 규칙 변경, 시트 전환 애니메이션, 라운드/컷코너 체계 재설계
+- 종류별 아이콘 도입, MotorFormSheet의 저장/취소 배치 변경
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build 클린, vitest 31건 회귀 없음
+- 브라우저 실측(레이스 입력 시트): 컨트롤 9개의 `distinctHeights: [48]` — 이전 44/48/52/55에서 통일 확인
+- 브라우저 실측: 모든 필드 행이 l=16→431 정렬(전압 그룹 포함, 이전 입력 72→375)
+- 종류 10택: 옵션별 색 점 computed 값이 motorKindColors와 일치, 선택 시 종류색 채움 확인
+- 다크·라이트 양쪽 스크린샷 확인, 콘솔 오류 0
+- `LEGACY_DB_NAME`·`deleteLegacyDatabase` 잔존 참조 grep 0건

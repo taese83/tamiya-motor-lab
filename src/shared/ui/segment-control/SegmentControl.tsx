@@ -1,4 +1,5 @@
 import {Box, ToggleButton, ToggleButtonGroup} from '@mui/material'
+import {layoutTokens} from '@shared/config/design-tokens'
 import {CheckIcon} from '@shared/ui/icons'
 
 export interface SegmentOption<T extends string> {
@@ -64,7 +65,9 @@ export function SegmentControl<T extends string>({
           value={option.value}
           disabled={disabled}
           sx={[
-            {gap: 0.5},
+            // v2.10: 폼 공통 높이 고정(고정값 — 1줄 라벨이므로 늘어날 이유가 없다).
+            // 이전에는 아이콘+패딩으로 52px가 되어 같은 폼의 입력(48)과 어긋났다
+            {gap: 0.5, height: layoutTokens.formControlHeight},
             wrap === '2x2' && {
               flex: '1 1 40%',
               '@media (max-width: 399px)': {fontSize: '0.8125rem'},

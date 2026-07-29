@@ -1,8 +1,8 @@
-import {deleteDB, openDB} from 'idb'
+import {openDB} from 'idb'
 
 import {DOMAIN_ERROR_MESSAGES, DomainError} from '@shared/lib/errors'
 
-import {DB_NAME, DB_VERSION, LEGACY_DB_NAME, META_KEY, SCHEMA_VERSION} from './schema'
+import {DB_NAME, DB_VERSION, META_KEY, SCHEMA_VERSION} from './schema'
 
 import type {MmlDB} from './schema'
 import type {IDBPDatabase} from 'idb'
@@ -41,20 +41,6 @@ export function closeConnection(): void {
     // 이미 종료된 연결 — 무시
   }
   connection = null
-}
-
-/**
- * 레거시 v1 DB(`minicar-motor-lab`) 삭제 — best-effort·비차단 (RV-3 · SC2-A5).
- * await하지 않는다: 다른 탭이 레거시 DB를 열고 있으면 deleteDatabase가 blocked로 무한 대기해
- * 부팅을 멈출 수 있다. 실패해도 비치명(v2 `mml-db` 동작과 무관) — 다음 부팅에서 재시도된다.
- */
-export function deleteLegacyDatabase(): void {
-  if (typeof indexedDB === 'undefined') return
-  try {
-    void deleteDB(LEGACY_DB_NAME).catch(() => undefined)
-  } catch {
-    // 삭제 실패 비치명 — 무시 (SC2-A5)
-  }
 }
 
 export type OpenOutcome =

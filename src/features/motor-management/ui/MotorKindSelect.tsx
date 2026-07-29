@@ -1,5 +1,6 @@
 import {Box, ToggleButton, ToggleButtonGroup, toggleButtonGroupClasses} from '@mui/material'
 import {MOTOR_KINDS, MOTOR_KIND_LABELS} from '@shared/config/domain'
+import {motorKindColors} from '@shared/config/design-tokens'
 import {CheckIcon} from '@shared/ui/icons'
 
 import type {MotorKind} from '@shared/config/domain'
@@ -49,22 +50,51 @@ export function MotorKindSelect({value, onChange, error = false}: MotorKindSelec
       }}>
       {MOTOR_KINDS.map(kind => {
         const selected = value === kind
+        const visual = motorKindColors[kind]
         return (
           <ToggleButton
             key={kind}
             value={kind}
-            sx={{minHeight: 44, px: 0.5, py: 0.75, lineHeight: 1.25, whiteSpace: 'normal'}}>
-            {/* 선택 3중 표시의 아이콘 채널 — 비선택은 동일 폭 투명 placeholder(폭 흔들림 금지) */}
+            sx={{
+              px: 0.5,
+              py: 0.75,
+              lineHeight: 1.25,
+              whiteSpace: 'normal',
+              // v2.10: 종류색 적용(뱃지와 동일 팔레트 — motorKindColors 1곳 소유).
+              // 선택 시 종류색으로 채워 뱃지와 같은 색을 즉시 확인할 수 있게 한다.
+              // theme의 Mui-selected(라임 고정)를 덮어써야 하므로 selector 특이도를 맞춘다.
+              '&.Mui-selected': {
+                backgroundColor: visual.bg,
+                color: visual.fg,
+                borderColor: visual.border,
+                '&:hover': {backgroundColor: visual.bg},
+              },
+            }}>
+            {/*
+              선택 표시는 3중 유지(색 + w800(theme) + check 아이콘) — 색 단독 구분 금지.
+              비선택도 종류색 점을 노출해 선택 전에 색을 알 수 있게 한다(선택 후에야
+              색을 아는 것은 탐색에 도움이 안 된다). 아이콘 슬롯은 동일 폭 유지(폭 흔들림 금지).
+            */}
             <Box
               component="span"
               aria-hidden="true"
-              sx={{
-                display: 'inline-flex',
-                flexShrink: 0,
-                mr: 0.5,
-                visibility: selected ? 'visible' : 'hidden',
-              }}>
-              <CheckIcon size={16} />
+              sx={{display: 'inline-flex', alignItems: 'center', flexShrink: 0, mr: 0.5}}>
+              {selected ? (
+                <CheckIcon size={16} />
+              ) : (
+                <Box
+                  component="span"
+                  sx={{
+                    width: 10,
+                    height: 10,
+                    m: '3px',
+                    borderRadius: '50%',
+                    backgroundColor: visual.bg,
+                    border: '1px solid',
+                    borderColor: visual.border,
+                  }}
+                />
+              )}
             </Box>
             {MOTOR_KIND_LABELS[kind]}
           </ToggleButton>

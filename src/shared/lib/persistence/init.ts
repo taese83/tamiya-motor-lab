@@ -1,6 +1,6 @@
 import {MEASURE_RECORD_LIMIT} from '@shared/config/domain'
 
-import {closeConnection, deleteLegacyDatabase, getDb, openMmlDb, setConnection} from './db'
+import {closeConnection, getDb, openMmlDb, setConnection} from './db'
 import {dbMetaSchema, META_KEY, SCHEMA_VERSION} from './schema'
 
 import type {MmlDB, PersistenceStatus} from './schema'
@@ -69,10 +69,7 @@ export function initPersistence(options?: InitPersistenceOptions): Promise<Persi
 }
 
 async function doInit(validation: PersistenceScanValidation | null): Promise<PersistenceStatus> {
-  // ① 레거시 v1 DB(`minicar-motor-lab`) best-effort 삭제 — 비차단·실패 비치명 (RV-3 · SC2-A5)
-  deleteLegacyDatabase()
-
-  // ② mml-db native v2 open — 구버전(oldVersion<2)은 upgrade에서 store drop 후 재생성(recreated)
+  // mml-db native v2 open — 구버전(oldVersion<2)은 upgrade에서 store drop 후 재생성(recreated)
   const outcome = await openMmlDb()
   if (outcome.kind === 'unavailable') {
     return remember({status: 'unavailable', reason: outcome.reason})

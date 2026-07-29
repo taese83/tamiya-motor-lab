@@ -11,7 +11,7 @@ import {
 import {useId, useRef} from 'react'
 
 import {RACE_RESULT_LABELS, RACE_RESULTS} from '@shared/config/domain'
-import {numericTypography} from '@shared/config/design-tokens'
+import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
 import {formatFanoHz} from '@shared/lib/format'
 import {BottomSheet} from '@shared/ui/bottom-sheet'
 import {SegmentControl} from '@shared/ui/segment-control'
@@ -99,7 +99,30 @@ function FieldErrorSlot({id, message}: {id: string; message: string | undefined}
   )
 }
 
-const fieldLabelSx = {display: 'block', mb: 0.5} as const
+const fieldLabelSx = {display: 'block', mb: 0.75} as const
+
+/**
+ * v2.10 필드 리듬 — 모든 행이 같은 간격을 쓴다. 이전에는 mb 1.5/2가 섞여 있었다.
+ * 오류 슬롯이 각 필드 아래 1줄을 상시 차지하므로 행 간격은 그 위에 얹힌다.
+ */
+const fieldRowSx = {mb: 2} as const
+
+/**
+ * 읽기전용 값 표면 — 편집 가능한 입력과 같은 높이·테두리·라운드를 써서 폼 격자에 맞춘다.
+ * 이전 파노 행은 테두리 없는 맨 텍스트 + 우측 버튼이라 다른 필드와 어긋나 "엉성한" 인상의
+ * 주 원인이었다. 편집 불가는 배경 톤(action.hover)과 라벨 문구로 구분한다(입력처럼 보이되
+ * 커서·포커스는 없다).
+ */
+const readonlyFieldSx = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1,
+  minHeight: layoutTokens.formControlHeight,
+  px: 1.75,
+  border: '1px solid',
+  borderColor: 'var(--mml-outline)',
+  bgcolor: 'action.hover',
+} as const
 
 function FieldLabel({children, htmlFor}: {children: ReactNode; htmlFor?: string | undefined}) {
   if (htmlFor !== undefined) {
@@ -191,24 +214,26 @@ export function RaceEntrySheet({
         )}
 
         {/* ① 파노 — create: 자동 인용값 + [측정] 왕복 진입 / edit: 측정값 읽기전용(수정 불가) */}
-        <Box sx={{mb: 1.5}}>
+        <Box sx={fieldRowSx}>
           <FieldLabel>{isEdit ? '파노 (측정값 · 수정 불가)' : '파노 (자동)'}</FieldLabel>
-          <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
-            {pano.kind === 'none' ? (
-              <Typography component="span" color="text.secondary" sx={{flex: 1}}>
-                측정 기록 없음
-              </Typography>
-            ) : (
-              // Chip은 div 렌더 — Typography(span) 내부 금지, Box(div) 행으로 병치
-              <Box sx={{flex: 1, display: 'flex', alignItems: 'center', gap: 1}}>
-                <Typography component="span" sx={numericTypography.listValue}>
-                  {formatFanoHz(pano.panoHz)}
+          {/* 값 표면 + [측정]을 한 행에 두고 높이를 맞춘다 — 다른 필드와 같은 격자 */}
+          <Box sx={{display: 'flex', alignItems: 'stretch', gap: 1}}>
+            <Box sx={{...readonlyFieldSx, flex: 1, minWidth: 0}}>
+              {pano.kind === 'none' ? (
+                <Typography component="span" color="text.secondary">
+                  측정 기록 없음
                 </Typography>
-                {pano.kind === 'measured' && (
-                  <Chip size="small" variant="outlined" color="primary" label="방금 측정" />
-                )}
-              </Box>
-            )}
+              ) : (
+                <>
+                  <Typography component="span" sx={numericTypography.listValue}>
+                    {formatFanoHz(pano.panoHz)}
+                  </Typography>
+                  {pano.kind === 'measured' && (
+                    <Chip size="small" variant="outlined" color="primary" label="방금 측정" />
+                  )}
+                </>
+              )}
+            </Box>
             {/* [측정] 왕복은 create 전용 — edit은 측정값을 수정하지 않는다 */}
             {!isEdit && (
               <Button
@@ -216,7 +241,7 @@ export function RaceEntrySheet({
                 variant="outlined"
                 onClick={onMeasure}
                 disabled={pending}
-                sx={{minHeight: 44, flexShrink: 0}}>
+                sx={{height: layoutTokens.formControlHeight, flexShrink: 0, px: 2.5}}>
                 측정
               </Button>
             )}
@@ -230,7 +255,7 @@ export function RaceEntrySheet({
         </Box>
 
         {/* ② 결과 (필수) — 2택 exclusive, 시맨틱 색 없음(중립 — 선택 표시는 테마 3중) */}
-        <Box sx={{mb: 1.5}}>
+        <Box sx={fieldRowSx}>
           <FieldLabel>결과 (필수)</FieldLabel>
           <SegmentControl<RaceResult>
             options={RESULT_OPTIONS}
@@ -247,7 +272,7 @@ export function RaceEntrySheet({
         </Box>
 
         {/* ③ 전압 (필수) — 오류 슬롯은 VoltageStepper 내장 */}
-        <Box sx={{mb: 1.5}}>
+        <Box sx={fieldRowSx}>
           <FieldLabel>전압 (필수)</FieldLabel>
           <VoltageStepper
             value={draft.voltageRaw}
@@ -258,7 +283,7 @@ export function RaceEntrySheet({
         </Box>
 
         {/* ④ 랩타임 (옵션) — 초 단위 입력, ms 변환은 제출 시(state-contract) */}
-        <Box sx={{mb: 2}}>
+        <Box sx={fieldRowSx}>
           <FieldLabel htmlFor={lapTimeId}>랩타임 (옵션)</FieldLabel>
           <OutlinedInput
             id={lapTimeId}
@@ -281,16 +306,22 @@ export function RaceEntrySheet({
           <FieldErrorSlot id={lapTimeErrorId} message={fieldErrors.lapTime} />
         </Box>
 
+        {/* 액션 — 제출·취소 모두 폼 공통 높이(이전 48/44 불일치 정정) */}
         <Box sx={{display: 'flex', flexDirection: 'column', gap: 1}}>
           <Button
             type="submit"
             variant="contained"
             fullWidth
             disabled={pending || !canSubmit}
-            sx={{minHeight: 48}}>
+            sx={{height: layoutTokens.formControlHeight}}>
             {pending ? '저장 중…' : hasSubmitError ? '다시 저장' : isEdit ? '저장' : '입력'}
           </Button>
-          <Button variant="text" fullWidth onClick={onClose} disabled={pending} sx={{minHeight: 44}}>
+          <Button
+            variant="text"
+            fullWidth
+            onClick={onClose}
+            disabled={pending}
+            sx={{height: layoutTokens.formControlHeight}}>
             취소
           </Button>
         </Box>

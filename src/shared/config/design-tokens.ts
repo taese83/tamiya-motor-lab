@@ -225,6 +225,13 @@ export const layoutTokens = {
   contentMaxWidth: 480,
   /** 인터랙티브 요소 최소 타깃 (REQ-NFR-003) */
   touchTargetMin: 44,
+  /**
+   * v2.10 신설 — 폼 컨트롤 공통 높이(px). 입력·세그먼트·스테퍼·시트 액션이 모두 이 값을 쓴다.
+   * 이전에는 theme가 폼 높이를 소유하지 않아 컨트롤마다 44·48·52·55로 흩어졌고
+   * 같은 행에서도 버튼과 입력의 높이가 어긋나 정렬이 무너졌다(실측 확인).
+   * 44(최소 타깃)보다 크므로 타깃 요건도 자동 충족한다.
+   */
+  formControlHeight: 48,
   /** 하단 탭 콘텐츠 높이 (safe-area 제외) */
   bottomNavHeight: 56,
   /** S1 중앙 수치 영역 고정 높이 — 6-status 전부 동일 (layout shift 금지, DS-A3).
