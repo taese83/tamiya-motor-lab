@@ -51,6 +51,19 @@ const REDLINE_START_HZ = 580
 
 const round2 = (n: number): number => Math.round(n * 100) / 100
 
+/**
+ * 바늘 기하 (회전 0° = 12시 방향 기준). 팁은 트랙 안쪽 여백까지만 —
+ * TRACK 내부 경계(TRACK_R − STROKE_W/2 = 66.5)를 넘으면 트랙을 침범한다.
+ */
+const NEEDLE_TIP_R = 60
+/** 허브 쪽 밑변 절반 — 허브 원(r=4.5)이 덮을 수 있는 폭으로 잡는다 */
+const NEEDLE_BASE_HALF = 2.9
+const NEEDLE_POINTS = [
+  `${CX},${CY - NEEDLE_TIP_R}`, // 팁
+  `${CX + NEEDLE_BASE_HALF},${CY + 2}`, // 밑변 우
+  `${CX - NEEDLE_BASE_HALF},${CY + 2}`, // 밑변 좌
+].join(' ')
+
 /** Hz → 바늘 회전각(도). 12시=0° 기준 -110°(170 Hz) ~ +110°(620 Hz) 선형 매핑. 대역 밖은 끝점 클램프 */
 const hzToDeg = (hz: number): number => {
   const clamped = Math.min(HZ_MAX, Math.max(HZ_MIN, hz))
@@ -248,23 +261,24 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
             transition: `transform ${motionTokens.needleMs}ms linear`,
             '@media (prefers-reduced-motion: reduce)': {transition: 'none'},
           }}>
-          <line
-            x1={CX}
-            y1={CY + 9}
-            x2={CX}
-            y2={CY - 60}
-            strokeWidth={3.5}
-            strokeLinecap="round"
-            style={{stroke: palette.text.primary}}
+          {/*
+            테이퍼 쐐기 — 균일 두께 line은 계기판 바늘이 아니라 막대기로 보인다(사용자 지적).
+            허브 쪽 밑변(NEEDLE_BASE_HALF×2)에서 팁으로 좁아지고, 꼬리는 두지 않는다
+            (레퍼런스도 허브 한쪽으로만 뻗는다). 밑변은 허브 원이 덮어 뿌리가 정리된다.
+          */}
+          <polygon
+            points={NEEDLE_POINTS}
+            style={{fill: palette.text.primary}}
+            strokeLinejoin="round"
           />
         </Box>
         {/* 허브 — 회전 불변이라 그룹 밖(브라우저 회전 보간 부하 최소화).
-            레퍼런스처럼 배경색 채움 + 링으로 바늘 뿌리를 정리한다 */}
+            레퍼런스처럼 배경색 채움 + 얇은 링. 쐐기 밑변보다 조금 크게 잡아 뿌리를 덮는다 */}
         <circle
           cx={CX}
           cy={CY}
-          r={5.5}
-          strokeWidth={3}
+          r={4.5}
+          strokeWidth={2.5}
           style={{fill: palette.background.paper, stroke: palette.text.primary}}
         />
       </g>
