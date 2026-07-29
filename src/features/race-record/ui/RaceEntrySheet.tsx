@@ -1,24 +1,16 @@
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  FormHelperText,
-  InputAdornment,
-  OutlinedInput,
-  Typography,
-} from '@mui/material'
+import {Alert, Box, Button, Chip, InputAdornment, OutlinedInput, Typography} from '@mui/material'
 import {useId, useRef} from 'react'
 
 import {RACE_RESULT_LABELS, RACE_RESULTS} from '@shared/config/domain'
 import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
 import {formatFanoHz} from '@shared/lib/format'
 import {BottomSheet} from '@shared/ui/bottom-sheet'
+import {FormField} from '@shared/ui/form-field'
 import {SegmentControl} from '@shared/ui/segment-control'
 import {VoltageStepper} from '@shared/ui/voltage-stepper'
 
 import type {RaceResult} from '@shared/config/domain'
-import type {FormEvent, KeyboardEvent, ReactNode} from 'react'
+import type {FormEvent, KeyboardEvent} from 'react'
 
 // ── 공개 폼 타입 (component-spec §6.3 — 이 파일이 canonical 정의처) ──────────────
 
@@ -86,63 +78,14 @@ const visuallyHiddenSx = {
   border: 0,
 } as const
 
-/** 인라인 오류 슬롯 — 각 필드 아래 1줄 상시 확보(오류 등장으로 필드 이동 금지, §6.3) */
-function FieldErrorSlot({id, message}: {id: string; message: string | undefined}) {
-  return (
-    <Box sx={{minHeight: '1.25rem', mt: 0.5}}>
-      {message !== undefined && message !== '' && (
-        <FormHelperText error id={id} sx={{m: 0}}>
-          {message}
-        </FormHelperText>
-      )}
-    </Box>
-  )
-}
-
-const fieldLabelSx = {display: 'block', mb: 0.75} as const
-
 /**
  * v2.10 필드 리듬 — 모든 행이 같은 간격을 쓴다. 이전에는 mb 1.5/2가 섞여 있었다.
  * 오류 슬롯이 각 필드 아래 1줄을 상시 차지하므로 행 간격은 그 위에 얹힌다.
+ *
+ * v2.11: 라벨·오류 슬롯·읽기전용 표면은 공용 FormField가 소유한다 —
+ * 이 파일의 FieldLabel·FieldErrorSlot·readonlyFieldSx는 그쪽으로 흡수돼 제거됐다.
  */
 const fieldRowSx = {mb: 2} as const
-
-/**
- * 읽기전용 값 표면 — 편집 가능한 입력과 같은 높이·테두리·라운드를 써서 폼 격자에 맞춘다.
- * 이전 파노 행은 테두리 없는 맨 텍스트 + 우측 버튼이라 다른 필드와 어긋나 "엉성한" 인상의
- * 주 원인이었다. 편집 불가는 배경 톤(action.hover)과 라벨 문구로 구분한다(입력처럼 보이되
- * 커서·포커스는 없다).
- */
-const readonlyFieldSx = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 1,
-  minHeight: layoutTokens.formControlHeight,
-  px: 1.75,
-  border: '1px solid',
-  borderColor: 'var(--mml-outline)',
-  bgcolor: 'action.hover',
-} as const
-
-function FieldLabel({children, htmlFor}: {children: ReactNode; htmlFor?: string | undefined}) {
-  if (htmlFor !== undefined) {
-    return (
-      <Typography
-        component="label"
-        htmlFor={htmlFor}
-        variant="overline"
-        color="text.secondary"
-        sx={fieldLabelSx}>
-        {children}
-      </Typography>
-    )
-  }
-  return (
-    <Typography component="span" variant="overline" color="text.secondary" sx={fieldLabelSx}>
-      {children}
-    </Typography>
-  )
-}
 
 /**
  * S6 레이스 입력/수정 시트 (component-spec §6.3 — R-3·R-4·LD-3, BottomSheet).
@@ -169,6 +112,7 @@ export function RaceEntrySheet({
   onClose,
 }: RaceEntrySheetProps) {
   const resultErrorId = useId()
+  const voltageErrorId = useId()
   const lapTimeId = useId()
   const lapTimeErrorId = useId()
   const measureButtonRef = useRef<HTMLButtonElement>(null)
@@ -213,12 +157,30 @@ export function RaceEntrySheet({
           </Alert>
         )}
 
-        {/* ① 파노 — create: 자동 인용값 + [측정] 왕복 진입 / edit: 측정값 읽기전용(수정 불가) */}
+        {/*
+          ① 파노 — create: 자동 인용값 + [측정] 왕복 진입 / edit: 측정값 읽기전용(수정 불가).
+          v2.11: [측정]을 필드 **안쪽 우측** 인라인 액션으로 옮겼다(레퍼런스 EDIT 위치).
+          읽기전용이므로 labelFor를 주지 않는다 — 포커스 대상 입력이 없다.
+        */}
         <Box sx={fieldRowSx}>
-          <FieldLabel>{isEdit ? '파노 (측정값 · 수정 불가)' : '파노 (자동)'}</FieldLabel>
-          {/* 값 표면 + [측정]을 한 행에 두고 높이를 맞춘다 — 다른 필드와 같은 격자 */}
-          <Box sx={{display: 'flex', alignItems: 'stretch', gap: 1}}>
-            <Box sx={{...readonlyFieldSx, flex: 1, minWidth: 0}}>
+          <FormField
+            label={isEdit ? '파노 · 수정 불가' : '파노 · 자동'}
+            helperText={
+              !isEdit && pano.kind === 'none' ? '[측정]으로 파노를 먼저 측정하세요' : undefined
+            }
+            action={
+              !isEdit ? (
+                <Button
+                  ref={measureButtonRef}
+                  variant="text"
+                  onClick={onMeasure}
+                  disabled={pending}
+                  sx={{minWidth: 44, height: layoutTokens.formControlHeight - 8, px: 1.5}}>
+                  측정
+                </Button>
+              ) : undefined
+            }>
+            <Box sx={{display: 'flex', alignItems: 'center', gap: 1, px: 1.75, minWidth: 0}}>
               {pano.kind === 'none' ? (
                 <Typography component="span" color="text.secondary">
                   측정 기록 없음
@@ -234,94 +196,95 @@ export function RaceEntrySheet({
                 </>
               )}
             </Box>
-            {/* [측정] 왕복은 create 전용 — edit은 측정값을 수정하지 않는다 */}
-            {!isEdit && (
-              <Button
-                ref={measureButtonRef}
-                variant="outlined"
-                onClick={onMeasure}
-                disabled={pending}
-                sx={{height: layoutTokens.formControlHeight, flexShrink: 0, px: 2.5}}>
-                측정
-              </Button>
-            )}
-          </Box>
-          {/* 파노는 필수 — create에서 none이면 [입력] 비활성, 유도 문구 슬롯(1줄 상시) */}
-          <Box sx={{minHeight: '1.25rem', mt: 0.5}}>
-            {!isEdit && pano.kind === 'none' && (
-              <FormHelperText sx={{m: 0}}>[측정]으로 파노를 먼저 측정하세요</FormHelperText>
-            )}
-          </Box>
+          </FormField>
         </Box>
 
-        {/* ② 결과 (필수) — 2택 exclusive, 시맨틱 색 없음(중립 — 선택 표시는 테마 3중) */}
+        {/*
+          ② 결과 (필수) — 2택 exclusive, 시맨틱 색 없음(중립 — 선택 표시는 테마 3중).
+          SegmentControl이 aria-label을 이미 갖고 있어 FormField 라벨은 aria-hidden으로 둔다
+          (labelFor 미지정 → 이중 낭독 방지).
+        */}
         <Box sx={fieldRowSx}>
-          <FieldLabel>결과 (필수)</FieldLabel>
-          <SegmentControl<RaceResult>
-            options={RESULT_OPTIONS}
-            value={draft.result}
-            onChange={next => {
-              if (next !== null) onDraftChange({result: next})
-            }}
-            aria-label="레이스 결과"
-            error={fieldErrors.result !== undefined}
-            aria-describedby={fieldErrors.result !== undefined ? resultErrorId : undefined}
-            disabled={pending}
-          />
-          <FieldErrorSlot id={resultErrorId} message={fieldErrors.result} />
+          <FormField label="결과 · 필수" error={fieldErrors.result ?? null} errorId={resultErrorId}>
+            <SegmentControl<RaceResult>
+              options={RESULT_OPTIONS}
+              value={draft.result}
+              onChange={next => {
+                if (next !== null) onDraftChange({result: next})
+              }}
+              aria-label="레이스 결과"
+              error={fieldErrors.result !== undefined}
+              aria-describedby={fieldErrors.result !== undefined ? resultErrorId : undefined}
+              disabled={pending}
+              borderless
+            />
+          </FormField>
         </Box>
 
-        {/* ③ 전압 (필수) — 오류 슬롯은 VoltageStepper 내장 */}
+        {/* ③ 전압 (필수) — 오류 슬롯은 FormField가 소유(스테퍼 내장 슬롯은 끈다) */}
         <Box sx={fieldRowSx}>
-          <FieldLabel>전압 (필수)</FieldLabel>
-          <VoltageStepper
-            value={draft.voltageRaw}
-            onChange={raw => onDraftChange({voltageRaw: raw})}
+          <FormField
+            label="전압 · 필수"
             error={fieldErrors.voltage ?? null}
-            disabled={pending}
-          />
+            errorId={voltageErrorId}>
+            <VoltageStepper
+              value={draft.voltageRaw}
+              onChange={raw => onDraftChange({voltageRaw: raw})}
+              error={fieldErrors.voltage ?? null}
+              disabled={pending}
+              borderless
+              errorId={voltageErrorId}
+            />
+          </FormField>
         </Box>
 
-        {/* ④ 랩타임 (옵션) — 초 단위 입력, ms 변환은 제출 시(state-contract) */}
+        {/* ④ 랩타임 (옵션) — 초 단위 입력, ms 변환은 제출 시(state-contract).
+            텍스트 입력이라 labelFor로 실제 <label for> 결속을 만든다 */}
         <Box sx={fieldRowSx}>
-          <FieldLabel htmlFor={lapTimeId}>랩타임 (옵션)</FieldLabel>
-          <OutlinedInput
-            id={lapTimeId}
-            fullWidth
-            value={draft.lapTimeRaw}
-            onChange={event => onDraftChange({lapTimeRaw: event.target.value})}
-            onKeyDown={handleLapTimeKeyDown}
-            disabled={pending}
-            error={hasLapTimeError}
-            endAdornment={<InputAdornment position="end">s</InputAdornment>}
-            slotProps={{
-              input: {
-                inputMode: 'decimal',
-                'aria-invalid': hasLapTimeError || undefined,
-                'aria-describedby': hasLapTimeError ? lapTimeErrorId : undefined,
-              },
-            }}
-            sx={numericTypography.listValue}
-          />
-          <FieldErrorSlot id={lapTimeErrorId} message={fieldErrors.lapTime} />
+          <FormField
+            label="랩타임 · 옵션"
+            labelFor={lapTimeId}
+            error={fieldErrors.lapTime ?? null}
+            errorId={lapTimeErrorId}>
+            <OutlinedInput
+              id={lapTimeId}
+              fullWidth
+              value={draft.lapTimeRaw}
+              onChange={event => onDraftChange({lapTimeRaw: event.target.value})}
+              onKeyDown={handleLapTimeKeyDown}
+              disabled={pending}
+              error={hasLapTimeError}
+              endAdornment={<InputAdornment position="end">s</InputAdornment>}
+              slotProps={{
+                input: {
+                  inputMode: 'decimal',
+                  'aria-invalid': hasLapTimeError || undefined,
+                  'aria-describedby': hasLapTimeError ? lapTimeErrorId : undefined,
+                },
+              }}
+              sx={{...numericTypography.listValue, height: '100%'}}
+            />
+          </FormField>
         </Box>
 
-        {/* 액션 — 제출·취소 모두 폼 공통 높이(이전 48/44 불일치 정정) */}
-        <Box sx={{display: 'flex', flexDirection: 'column', gap: 1}}>
+        {/*
+          액션 — v2.11: 레퍼런스처럼 주/보조를 나란히 배치한다(세로 적층 → 가로 2열).
+          주 액션이 좌측 넓은 비율(2)을 차지해 위계가 유지되고, 시트 높이도 한 줄 줄어든다.
+          둘 다 폼 공통 높이(이전 48/44 불일치는 v2.10에서 정정).
+        */}
+        <Box sx={{display: 'flex', gap: 1}}>
           <Button
             type="submit"
             variant="contained"
-            fullWidth
             disabled={pending || !canSubmit}
-            sx={{height: layoutTokens.formControlHeight}}>
+            sx={{flex: 2, height: layoutTokens.formControlHeight}}>
             {pending ? '저장 중…' : hasSubmitError ? '다시 저장' : isEdit ? '저장' : '입력'}
           </Button>
           <Button
-            variant="text"
-            fullWidth
+            variant="outlined"
             onClick={onClose}
             disabled={pending}
-            sx={{height: layoutTokens.formControlHeight}}>
+            sx={{flex: 1, height: layoutTokens.formControlHeight}}>
             취소
           </Button>
         </Box>

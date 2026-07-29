@@ -18,6 +18,11 @@ export interface SegmentControlProps<T extends string> {
   'aria-label': string
   /** 그룹 외곽 error 표시 — 오류 문구는 도메인 바인딩/폼 소유 */
   error?: boolean | undefined
+  /**
+   * v2.11: FormField 안에 들어갈 때 자기 테두리를 그리지 않는다(면은 FormField가 소유).
+   * 옵션 사이 구분선만 남겨 2택 경계를 유지한다.
+   */
+  borderless?: boolean | undefined
   'aria-describedby'?: string | undefined
   disabled?: boolean | undefined
 }
@@ -34,6 +39,7 @@ export function SegmentControl<T extends string>({
   allowDeselect = false,
   wrap = null,
   error = false,
+  borderless = false,
   disabled = false,
   'aria-label': ariaLabel,
   'aria-describedby': ariaDescribedby,
@@ -52,7 +58,19 @@ export function SegmentControl<T extends string>({
       aria-describedby={ariaDescribedby}
       sx={[
         wrap === '2x2' && {flexWrap: 'wrap'},
+        // FormField가 면을 소유할 때: 그룹을 꽉 채우고 외곽 테두리를 제거, 옵션 경계만 남긴다
+        borderless && {
+          width: '100%',
+          height: '100%',
+          '& .MuiToggleButton-root': {
+            border: 0,
+            borderRadius: 0,
+            '&:not(:first-of-type)': {borderLeft: '1px solid var(--mml-outline)'},
+          },
+        },
+        // borderless면 오류 표시는 FormField 테두리가 담당한다 — 이중 링 방지
         error &&
+          !borderless &&
           (theme => ({
             outline: `2px solid ${theme.palette.error.main}`,
             outlineOffset: '2px',

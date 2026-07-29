@@ -12,6 +12,13 @@ export interface VoltageStepperProps {
   /** 인라인 오류 문구 — 필드 아래 고정 슬롯, aria-describedby로 input에 연결 */
   error?: string | null | undefined
   disabled?: boolean | undefined
+  /**
+   * v2.11: FormField 안에 들어갈 때 면(테두리·포커스 링)과 오류 슬롯을 FormField에 넘긴다.
+   * 오류 문구는 여전히 aria-describedby로 결속되므로 낭독은 유지된다(id는 FormField가 소유).
+   */
+  borderless?: boolean | undefined
+  /** borderless일 때 오류 helper의 id — FormField가 렌더한 helper와 결속한다 */
+  errorId?: string | undefined
 }
 
 // CD-A2: 롱프레스 지연 400ms / 반복 간격 100ms — 상수 1곳
@@ -40,8 +47,12 @@ export function VoltageStepper({
   onChange,
   error = null,
   disabled = false,
+  borderless = false,
+  errorId,
 }: VoltageStepperProps) {
-  const helperId = useId()
+  const ownHelperId = useId()
+  // borderless면 helper는 FormField가 렌더하므로 그쪽 id와 결속한다
+  const helperId = borderless ? errorId : ownHelperId
 
   // 반복 tick(100ms)이 부모 리렌더보다 빠를 수 있어 최신 값·핸들러를 ref로 미러링한다
   const valueRef = useRef(value)
@@ -133,19 +144,25 @@ export function VoltageStepper({
       <Box
         role="group"
         aria-label="세팅 전압"
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          height: layoutTokens.formControlHeight,
-          border: '1px solid',
-          borderColor: hasError ? 'error.main' : 'var(--mml-outline)',
-          overflow: 'hidden',
-          // 내부 입력의 outline을 없앤 대신 래퍼가 포커스를 표시한다(포커스 가시성 보전)
-          '&:focus-within': {
-            outline: '2px solid var(--mml-focus-ring)',
-            outlineOffset: '1px',
+        sx={[
+          {
+            display: 'flex',
+            alignItems: 'center',
+            height: layoutTokens.formControlHeight,
+            overflow: 'hidden',
+            width: '100%',
           },
-        }}>
+          // borderless면 면·포커스·오류 표시를 모두 FormField에 넘긴다(이중 테두리/링 방지)
+          !borderless && {
+            border: '1px solid',
+            borderColor: hasError ? 'error.main' : 'var(--mml-outline)',
+            // 내부 입력의 outline을 없앤 대신 래퍼가 포커스를 표시한다(포커스 가시성 보전)
+            '&:focus-within': {
+              outline: '2px solid var(--mml-focus-ring)',
+              outlineOffset: '1px',
+            },
+          },
+        ]}>
         <IconButton
           aria-label="0.1볼트 내리기"
           disabled={decrementDisabled}
@@ -207,14 +224,17 @@ export function VoltageStepper({
           </Box>
         </IconButton>
       </Box>
-      {/* 오류 슬롯 — 필드 아래 고정 위치(높이 예약, layout shift 방지) */}
-      <Box sx={{minHeight: '1.25rem', mt: 0.5}}>
-        {hasError && (
-          <FormHelperText error id={helperId} sx={{m: 0}}>
-            {error}
-          </FormHelperText>
-        )}
-      </Box>
+      {/* 오류 슬롯 — 필드 아래 고정 위치(높이 예약, layout shift 방지).
+          borderless면 FormField가 같은 역할을 하므로 렌더하지 않는다(이중 여백·이중 문구 방지) */}
+      {!borderless && (
+        <Box sx={{minHeight: '1.25rem', mt: 0.5}}>
+          {hasError && (
+            <FormHelperText error id={ownHelperId} sx={{m: 0}}>
+              {error}
+            </FormHelperText>
+          )}
+        </Box>
+      )}
     </Box>
   )
 }
