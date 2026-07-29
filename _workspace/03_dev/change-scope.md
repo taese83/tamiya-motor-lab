@@ -759,3 +759,87 @@ v2.4가 param을 고른 실제 이유("상세 왕복 후 필터 유지")는 영�
 - 알려진 잔여: sanitize는 **읽는 시점**에만 적용되므로 무효값이 localStorage에 남아 있을 수
   있다(다음 토글·해제 시 정리됨). 매 부팅 재기록은 하지 않았다 — 동작에 영향 없고
   원본 값이 남아 있어야 디버깅에 유리하다.
+
+---
+
+## v2.18 — 이름 자동 부여 + 측정 최소 5초 (ux-change / feature)
+
+### TARGET_BEHAVIOR
+1. 모터 추가 시 **이름은 옵션**. 비우면 `{종류 라벨} {n}`이 자동으로 붙는다.
+   n은 아직 쓰이지 않은 가장 작은 1 이상 정수(이미 있으면 올린다).
+2. 측정은 **연속 5초** 하한을 넘겨야 기록할 수 있고, 그 전에는 남은 시간이 보인다.
+
+### 설계 결정
+- **이름 생성은 command의 tx 안에서** 한다. `createMotor`가 이미 sortOrder 최대치 산출을 위해
+  전 행을 읽으므로 같은 순회에서 이름까지 모아 **추가 IO는 0**이다. tx 밖에서 후보를 정하면
+  탭 2개가 동시에 추가할 때 같은 번호가 두 번 붙는다.
+- **번호는 빈 자리를 재사용**한다(max+1 아님). 추가·삭제를 반복하면 max+1은 '토크튠 37'처럼
+  보유 수와 무관한 숫자를 남긴다 — 사용자가 매일 읽는 라벨이라 작은 수를 유지한다.
+- 비교 대상은 **전체 이름**이다(같은 종류만 보지 않는다). 사용자가 다른 종류 모터에
+  '토크튠 1'을 손으로 붙여둘 수 있다. 전역 이름 유일성은 불변식이 아니다(수동 중복 허용) —
+  보장 범위는 "자동 부여가 기존 이름과 부딪히지 않는다"뿐이다.
+- **부여될 이름을 폼에 미리 보여주지 않는다.** 실제 이름은 tx 안에서 다시 계산하므로
+  다른 탭이 그 사이 추가하면 미리보기와 결과가 달라진다 — 지키지 못할 약속은 하지 않고
+  규칙만 알린다("비워두면 종류에 맞춰 자동으로 붙습니다").
+- 이름 옵션화는 **create 전용**이다. edit에서 비우면 기존 이름을 지우는 동작이 되고
+  `updateMotorPatchSchema.name`은 이를 거부한다 — 폼 검증을 mode별로 분기했다.
+- 저장 스키마(`motorSchema.name`)는 계속 `min(1)`이다. **빈 이름이 영속되는 경로는 없다** —
+  옵션이 된 것은 command 입력이고, 이름 부여는 command 책임이다.
+- **5초 하한은 연속이다**(누적 아님). 신호가 끊기면 0부터 다시 센다 — 끊긴 구간을 합치면
+  "모터 회전이 안정됐다"는 하한의 의미가 사라진다.
+- **왕복 자동 확정(RV-1)에도 같은 게이트를 걸었다.** 이 경로를 빼면 레이스 왕복이 여전히
+  '너무 빠른' 값을 자동 기록해 요청의 핵심 문제가 그대로 남는다.
+- 하한 대기 중 [기록]은 비활성이지만 **라벨에 남은 초를 노출**한다(`측정 중… 3초`) —
+  이유 없는 비활성 금지 계약. persistence 불가는 이보다 우선한다(기다려도 풀리지 않는 사유라
+  "기다리면 된다"는 잘못된 기대를 주지 않는다).
+- create에서 **이름 input 자동 포커스를 제거**했다. 이름이 옵션이 된 지금 포커스를 주면
+  모바일 키보드가 즉시 올라와 주 입력인 종류 그리드를 가린다 — "추가를 쉽게"와 어긋난다.
+  edit은 이름 수정이 주 목적이라 유지.
+
+### ALLOWED_PATHS
+- `src/entities/motor/model/auto-name.ts` (신규) + `.test.ts`
+- `src/entities/motor/model/schema.ts` (createMotorInputSchema name optional)
+- `src/entities/motor/api/repository.ts` (createMotor — tx 내 이름 부여)
+- `src/features/motor-management/ui/MotorFormSheet.tsx` (mode별 검증·라벨·포커스)
+- `src/shared/config/domain.ts` (MIN_MEASURE_DURATION_MS)
+- `src/features/measure-session/ui/measure-view.ts` (measuring.measuredMs)
+- `src/features/measure-session/model/{machine.ts,session.ts}` (연속 지속시간 추적)
+- `src/features/measure-session/ui/MeasureActionDock.tsx` (+ `.test.tsx`) — 5초 게이트·라벨
+- `src/pages/measure/ui/MeasurePage.tsx` (RV-1 게이트)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- `motorSchema.name` min(1) — 빈 이름 영속 금지 · INV-04(구조 필드 불변) · INV-19(sortOrder 연속)
+- INV-01(id 중복 add 실패) · AR-1(sortOrder = max+1 append)
+- `isStable`은 내부 신호 — 렌더 분기·수치 잠금·announce 사용 금지, 소비처는 RV-1뿐
+- Z1/Z2/Z3 존 높이 불변(layout shift 금지) · 무음 비활성 금지 · 44px 타깃
+- edit 시트 이름 필수 · MotorFormSheet 공개 props 무변경
+
+### NON_GOALS
+- 전역 이름 유일성 강제(수동 중복은 계속 허용) · 기존 모터 이름 일괄 재부여
+- 측정 하한을 사용자 설정으로 노출 · 경과시간을 Z1/Z2에 별도 표시(존 높이 계약 보호 —
+  남은 시간은 Z3 버튼 라벨에만 담았다)
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build·test 전부 exit 0, vitest **76건**(63 → 76, 신규 13건)
+- 신규 unit(이름): 첫 번호 · 한글 라벨 사용 · 번호 증가 · **빈 번호 재사용** · 다른 종류 무영향 ·
+  수동 동일 문자열 충돌 회피 · 앞뒤 공백 정규화 · 무관 이름('토크튠'·'토크튠 10')이 1번을 막지 않음 ·
+  30자 상한
+- 신규 unit(5초): 하한 미달 → disabled + `waitRemainingMs` · **경계(정확히 5000ms) 포함 → 활성** ·
+  초과 → 활성·남은시간 없음 · persistence 불가가 하한보다 우선
+- 브라우저 실측(이름): 시트 라벨 `이름 (선택)`·`required=false`·헬퍼 "비워두면 종류에 맞춰
+  자동으로 붙습니다"·이름 input 자동 포커스 없음(키보드 안 올라옴). 종류만 골라 저장 →
+  DB에 **`토크튠 1`**, 한 번 더 → **`토크튠 2`**. 목록·필터 칩 반영 500ms 내(폴링 확인)
+- 브라우저: 측정 화면 정상 렌더·콘솔 오류 0
+
+### 미검증 (실기기 필요)
+- **5초 게이트의 실제 동작 전체**. preview에는 마이크가 없어 `measuring` view에 도달하지
+  못하고 `starting`/`no-permission`으로 귀결된다 — 경과시간 누적, 신호 끊김 시 0 리셋,
+  버튼 라벨 카운트다운, 왕복 자동 확정 지연을 브라우저로 확인할 수 없었다.
+  순수 함수 구간(`deriveMeasureAction`)은 unit으로 고정했고, **시간 추적(session.ts)과
+  카운트다운 표시는 실기기 확인이 필요하다**.
+- 조사 과정 메모: 초기 브라우저 시도에서 목록이 갱신되지 않아 invalidation 버그를 의심했으나,
+  `button[type="submit"]`가 **종류 그리드 버튼**을 집은 내 테스트 방식 문제였다.
+  정상 [저장] 경로는 500ms 내 반영되며 `motorKeys.root` prefix 무효화는 정상 동작한다.

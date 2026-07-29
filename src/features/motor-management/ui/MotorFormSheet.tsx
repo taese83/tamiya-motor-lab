@@ -58,7 +58,12 @@ export function MotorFormSheet({
       open={open}
       title={mode === 'create' ? '모터 등록' : '모터 수정'}
       onClose={onClose}
-      onOpened={() => nameInputRef.current?.focus()}>
+      // v2.18: create에서는 이름 input에 자동 포커스하지 않는다. 이름이 옵션이 된 지금
+      // 포커스를 주면 모바일 키보드가 즉시 올라와 **주 입력인 종류 그리드를 가린다** —
+      // "모터 추가를 쉽게"라는 목적과 정면으로 어긋난다. edit은 이름 수정이 주 목적이라 유지한다.
+      onOpened={() => {
+        if (mode === 'edit') nameInputRef.current?.focus()
+      }}>
       {/*
         닫힘 = 폼 파기(§5.4). 열릴 때만 마운트하므로 initial(또는 빈 값)이 useState 초기값으로 들어가고,
         열려 있는 동안 initial identity가 바뀌어도 사용자 입력은 유지된다 — 동기화 effect 불요.
@@ -66,6 +71,7 @@ export function MotorFormSheet({
       {open && (
         <MotorFormFields
           initial={initial}
+          nameOptional={mode === 'create'}
           pending={pending}
           errorMessage={errorMessage}
           nameInputRef={nameInputRef}
@@ -79,6 +85,8 @@ export function MotorFormSheet({
 
 interface MotorFormFieldsProps {
   initial: MotorFormValues | undefined
+  /** v2.18 — create에서만 이름이 옵션이다. edit에서 비우면 기존 이름을 지우는 셈이라 계속 필수 */
+  nameOptional: boolean
   pending: boolean
   errorMessage: string | null
   nameInputRef: RefObject<HTMLInputElement | null>
@@ -88,6 +96,7 @@ interface MotorFormFieldsProps {
 
 function MotorFormFields({
   initial,
+  nameOptional,
   pending,
   errorMessage,
   nameInputRef,
@@ -105,7 +114,9 @@ function MotorFormFields({
     event.preventDefault()
     if (pending) return
     const trimmedName = name.trim()
-    if (trimmedName.length < 1) {
+    // v2.18: create는 빈 이름을 허용한다 — createMotor가 tx 안에서 '{종류} {n}'을 부여한다.
+    // edit은 계속 필수다: 비우면 기존 이름을 없애는 동작이 되고 updateMotor는 이를 거부한다.
+    if (!nameOptional && trimmedName.length < 1) {
       setNameError('이름을 입력하세요')
       nameInputRef.current?.focus()
       return
@@ -135,15 +146,22 @@ function MotorFormFields({
       noValidate
       sx={{display: 'flex', flexDirection: 'column', gap: 3}}>
       <TextField
-        label="이름"
-        required
+        label={nameOptional ? '이름 (선택)' : '이름'}
+        required={!nameOptional}
         value={name}
         onChange={event => {
           setName(event.target.value)
           if (nameError !== null) setNameError(null)
         }}
         error={nameError !== null}
-        helperText={nameError ?? `${name.length}/${MOTOR_NAME_MAX_LENGTH}자`}
+        helperText={
+          nameError ??
+          // 비워둘 수 있다는 사실 자체가 이 기능의 유일한 발견 경로다 — 빈 상태에서 규칙을 알린다.
+          // 부여될 이름을 미리 보여주지는 않는다(실제 이름은 command가 tx 안에서 재계산 — auto-name.ts)
+          (nameOptional && name === ''
+            ? '비워두면 종류에 맞춰 자동으로 붙습니다'
+            : `${name.length}/${MOTOR_NAME_MAX_LENGTH}자`)
+        }
         inputRef={nameInputRef}
         slotProps={{htmlInput: {maxLength: MOTOR_NAME_MAX_LENGTH}}}
       />

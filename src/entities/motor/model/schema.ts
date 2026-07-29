@@ -21,8 +21,12 @@ export const motorSchema = z.object({
 export type Motor = z.infer<typeof motorSchema>
 
 // command 입력 — 구조 필드(id·createdAt·updatedAt)와 sortOrder는 command가 부여 (AR-1: max+1 append)
+//
+// v2.18: name은 **옵션**이다(모터 추가 마찰 제거). 생략·공백이면 createMotor가
+// `{종류 라벨} {n}`을 부여한다(nextAutoMotorName). 저장 스키마(motorSchema.name)는 여전히
+// min(1)을 요구한다 — 빈 이름이 영속되는 경로는 없고, 이름 부여는 command 책임이다.
 export const createMotorInputSchema = z.object({
-  name: z.string().trim().min(1, '이름을 입력해 주세요').max(MOTOR_NAME_MAX_LENGTH),
+  name: z.string().trim().max(MOTOR_NAME_MAX_LENGTH).optional(),
   kind: motorKindSchema,
 })
 export type CreateMotorInput = z.input<typeof createMotorInputSchema>

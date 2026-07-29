@@ -31,6 +31,8 @@ import {ThemeToggle} from '@shared/ui/theme-toggle'
 
 import type {MotorPickItem} from '@features/collect-measure'
 import type {MeasureView} from '@features/measure-session/model'
+import {MIN_MEASURE_DURATION_MS} from '@shared/config/domain'
+
 import type {MotorKind} from '@shared/config/domain'
 import type {PersistenceStatus} from '@shared/lib/persistence'
 
@@ -102,7 +104,10 @@ export function MeasurePage() {
   // 측정 중 모터 삭제만 목록으로 replace 복귀하고, 이때 대상은 origin별로 갈린다(v2.5):
   // 삭제된 모터의 상세로 되돌아가면 not-found 화면에 착지하므로 각 origin의 목록으로 보낸다.
   useRaceAutoCollect({
-    isStable: view.status === 'measuring' ? view.isStable : false,
+    // v2.18: 왕복 자동 확정도 최소 측정시간 하한을 통과해야 한다. 이 경로를 빼면 레이스 왕복이
+    // 여전히 '너무 빠른' 값을 자동 기록한다 — 요청의 핵심 문제가 그대로 남는다.
+    isStable:
+      view.status === 'measuring' && view.isStable && view.measuredMs >= MIN_MEASURE_DURATION_MS,
     panoHz: view.status === 'measuring' ? view.panoHz : null,
     rpm: view.status === 'measuring' ? view.rpm : null,
     onOutcome: outcome => {

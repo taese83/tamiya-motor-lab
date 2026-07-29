@@ -13,6 +13,7 @@ import {
   reorderMotorsInputSchema,
   updateMotorPatchSchema,
 } from '../model/schema'
+import {nextAutoMotorName} from '../model/auto-name'
 
 import type {CreateMotorInput, Motor, ReorderMotorsInput, UpdateMotorPatch} from '../model/schema'
 import type {MotorSummary, MotorSummaryMeasure, MotorSummaryRace} from '../model/types'
@@ -51,20 +52,27 @@ export async function createMotor(input: CreateMotorInput): Promise<Result<Motor
   const now = new Date().toISOString()
   const base = {
     id: crypto.randomUUID(),
-    name: parsed.data.name,
     kind: parsed.data.kind,
     createdAt: now,
     updatedAt: now,
   }
+  // v2.18: 공백만 입력한 경우도 미입력으로 본다(지웠다가 스페이스만 남는 사례)
+  const requestedName = parsed.data.name?.trim() ?? ''
 
   return withTransaction(['motors'], 'readwrite', async tx => {
     const store = tx.objectStore('motors')
     const rows = await store.getAll()
-    const maxOrder = rows.reduce<number>((max, row) => {
+    // sortOrder 최대치와 기존 이름을 **같은 순회**에서 모은다 — 자동 이름 부여의 추가 IO는 0.
+    // 이름 후보를 tx 밖에서 정하면 탭 2개가 동시에 추가할 때 같은 번호가 두 번 붙는다.
+    let maxOrder = -1
+    const names: string[] = []
+    for (const row of rows) {
       const motor = parseMotorRow(row)
-      return motor.sortOrder > max ? motor.sortOrder : max
-    }, -1)
-    const motor: Motor = {...base, sortOrder: maxOrder + 1}
+      if (motor.sortOrder > maxOrder) maxOrder = motor.sortOrder
+      names.push(motor.name)
+    }
+    const name = requestedName !== '' ? requestedName : nextAutoMotorName(parsed.data.kind, names)
+    const motor: Motor = {...base, name, sortOrder: maxOrder + 1}
     await store.add(motor) // add — id 중복 시 실패 (INV-01)
     return motor
   })
@@ -114,7 +122,9 @@ export async function updateMotor(id: string, patch: UpdateMotorPatch): Promise<
  * ④ compaction: 삭제 대상보다 큰 sortOrder 전건 −1 — 잔존 모터 sortOrder 연속(INV-19).
  * 대상 부재 → not-found (api-schema §4.2). confirm(n·m 분리 고지, D-1)은 호출 feature 책임.
  */
-export async function deleteMotorCascade(id: string): Promise<Result<{deletedRecordCount: number}>> {
+export async function deleteMotorCascade(
+  id: string,
+): Promise<Result<{deletedRecordCount: number}>> {
   const idParsed = z.uuid().safeParse(id)
   if (!idParsed.success) return err(fromZodError(idParsed.error))
 
@@ -177,9 +187,13 @@ export async function reorderMotors(input: ReorderMotorsInput): Promise<Result<v
       motors.length === orderedIds.length &&
       motors.every(motor => idSet.has(motor.id))
     if (!isPermutation) {
-      throw new DomainError('validation', '모터 목록이 변경되었습니다. 목록을 새로고침한 뒤 다시 시도해 주세요', {
-        fieldErrors: {orderedIds: 'permutation'},
-      })
+      throw new DomainError(
+        'validation',
+        '모터 목록이 변경되었습니다. 목록을 새로고침한 뒤 다시 시도해 주세요',
+        {
+          fieldErrors: {orderedIds: 'permutation'},
+        },
+      )
     }
 
     const orderIndex = new Map(orderedIds.map((motorId, index) => [motorId, index]))
@@ -331,7 +345,10 @@ export async function listMotorSummaries(): Promise<MotorSummary[]> {
   }
 
   const motors = motorRows.map(parseMotorRow).sort(bySortOrderAsc)
-  const measureRollups = rollupBy(measureRows.map(parseSummaryMeasureRow), record => record.measuredAt)
+  const measureRollups = rollupBy(
+    measureRows.map(parseSummaryMeasureRow),
+    record => record.measuredAt,
+  )
   const raceRollups = rollupBy(raceRows.map(parseSummaryRaceRow), record => record.createdAt)
 
   return motors.map((motor): MotorSummary => {

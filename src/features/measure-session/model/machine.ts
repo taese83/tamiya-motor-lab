@@ -40,7 +40,7 @@ export type NoPermissionCause = 'denied' | 'device-error'
  * 내부 신호(M-3). 렌더 분기·수치 잠금·announce 사용 금지, 소비처는 RV-1 자동 확정 트리거뿐.
  */
 export type EngineFrameView =
-  | {kind: 'measuring'; rpm: number; panoHz: number; isStable: boolean}
+  | {kind: 'measuring'; rpm: number; panoHz: number; isStable: boolean; measuredMs: number}
   | {kind: 'weak-signal'}
 
 export interface MachineSnapshot {
@@ -90,6 +90,7 @@ export function toMeasureView(snapshot: MachineSnapshot): MeasureView {
             rpm: snapshot.frame.rpm,
             panoHz: snapshot.frame.panoHz,
             isStable: snapshot.frame.isStable,
+            measuredMs: snapshot.frame.measuredMs,
           }
         : {status: 'weak-signal'}
     case 'awaiting-gesture':
@@ -112,12 +113,20 @@ export function toMeasureView(snapshot: MachineSnapshot): MeasureView {
  * 수치가 null이면 weak-signal로 강등 — INV-13(weak-signal ⇒ 수치 null)의 역방향 방어로,
  * 어떤 경로로도 null 수치가 measuring view에 실리지 않는다.
  */
-export function toEngineFrame(estimate: DisplayEstimate): EngineFrameView {
-  if (
+export function isMeasuringEstimate(estimate: DisplayEstimate): boolean {
+  return (
     (estimate.status === 'measuring' || estimate.status === 'stable') &&
     estimate.f0 !== null &&
     estimate.rpm !== null
-  ) {
+  )
+}
+
+/**
+ * @param measuredMs 연속 measuring 지속시간(ms) — 시각은 세션이 소유한다(이 함수는 순수 유지).
+ *   호출 전에 `isMeasuringEstimate`로 판정해야 순서가 맞는다(측정 프레임일 때만 시간이 흐른다).
+ */
+export function toEngineFrame(estimate: DisplayEstimate, measuredMs: number): EngineFrameView {
+  if (isMeasuringEstimate(estimate) && estimate.f0 !== null && estimate.rpm !== null) {
     // 표시·기록 canonical 정규화 (버그 수정): raw f0를 그대로 실으면 수집 write 스키마
     // (소수 1자리 + rpm===round(panoHz×60) 쌍 불변식)에 걸려 "입력값을 확인해 주세요"로
     // 수집이 전면 실패한다. view 경계에서 소수 1자리로 반올림하고 rpm을 그 값에서
@@ -125,6 +134,7 @@ export function toEngineFrame(estimate: DisplayEstimate): EngineFrameView {
     const panoHz = Math.round(estimate.f0 * 10) / 10
     return {
       kind: 'measuring',
+      measuredMs,
       rpm: Math.round(panoHz * 60),
       panoHz,
       isStable: estimate.status === 'stable',

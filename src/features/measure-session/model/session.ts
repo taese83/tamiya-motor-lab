@@ -16,6 +16,7 @@ import {
   canStartCapture,
   classifyCaptureError,
   createIdleSnapshot,
+  isMeasuringEstimate,
   resolveStartFailure,
   toEngineFrame,
 } from './machine'
@@ -44,6 +45,11 @@ let active: ActiveResources | null = null
 let acquiring = false
 /** 세션 내 누적 거부 횟수 (F-2 fallback ≥2회 승격) — INV-17 비영속. awaiting-gesture 판정은 미계상 */
 let denialCount = 0
+/**
+ * v2.18 — **연속** measuring 시작 시각(ms). 측정 프레임이 끊기거나 phase가 running을 벗어나면
+ * null로 리셋된다. 누적 합산이 아니다: 신호가 오갔다면 모터 회전도 안정되지 않았다고 본다.
+ */
+let measuringSinceMs: number | null = null
 /** no-permission 중 granted 전환 감지 구독 (Permissions API 가용 시 — F-2 ①) */
 let permissionWatcher: PermissionStatus | null = null
 
@@ -108,7 +114,11 @@ export function stopCapture(): void {
  * suspended도 마이크 트랙이 살아 있으므로 함께 종료한다 (백그라운드 녹음 없음).
  */
 export function stopCaptureForHidden(): void {
-  if (machine.phase === 'starting' || machine.phase === 'running' || machine.phase === 'suspended') {
+  if (
+    machine.phase === 'starting' ||
+    machine.phase === 'running' ||
+    machine.phase === 'suspended'
+  ) {
     stopCapture()
   }
 }
@@ -369,7 +379,17 @@ function handleWorkerMessage(message: EngineWorkerResponse): void {
 function handleEstimate(estimate: DisplayEstimate): void {
   // teardown 이후 큐에 남은 잔여 메시지 방어 — running에서만 소비
   if (machine.phase !== 'running') return
-  commit({...machine, frame: toEngineFrame(estimate)})
+
+  // v2.18 연속 측정 지속시간 — 측정 프레임이 아니면 시각을 버려 다음 측정이 0부터 시작한다.
+  // 끊긴 구간을 이어 붙이면 "연속 5초"라는 하한의 의미가 사라진다(MIN_MEASURE_DURATION_MS).
+  if (!isMeasuringEstimate(estimate)) {
+    measuringSinceMs = null
+    commit({...machine, frame: toEngineFrame(estimate, 0)})
+    return
+  }
+  const now = Date.now()
+  measuringSinceMs ??= now
+  commit({...machine, frame: toEngineFrame(estimate, now - measuringSinceMs)})
 }
 
 // ─── 세션 수명 이벤트 ────────────────────────────────────────────────────────

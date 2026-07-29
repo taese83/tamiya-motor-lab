@@ -16,7 +16,9 @@ export type MeasureView =
   | {status: 'starting'} // 자동 시작 시도·권한 프롬프트 중 — 게이지 dim, "—"
   | {status: 'insecure'} // isSecureContext === false — HTTPS 안내 전용
   | {status: 'awaiting-gesture'} // M-1 fallback — [탭하여 시작] 1탭, 오류 표현 금지
-  | {status: 'measuring'; panoHz: number; rpm: number; isStable: boolean} // 연속 갱신 ≥10Hz — 잠금 없음
+  // v2.18: measuredMs = **연속** measuring 지속시간(ms). 신호가 끊기면 0부터 다시 센다.
+  // 소비처는 ① 경과 표시 ② 기록 하한 게이트(MIN_MEASURE_DURATION_MS) ③ RV-1 자동 확정 게이트.
+  | {status: 'measuring'; panoHz: number; rpm: number; isStable: boolean; measuredMs: number} // 연속 갱신 ≥10Hz — 잠금 없음
   | {status: 'weak-signal'} // 수치 없음 — 타입으로 강제 (INV-13)
   | {status: 'no-permission'; permanent: boolean; settingsHelpOpen: boolean} // F-2
   | {status: 'suspended'} // 실행 중 세션의 오디오 중단 — [탭하여 다시 시작]

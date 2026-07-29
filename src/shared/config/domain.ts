@@ -54,6 +54,14 @@ export const VOLTAGE_RANGE = {min: 0.1, max: 9.9, step: 0.1, maxDecimals: 2} as 
 // ── 표시 라벨 (CP-2 확정 — v1 유지. M-4: 파노가 주지표로 승격, 라벨 자체는 무변경)
 export const PANO_LABEL = '파노'
 
+// ── 측정 최소 지속시간 (v2.18)
+// 엔진의 stable 판정은 1.5초 CV 기반이라 신호가 좋으면 매우 빨리 stable이 된다. 그런데 모터는
+// 초기 회전이 안정되기까지 시간이 걸려서, 빠르게 확정하면 "엔진 기준으로는 안정이지만 모터
+// 기준으로는 아직 덜 돌아간" 값이 남는다. 그래서 엔진 판정과 별개로 **연속 측정 시간의 하한**을
+// 둔다. 누적이 아니라 연속이다 — 신호가 끊기면 0부터 다시 센다(끊긴 구간을 합치면 하한의
+// 의미가 없다). 기록 버튼과 왕복 자동 확정(RV-1) 둘 다 이 하한을 통과해야 한다.
+export const MIN_MEASURE_DURATION_MS = 5000
+
 // ── 입력 길이 상한 (AS-1 — v1 유지. statusMemo 제거로 name 1건만)
 export const MOTOR_NAME_MAX_LENGTH = 30
 
