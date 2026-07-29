@@ -21,10 +21,12 @@ export interface PanoGaugeProps {
  * 원했다. 게이지 표시 스케일과 측정 유효 대역은 이제 별개다(게이지는 시각 표시 전용 —
  * 실제 값 검증은 여전히 스키마 소관, 게이지는 aria-hidden 장식이라 판정 비관여).
  * ------------------------------------------------------------------ */
-const VIEW_BOX = '0 0 200 120'
+// v2.26(사용자: 더 크게): viewBox를 콘텐츠(아크+바깥 라벨) 실제 경계로 좁혀 여백을 제거한다.
+// 좌우 ~30 여백을 잘라내면 같은 화면 폭에서 게이지가 더 크게 렌더된다(좌표계는 불변 — 창만 축소).
+const VIEW_BOX = '18 3 164 114'
 const CX = 100
 const CY = 84
-const STROKE_W = 12
+const STROKE_W = 5 // v2.26(사용자): 트랙 두께 더 얇게(12→9→7→5)
 const TRACK_R = 58
 const TICK_OUTER_R = TRACK_R - STROKE_W / 2 - 2.5
 const MAJOR_TICK_INNER_R = TICK_OUTER_R - 7
@@ -34,8 +36,10 @@ const MINOR_TICK_INNER_R = TICK_OUTER_R - 4
  * 0~700을 100단위로 8개 찍으면 300·400이 12시 근처 안쪽에 놓여 **중앙 파노 수치와 겹친다**.
  * 라벨을 트랙 바깥 코너로 빼면 아크 **내부가 비어** 중앙 수치가 겹침 없이 들어앉는다.
  * (자동차 계기판에서 숫자를 링 바깥에 두는 방식 — 내부는 디지털 값 전용.)
+ * v2.26(사용자: 라벨이 게이지에 겹치지 않게): 아크 바깥 여백 7→13으로 늘려 라벨을 트랙에서
+ * 더 떼어놓는다(트랙 두께 축소분과 합쳐 라벨-아크 간격 확대). viewBox는 이에 맞춰 넓혔다.
  */
-const LABEL_R = TRACK_R + STROKE_W / 2 + 7
+const LABEL_R = TRACK_R + STROKE_W / 2 + 13
 
 /** v2.21 스케일 — 게이지 표시 전용(측정 유효 대역과 분리) */
 const GAUGE_MIN = 0
@@ -167,7 +171,7 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
           fill="none"
           strokeWidth={STROKE_W}
           strokeLinecap="butt"
-          style={{stroke: palette.error.main, opacity: 0.85}}
+          style={{stroke: palette.error.main, opacity: 1}}
         />
         {TICKS.map(tick => (
           <g key={tick.v}>
@@ -190,7 +194,7 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
                 dominantBaseline="central"
                 style={{
                   fill: palette.text.secondary,
-                  fontSize: 8,
+                  fontSize: 6.5, // v2.26(사용자): 100단위 라벨 숫자 조금 더 축소(8→6.5)
                   fontWeight: 700,
                   letterSpacing: '0.04em',
                   fontVariantNumeric: 'tabular-nums lining-nums',

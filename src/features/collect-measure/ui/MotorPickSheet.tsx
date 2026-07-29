@@ -100,7 +100,7 @@ export function MotorPickSheet({
         */}
           <Button
             fullWidth
-            variant="outlined"
+            variant="contained"
             onClick={onRequestRegister}
             disabled={pending}
             sx={{mt: 1.5, minHeight: 48}}>

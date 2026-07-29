@@ -5,18 +5,18 @@ import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext} from 'react-router'
 
 import {motorQueries} from '@entities/motor'
+import {useCreateMotor, useDeleteMotorCascade, useUpdateMotor} from '@features/motor-management/api'
 import {
-  useCreateMotor,
-  useDeleteMotorCascade,
-  useReorderMotors,
-  useUpdateMotor,
-} from '@features/motor-management/api'
-import {useMotorDeleteFlow, useMotorKindFilter} from '@features/motor-management/model'
+  useMotorDeleteFlow,
+  useMotorKindFilter,
+  useMotorSort,
+} from '@features/motor-management/model'
 import {MotorFormSheet, MotorKindFilter, MotorList} from '@features/motor-management/ui'
 import {ConfirmDialog} from '@shared/ui/confirm-dialog'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
+import {SegmentControl} from '@shared/ui/segment-control'
 import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
@@ -26,18 +26,13 @@ import type {PersistenceStatus} from '@shared/lib/persistence'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // S3 모터 목록 ('/motors') — 버그 리포트 #2: 인라인 확장을 상세 페이지로 전환.
-// 조립 계약: PageHeader(+모터/ThemeToggle) + MotorKindFilter(v2.4 종류 필터) +
-// MotorList(DnD 재정렬, 행 탭 → 상세 진입) + MotorFormSheet(create·edit) + EmptyState.
-// corrupt면 본문 = RecoveryPanel.
-// 차트·측정 기록 목록은 상세 페이지('/motors/:motorId') 소유.
+// 조립 계약: PageHeader(+모터/ThemeToggle) + MotorKindFilter(종류 필터) + SegmentControl(정렬) +
+// MotorList(행 탭 → 상세 진입, 스와이프 수정·삭제) + MotorFormSheet(create·edit) + EmptyState.
+// corrupt면 본문 = RecoveryPanel. 차트·측정 기록 목록은 상세 페이지 소유.
 //
-// v2.16: 행 스와이프 트레이가 생겨 **수정 시트와 cascade 삭제 플로우를 이 페이지도 소유**한다
-// (이전 주석은 "소유하지 않는다"였다 — 스와이프 도입으로 무효). 상세 페이지의 동일 플로우와
-// 중복 배선이지만 훅(useMotorDeleteFlow·MotorFormSheet)을 공유하므로 로직 복제는 없다.
-//
-// v2.4 필터×정렬 계약: 필터가 활성이면 MotorList에 부분집합이 전달되므로 reorderDisabled=true로
-// 정렬을 잠근다(reorderMotors는 전체 순열 요구 — SO-2). 잠금 사유는 인라인 안내로 고지하고,
-// 필터 결과 0건은 전체 0건(EmptyState E-1)과 다른 경로로 분기한다(빈 상태 위장 금지).
+// v2.16: 행 스와이프 트레이로 수정 시트·cascade 삭제 플로우를 이 페이지도 소유(상세와 훅 공유).
+// v2.26(사용자): **DnD 수동 정렬 제거**, 정렬 3종(최근 등록순 기본·파노 높은순·이름순, 영속)으로 대체.
+//   필터 → 정렬 순으로 뷰 계층에서 적용(데이터층 sortOrder 불변). 필터 0건은 EmptyState와 다른 경로.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // RootLayout Outlet context의 로컬 구조 선언 — pages는 app을 import할 수 없다
@@ -49,7 +44,6 @@ interface ShellOutletContext {
   resetPersistedData: () => Promise<boolean>
 }
 
-const REORDER_ERROR_MESSAGE = '순서를 저장하지 못했습니다 — 목록이 저장된 순서로 되돌아갑니다'
 /** 필터 훅 입력 안정 참조 — pending/error 시 매 렌더 새 배열을 만들지 않게 한다 */
 const EMPTY_SUMMARIES: ReadonlyArray<never> = []
 
@@ -108,22 +102,12 @@ export function MotorsPage() {
     },
   })
 
-  // ── DnD 재정렬 (T-6) — 낙관 순서는 MotorList 소유, settle 대기용 Promise 반환 ──
-  const reorderMotors = useReorderMotors()
-  const [reorderError, setReorderError] = useState<string | null>(null)
-  const handleReorder = (orderedIds: string[]) => {
-    setReorderError(null)
-    // 실패 시 invalidate 정정(IDB 순서 롤백 렌더)은 mutation 훅 소관 — 여기는 인라인 안내만.
-    // 오류 Toast 금지 계약(ToastApi는 성공 전용) — 인라인 Alert로 표면화한다.
-    return reorderMotors.mutateAsync(orderedIds).catch(() => {
-      setReorderError(REORDER_ERROR_MESSAGE)
-    })
-  }
-
   const summaries = summariesQuery.data
 
-  // v2.4 종류 필터 — 선택 상태는 URL search param 소유(상세 왕복 후 유지). 목록 재정렬은 하지 않는다.
+  // v2.4 종류 필터(영속·모터+레이스 공유) → v2.26 정렬(최근/파노/이름, 영속). 둘 다 뷰 계층 —
+  // 데이터층 순서(sortOrder)는 건드리지 않는다. 필터 먼저 걸고 그 결과를 정렬한다.
   const kindFilter = useMotorKindFilter(summaries ?? EMPTY_SUMMARIES)
+  const motorSort = useMotorSort(kindFilter.filtered)
 
   return (
     <>
@@ -185,18 +169,22 @@ export function MotorsPage() {
         />
       ) : (
         <Box sx={{px: 2, py: 2, display: 'flex', flexDirection: 'column', gap: 1.5}}>
-          {reorderError !== null && (
-            <Alert severity="error" onClose={() => setReorderError(null)}>
-              {reorderError}
-            </Alert>
-          )}
-
           {/* 종류 필터 — 모터가 1건 이상일 때만 노출(빈 목록에 죽은 컨트롤 금지) */}
           <MotorKindFilter
             options={kindFilter.options}
             active={kindFilter.active}
             onToggle={kindFilter.toggle}
             onClear={kindFilter.clear}
+          />
+
+          {/* v2.26 정렬 — 최근 등록순(기본)·파노 높은순·이름순. 선택은 영속(재시작 유지) */}
+          <SegmentControl
+            aria-label="모터 정렬"
+            options={motorSort.options.map(o => ({value: o.key, label: o.label}))}
+            value={motorSort.sort}
+            onChange={next => {
+              if (next !== null) motorSort.setSort(next)
+            }}
           />
 
           {kindFilter.filtered.length === 0 ? (
@@ -210,12 +198,6 @@ export function MotorsPage() {
             </Box>
           ) : (
             <>
-              {/* 잠금 사유 고지 — 무음 비활성 금지(핸들 aria-label에도 동일 사유 포함) */}
-              {kindFilter.active && (
-                <Typography variant="body2" color="text.secondary">
-                  필터 중에는 순서를 변경할 수 없습니다 — [전체]에서 변경하세요
-                </Typography>
-              )}
               {/*
                 count 조회 실패 — dialog를 열지 않고 트리거 인근에 문구 + [다시 시도](§3.1).
                 삭제 대상 건수를 모르는 채로 파괴 확인을 띄우지 않는다.
@@ -232,11 +214,10 @@ export function MotorsPage() {
                   {deleteFlow.countError}
                 </Alert>
               )}
+              {/* v2.26: 정렬(motorSort.sorted) 적용된 순서로 렌더. DnD 제거로 onReorder 없음 */}
               <MotorList
-                summaries={kindFilter.filtered}
-                onReorder={handleReorder}
+                summaries={motorSort.sorted}
                 onSelect={openDetail}
-                reorderDisabled={kindFilter.active}
                 onEdit={openEditSheet}
                 onDelete={motor => deleteFlow.requestDelete({id: motor.id, name: motor.name})}
                 actionsPending={deleteFlow.isCounting}

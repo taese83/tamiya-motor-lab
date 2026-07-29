@@ -15,3 +15,6 @@ export type {
   MotorRecordCounts,
   UseMotorDeleteFlowOptions,
 } from './use-motor-delete-flow'
+// v2.26 — 모터 목록 정렬(최근/파노/이름, 영속). DnD 수동 정렬을 대체한다.
+export {useMotorSort, DEFAULT_MOTOR_SORT, MOTOR_SORT_OPTIONS} from './use-motor-sort'
+export type {MotorSort, MotorSortKey} from './use-motor-sort'

@@ -1179,3 +1179,53 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - **미검증(마이크 필요)**: measuring 실제 라임 수치 "375.2"가 아크를 안 덮는지·rpm 가시성.
   파노 120→56px 축소 + 라벨 아크 바깥이라 아크 내부에 들어가도록 계산했으나 폭 여유가 크지 않아
   실기기 확인 필요(넘치면 guide보다 작은 커스텀 사이즈로 한 단계 더 축소 가능)
+
+---
+
+## v2.26 — 모터 정렬 3종 + DnD 수동정렬 제거 + 버튼 통일 + 게이지 미세조정 (req4·3, 실기기 피드백)
+
+### TARGET_BEHAVIOR
+- **req4 모터 메뉴 정렬 추가**: 최근 등록순(기본)·파노 높은순·이름순. 선택은 영속(재시작 유지).
+- **DnD 수동 정렬 제거**(사용자 결정 "드래그 제거, 정렬 3종만"): 손 끌기 재배치를 없애고
+  정렬 컨트롤로 대체. 데이터층 `sortOrder`는 그대로 두고 **뷰 계층**에서만 표시 순서를 바꾼다.
+- **req3 버튼 스타일 통일**: 측정 후 모터 선택 시트의 [+ 새 모터 추가]를 `outlined`→`contained`로
+  (EmptyState 등록 버튼과 동일 위계 — 라임 contained).
+- **게이지 미세조정**(실기기 피드백 연속): 트랙 더 얇게, 게이지 더 크게, 100단위 라벨 축소·
+  아크에서 더 띄우기, 600~700 레드라인 진하고 밝게.
+
+### 원인·해석
+- 정렬을 **뷰 계층**으로 둔 근거: 종류 필터(v2.17)와 동일 원칙. 데이터 `sortOrder`(INV-08 asc)를
+  건드리면 다른 화면·측정 순서 계약이 흔들린다. 정렬은 kind-filter처럼 localStorage 영속.
+- DnD 제거로 `@dnd-kit/*` 3종이 dead dep이 됨(소스 참조 0, 번들 트리셰이크로 이미 제외).
+  매니페스트 정리는 온라인 install 필요(오프라인 store에 css.escape 없어 prune 실패) →
+  **별도 백그라운드 작업으로 분리**(락파일 안정성 우선, 번들은 이미 깨끗).
+
+### ALLOWED_PATHS
+- `src/features/motor-management/model/use-motor-sort.ts` (신규 — 정렬 store+비교자+훅)
+- `src/features/motor-management/model/use-motor-sort.test.ts` (신규 — 6건)
+- `src/features/motor-management/model/index.ts` (public API 추가)
+- `src/features/motor-management/ui/MotorList.tsx` (DnD 제거 — DndContext/onReorder 삭제)
+- `src/features/motor-management/ui/MotorRow.tsx` (DnD 제거 — useSortable/핸들/transform 삭제)
+- `src/pages/motors/ui/MotorsPage.tsx` (useReorderMotors 제거 → useMotorSort + SegmentControl 배선)
+- `src/features/collect-measure/ui/MotorPickSheet.tsx` (버튼 contained)
+- `src/features/measure-session/ui/PanoGauge.tsx` (게이지 미세조정)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 데이터층 `sortOrder` asc(INV-08) 불변 — 정렬은 표시 전용 · 종류 필터 → 정렬 순서로 적용
+- 행 탭→상세·스와이프 수정/삭제 트레이·cascade 삭제 고지(CP-3) · 필터 0건 경로(EmptyState와 구분)
+- 게이지 aria-hidden 장식·layout-shift 0·스케일 0~700(표시)/F0 170~620(검증) 분리 · M-4 위계
+
+### NON_GOALS
+- 데이터층 정렬 순서 변경 · 정렬을 서버/영속 데이터에 반영 · 삭제/초기화 톤 변경
+
+### CHANGE_BUDGET
+- 신규 의존성 0 (오히려 dnd-kit 제거 예정 — 별도 작업) · 신규 파일 2(정렬 훅·테스트)
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest **85건**(정렬 6건 추가: recent/name/pano/불변 + store 기본·setSort)
+- 브라우저(375px, 다크) `/motors`: 정렬 세그먼트 3종 노출, 드래그 핸들 **0개**(DnD 제거 확인),
+  - 최근 등록순(기본): createdAt desc
+  - 이름순: ko locale asc(렙튠<아토믹<토크튠<하이퍼<HyperDash)
+  - 파노 높은순: 415>380>335, 측정 없는 모터 뒤로 · 선택 영속(`mml-motor-sort-1`={sort:pano})
+- **미검증(마이크 필요)**: 게이지 미세조정(트랙 5px·레드라인 opacity 1·라벨 6.5px·간격 13)의
+  measuring 실제 표시 — 대기 상태 렌더는 정상, 실기기 확인 대상
