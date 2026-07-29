@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
 
 import {Alert, Box, Button, Typography} from '@mui/material'
 import {useQuery} from '@tanstack/react-query'
@@ -9,7 +9,13 @@ import {MotorKindChip, motorQueries} from '@entities/motor'
 import {useDeleteMotorCascade, useUpdateMotor} from '@features/motor-management/api'
 import {useMotorDeleteFlow} from '@features/motor-management/model'
 import {MotorFormSheet, PanoLineChart} from '@features/motor-management/ui'
-import {numericTypography} from '@shared/config/design-tokens'
+import {
+  beginMotorMeasure,
+  cancelRaceMeasure,
+  peekRaceMeasure,
+  useRaceMeasureSlot,
+} from '@features/race-measure-handoff'
+import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
 import {formatDateTimeShort, formatFanoHz, formatRpm} from '@shared/lib/format'
 import {ConfirmDialog} from '@shared/ui/confirm-dialog'
 import {EmptyState} from '@shared/ui/empty-state'
@@ -25,9 +31,15 @@ import type {PersistenceStatus} from '@shared/lib/persistence'
 // 모터 상세 ('/motors/:motorId', 스택 push) — 버그 리포트 #2: 목록 인라인 확장을
 // 상세 페이지로 전환. 조립 계약: PageHeader(←/모터명/[수정][삭제]/ThemeToggle) +
 // MotorKindChip + PanoLineChart(measureQueries.byMotor asc ≤10) + 기록 리스트
-// (canonical 텍스트 채널 — 차트는 추세 보조 aria-hidden) + MotorFormSheet(edit) +
-// useMotorDeleteFlow(cascade ConfirmDialog, 성공 시 '/motors' replace).
+// (canonical 텍스트 채널 — 차트는 추세 보조 aria-hidden) + 하단 [측정] +
+// MotorFormSheet(edit) + useMotorDeleteFlow(cascade ConfirmDialog, 성공 시 '/motors' replace).
 // 미존재 motorId는 라우트 404가 아니라 in-place EmptyState (layout-spec §2.2).
+//
+// v2.5 측정 왕복: 하단 [측정] → beginMotorMeasure + navigate('/') → S1이 수치 안정 시 자동
+// 확정으로 이 모터에 MeasureRecord를 수집하고 navigate(-1)로 복귀한다(레이스 왕복 RV-1과 동일
+// 경로·동일 가드). 복귀 시 mount effect가 자기 왕복만 소비해 결과를 고지한다 — 저장 성공은
+// 토스트, 실패는 인라인 Alert(오류 Toast 금지 계약). 기록 반영(차트·리스트)은 수집 훅의
+// invalidation 소관이라 이 페이지가 별도 갱신하지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // RootLayout Outlet context의 로컬 구조 선언 — pages는 app을 import할 수 없다
@@ -77,6 +89,52 @@ export function MotorDetailPage() {
   const requestDelete = () => {
     if (motor === null) return
     deleteFlow.requestDelete({id: motor.id, name: motor.name})
+  }
+
+  // ── v2.5 측정 왕복 ────────────────────────────────────────────────────────
+  // 복귀 결과는 로컬 state로 복사하지 않고 slot에서 직접 파생한다 — 값이 mount 전에 이미
+  // 도착해 있어 구독 콜백으로 받을 수 없고, effect에서 setState로 옮기면 cascading render가
+  // 된다(react-hooks/set-state-in-effect). slot을 단일 원천으로 두면 사본 동기화가 사라진다.
+  const measureSlot = useRaceMeasureSlot()
+  const myMeasure =
+    measureSlot !== null && measureSlot.origin === 'motor' && measureSlot.motorId === motorId
+      ? measureSlot
+      : null
+  // 실패 고지 — ToastApi는 성공 전용이라 인라인 Alert로 표면화한다(성공 위장 금지)
+  const measureFailed = myMeasure?.measured?.save === 'failed'
+
+  // 저장 성공 도착 시 1회 토스트 + slot 파기 (외부 시스템 갱신만 — 로컬 setState 없음)
+  useEffect(() => {
+    if (myMeasure?.measured?.save === 'saved') {
+      toast.showSuccess('기록됨')
+      cancelRaceMeasure()
+    }
+  }, [myMeasure, toast])
+
+  // 잔여 slot 회수 — 안 지우면 S1이 왕복 모드에 갇혀 일반 [기록] 진입점이 사라진다(INV-21).
+  // peek(비반응)와 deps [motorId]로 **mount/unmount 시점에만** 판정한다: 반응 구독으로 지우면
+  // [측정] 직후 navigate 전 리렌더에서 방금 만든 slot을 스스로 파기해버린다.
+  // - 도착 시 measured===null: 수집 없이 [모터로 돌아가기]로 복귀 = 왕복 포기 → 파기
+  // - 떠날 때 measured!==null: 결과 고지가 끝났거나 화면을 벗어남 → 파기
+  //   (measured===null은 보존 — [측정]으로 S1에 가는 정상 경로가 바로 이 경우다)
+  useEffect(() => {
+    const onArrive = peekRaceMeasure()
+    if (onArrive?.origin === 'motor' && onArrive.motorId === motorId && onArrive.measured === null) {
+      cancelRaceMeasure()
+    }
+    return () => {
+      const onLeave = peekRaceMeasure()
+      if (onLeave?.origin === 'motor' && onLeave.motorId === motorId && onLeave.measured !== null) {
+        cancelRaceMeasure()
+      }
+    }
+  }, [motorId])
+
+  // [측정] — slot 적재 후 S1로 이동. 복귀는 S1의 navigate(-1)이 담당한다
+  const handleMeasure = () => {
+    if (motor === null) return
+    beginMotorMeasure({motorId: motor.id, motorName: motor.name})
+    void navigate('/')
   }
 
   // 스택 pop. history 스택이 없는 딥링크 최초 진입이면 목록(/motors)으로 replace.
@@ -171,6 +229,13 @@ export function MotorDetailPage() {
             </Alert>
           )}
 
+          {/* 왕복 수집 실패 고지 (v2.5) — 성공 위장 금지. 닫기 = slot 파기(고지의 원천 제거) */}
+          {measureFailed && (
+            <Alert severity="error" onClose={cancelRaceMeasure}>
+              측정값을 저장하지 못했습니다 — 다시 측정해 주세요
+            </Alert>
+          )}
+
           <Box>
             <MotorKindChip kind={motor.kind} />
           </Box>
@@ -196,9 +261,9 @@ export function MotorDetailPage() {
               기록을 불러오지 못했습니다
             </Alert>
           ) : records === undefined || records.length === 0 ? (
-            // 기록 0건 — 안내 텍스트 블록 (오류 위장 금지)
+            // 기록 0건 — 안내 텍스트 블록 (오류 위장 금지). v2.5: 하단 [측정]으로 유도
             <Typography variant="body2" sx={{color: 'text.secondary'}}>
-              아직 기록 없음 — 측정 탭에서 [기록]으로 수집하세요
+              아직 기록 없음 — 아래 [측정]으로 첫 기록을 수집하세요
             </Typography>
           ) : (
             <>
@@ -242,6 +307,20 @@ export function MotorDetailPage() {
               </Box>
             </>
           )}
+
+          {/*
+            v2.5 하단 [측정] — 레이스 왕복과 동일 방식(S1 자동 확정 후 자동 복귀).
+            기록 0건에서도 노출한다(첫 수집 진입점). primary contained 48px.
+          */}
+          <Box sx={{mt: `${layoutTokens.sectionGap}px`}}>
+            <Button
+              variant="contained"
+              fullWidth
+              onClick={handleMeasure}
+              sx={{minHeight: 48}}>
+              측정
+            </Button>
+          </Box>
         </Box>
       )}
 

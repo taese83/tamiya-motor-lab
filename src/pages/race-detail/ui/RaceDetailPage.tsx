@@ -96,8 +96,10 @@ export function RaceDetailPage() {
     restoreRef.current = entry.restoreFromMeasureReturn
   })
   useEffect(() => {
-    const slot = consumeRaceMeasureReturn()
-    if (slot === null || slot.motorId !== motorId) return
+    // 자기 왕복만 소비(v2.5 — origin·motorId 일치 시에만 clear). 모터 상세에서 시작한
+    // 왕복은 여기서 소비되지 않고 보존된다.
+    const slot = consumeRaceMeasureReturn({origin: 'race', motorId})
+    if (slot === null) return
     restoreRef.current({
       draft: fromHandoffDraft(slot.draft),
       measuredPanoHz: slot.measured?.panoHz ?? null,

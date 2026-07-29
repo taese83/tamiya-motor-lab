@@ -100,3 +100,41 @@
 - Node 22 typecheck·lint·build 클린, vitest 회귀 없음
 - 브라우저: 다중선택 필터 · 필터 중 핸들 비활성+안내 · 필터 0건 문구 · 상세 왕복 후 필터 유지 · 다크/라이트
 
+## v2.5 라운드 (2026-07-29 — 모터 상세 측정 왕복)
+
+### TARGET_BEHAVIOR
+모터 상세('/motors/:motorId') 하단 [측정] → S1 측정 화면 왕복 → 수치 안정 시 자동 확정으로
+해당 모터에 MeasureRecord 수집 → 자동 복귀. 레이스 측정(RV-1)과 같은 방식으로 동작한다.
+
+### 설계 판단 — 단일 slot 재사용
+왕복 slot은 "slot 존재 = 왕복 모드"가 불변식(INV-21)이라 별도 slot을 추가하면 두 slot이 동시에
+존재해 S1이 대상을 판별할 수 없다. 따라서 기존 slot에 `origin: 'race' | 'motor'` 판별자를 추가해
+재사용하고 single-flight(_markMeasuredPending)·liveness(startedAt) 가드를 그대로 승계한다.
+`navigate(-1)` 복귀는 이미 origin 무관하게 동작하므로 분기 지점은 문구·모터삭제 복귀 대상뿐이다.
+
+### ALLOWED_PATHS
+- `src/features/race-measure-handoff/model/store.ts` (origin union + beginMotorMeasure)
+- `src/features/race-measure-handoff/ui/RaceMeasureStrip.tsx` (origin별 문구)
+- `src/features/race-measure-handoff/index.ts` (배럴)
+- `src/features/measure-session/ui/MeasureActionDock.tsx` (back-to-race → back-to-origin)
+- `src/pages/measure/ui/MeasurePage.tsx` (origin 전달·모터삭제 복귀 대상)
+- `src/pages/motor-detail/ui/MotorDetailPage.tsx` ([측정] 버튼 + 복귀 소비)
+- `src/pages/race-detail/ui/RaceDetailPage.tsx` (consume에 origin 가드)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 레이스 왕복(RV-1) 동작 무변경 — 폼 draft 보존·pano measured 갱신·토스트
+- INV-21(왕복 중 [기록] 진입점 0개)·INV-22(수집 경로는 collectMeasureRecord 단일)
+- rolling 10(INV-20)·측정값 재반올림 금지·startedAt 세대 가드
+- 오류 Toast 금지(ToastApi는 성공 전용) — 실패는 인라인 Alert
+
+### NON_GOALS
+- 모터 상세에서 수동 수치 입력, 측정 기록 개별 삭제·수정
+- 왕복 slot의 영속화(새로고침 시 소실이 계약)
+- `race-measure-handoff` 슬라이스 디렉토리 rename(요청 범위 밖 — 별도 정리 대상)
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build·vitest 클린
+- 브라우저: 모터 상세 왕복(자동 복귀·기록 +1·차트 갱신) · 레이스 왕복 회귀 없음 · origin 교차 오소비 없음

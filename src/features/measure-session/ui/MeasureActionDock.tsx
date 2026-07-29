@@ -12,21 +12,28 @@ export type MeasureAction =
   | {kind: 'retry-permission'} // [권한 다시 요청] primary
   | {kind: 'settings-help'; expanded: boolean} // [설정 방법 보기] — aria-expanded 토글
   | {kind: 'resume'} // [탭하여 다시 시작] primary
-  | {kind: 'back-to-race'; motorName: string} // 왕복 모드 — [레이스로 돌아가기] secondary
+  // 왕복 모드 — [레이스로/모터로 돌아가기] secondary. v2.5: 진입점이 2곳이라 origin으로 라벨 분기
+  | {kind: 'back-to-origin'; motorName: string; origin: 'race' | 'motor'}
 
 /**
  * view → action 순수 산출 (unit 대상 — §2.7).
- * - raceReturn(왕복 slot 존재) 시 **모든 view-status에서 back-to-race로 치환** —
- *   [기록] 진입점 0개(INV-21).
+ * - handoffReturn(왕복 slot 존재) 시 **모든 view-status에서 back-to-origin으로 치환** —
+ *   [기록] 진입점 0개(INV-21). origin은 라벨 분기에만 쓰인다(v2.5).
  * - [기록] 활성 = measuring && persistence ready (M-5 — measuring이면 수치 비null 타입 보장).
  *   persistence `unavailable` → disabled 상시(사유는 전역 배너 소관).
  */
 export function deriveMeasureAction(
   view: MeasureView,
-  raceReturn: {motorName: string} | null,
+  handoffReturn: {motorName: string; origin: 'race' | 'motor'} | null,
   persistenceReady: boolean,
 ): MeasureAction {
-  if (raceReturn !== null) return {kind: 'back-to-race', motorName: raceReturn.motorName}
+  if (handoffReturn !== null) {
+    return {
+      kind: 'back-to-origin',
+      motorName: handoffReturn.motorName,
+      origin: handoffReturn.origin,
+    }
+  }
   switch (view.status) {
     case 'starting':
     case 'insecure':
@@ -57,8 +64,8 @@ export interface MeasureActionDockProps {
   onToggleSettingsHelp: () => void
   /** suspended — 탭 핸들러 내 resume() */
   onResume: () => void
-  /** 왕복 모드 — cancel 아님: 슬롯 생존 복귀는 소비자(page)가 조립 (§7.2 ⑤) */
-  onBackToRace: () => void
+  /** 왕복 모드 — cancel 아님: 슬롯 생존 복귀는 소비자(page)가 조립 (§7.2 ⑤). origin 무관 동일 동작 */
+  onBackToOrigin: () => void
 }
 
 interface SlotConfig {
@@ -73,11 +80,16 @@ interface SlotConfig {
 
 type SlotHandlers = Pick<
   MeasureActionDockProps,
-  'onRecord' | 'onActivate' | 'onRetryPermission' | 'onToggleSettingsHelp' | 'onResume' | 'onBackToRace'
+  | 'onRecord'
+  | 'onActivate'
+  | 'onRetryPermission'
+  | 'onToggleSettingsHelp'
+  | 'onResume'
+  | 'onBackToOrigin'
 >
 
 // §2.2 표 — 슬롯 내용이 유일한 가변 요소. record 외 전부 primary contained(라임 컷코너 — theme 자동),
-// back-to-race만 outlined secondary. 실패 톤 버튼 없음(awaiting-gesture 중립 계약 — M-1).
+// back-to-origin만 outlined secondary. 실패 톤 버튼 없음(awaiting-gesture 중립 계약 — M-1).
 function slotConfig(action: MeasureAction, handlers: SlotHandlers): SlotConfig {
   switch (action.kind) {
     case 'record':
@@ -117,11 +129,11 @@ function slotConfig(action: MeasureAction, handlers: SlotHandlers): SlotConfig {
         onClick: handlers.onResume,
         softDisabled: false,
       }
-    case 'back-to-race':
+    case 'back-to-origin':
       return {
-        label: '레이스로 돌아가기',
+        label: action.origin === 'motor' ? '모터로 돌아가기' : '레이스로 돌아가기',
         variant: 'outlined',
-        onClick: handlers.onBackToRace,
+        onClick: handlers.onBackToOrigin,
         softDisabled: false,
       }
   }
@@ -142,7 +154,7 @@ export function MeasureActionDock({
   onRetryPermission,
   onToggleSettingsHelp,
   onResume,
-  onBackToRace,
+  onBackToOrigin,
 }: MeasureActionDockProps) {
   const slot = slotConfig(action, {
     onRecord,
@@ -150,7 +162,7 @@ export function MeasureActionDock({
     onRetryPermission,
     onToggleSettingsHelp,
     onResume,
-    onBackToRace,
+    onBackToOrigin,
   })
   return (
     <Box sx={{height: '3.5rem', display: 'flex', alignItems: 'center'}}>

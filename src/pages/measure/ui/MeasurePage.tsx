@@ -1,4 +1,4 @@
-import {useEffect} from 'react'
+import {useEffect, useRef} from 'react'
 
 import {Box, Typography} from '@mui/material'
 import {useQuery} from '@tanstack/react-query'
@@ -87,6 +87,13 @@ export function MeasurePage() {
   // RV-1 왕복 slot — 존재 = 왕복 모드 (INV-21: [기록] 진입점 0개, deriveMeasureAction이 치환)
   const slot = useRaceMeasureSlot()
 
+  // motor-deleted 복귀 대상 — useRaceAutoCollect가 slot을 파기한 **뒤** outcome이 도착하므로
+  // slot이 살아 있는 동안 미리 잡아둔다(파기 후에는 origin을 알 수 없다).
+  const deletedFallbackRef = useRef<'/race' | '/motors'>('/race')
+  useEffect(() => {
+    if (slot !== null) deletedFallbackRef.current = slot.origin === 'motor' ? '/motors' : '/race'
+  })
+
   // M-1 자동 시작 + 이탈 종료 + visibilitychange 배선 (UX-A2 — 배선은 페이지 소유 계약)
   useEffect(() => {
     void startCapture()
@@ -102,15 +109,18 @@ export function MeasurePage() {
   }, [])
 
   // RV-1 왕복 자동 확정 — slot 없으면 훅 내부 no-op. isStable은 UI 상태가 아니라 내부 신호(M-3):
-  // 소비처는 이 트리거뿐이다. 성공/실패 모두 레이스로 복귀(결과 표시는 레이스 화면 소유),
-  // 측정 중 모터 삭제만 레이스 목록으로 replace 복귀.
+  // 소비처는 이 트리거뿐이다. 성공/실패 모두 진입 화면으로 복귀(결과 표시는 그 화면 소유).
+  // navigate(-1)은 origin 무관하게 동작한다 — 레이스 상세든 모터 상세든 직전 항목으로 돌아간다.
+  // 측정 중 모터 삭제만 목록으로 replace 복귀하고, 이때 대상은 origin별로 갈린다(v2.5):
+  // 삭제된 모터의 상세로 되돌아가면 not-found 화면에 착지하므로 각 origin의 목록으로 보낸다.
   useRaceAutoCollect({
     isStable: view.status === 'measuring' ? view.isStable : false,
     panoHz: view.status === 'measuring' ? view.panoHz : null,
     rpm: view.status === 'measuring' ? view.rpm : null,
     onOutcome: outcome => {
       if (outcome.kind === 'motor-deleted') {
-        void navigate('/race', {replace: true})
+        // slot은 훅이 이미 파기했으므로 여기서는 소비 시점에 읽어둔 origin을 쓴다
+        void navigate(deletedFallbackRef.current, {replace: true})
         return
       }
       void navigate(-1) // collected · collect-failed
@@ -133,7 +143,7 @@ export function MeasurePage() {
 
   const action = deriveMeasureAction(
     view,
-    slot === null ? null : {motorName: slot.motorName},
+    slot === null ? null : {motorName: slot.motorName, origin: slot.origin},
     persistenceReady,
   )
 
@@ -179,7 +189,7 @@ export function MeasurePage() {
       </Typography>
 
       {/* 왕복 모드 스트립 (component-spec §7.1) — slot 존재와 렌더가 동치(INV-21), 최상단 */}
-      {slot !== null && <RaceMeasureStrip motorName={slot.motorName} />}
+      {slot !== null && <RaceMeasureStrip motorName={slot.motorName} origin={slot.origin} />}
 
       {/* 테마 토글 — S1 우상단 고정, 수치 영역 밖 (design-system §7.3 — 기존 패턴 승계) */}
       <Box
@@ -214,7 +224,7 @@ export function MeasurePage() {
             onRetryPermission={() => void retryPermission()}
             onToggleSettingsHelp={toggleSettingsHelp}
             onResume={() => void resumeAudio()}
-            onBackToRace={() => void navigate(-1)}
+            onBackToOrigin={() => void navigate(-1)}
           />
         </Box>
       </Box>
