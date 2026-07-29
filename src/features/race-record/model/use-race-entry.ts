@@ -5,6 +5,8 @@ import {LAP_TIME_MAX_MS, VOLTAGE_RANGE} from '@shared/config/domain'
 import {isDomainError} from '@shared/lib/errors'
 import {useToast} from '@shared/ui/toast'
 
+import {recommendVoltageHeuristic} from '@shared/lib/voltage-advisor'
+
 import {recommendVoltage, useCreateRaceRecord, useUpdateRaceRecord} from '../api'
 
 import type {RaceEntryDraft, RaceEntryField, RaceEntryFieldErrors, RaceEntryPano} from '../ui'
@@ -180,11 +182,13 @@ export interface RaceEntryController {
   mode: RaceEntryMode
   /** [+ 기록] — 새 draft로 시트 오픈 (create, R-4 반복 입력). 첫 기록·목표 없이 진입 */
   openSheet: () => void
-  /** v2.31 — 목표 팝업 선택 후 진입(2번째+). 시트 오픈 + 하이브리드 전압 추천 프리필 */
+  /** v2.31 — 목표 팝업 선택 후 진입(2번째+). 시트 오픈 + **휴리스틱** 전압 추천 프리필(기본) */
   openWithGoal: (
     goal: RaceGoal,
     adviceInput: {currentPanoHz: number; history: ReadonlyArray<VoltageAdviceRace>},
   ) => void
+  /** v2.35 — [AI 추천] 버튼: 현재 상태로 서버리스 LLM 추천 요청(실패 시 휴리스틱 폴백) */
+  requestAiVoltage: (adviceInput: VoltageAdviceInput) => void
   /** 행 [수정] — 기존 기록 값으로 시트를 edit 모드로 오픈 (v2.3). pending 중 no-op */
   editRecord: (record: RaceRecord) => void
   /** 취소·ESC·backdrop — draft 파기(§6.3, 왕복 복원은 slot이 별도 보존). pending 중 no-op */
@@ -202,8 +206,10 @@ export interface RaceEntryController {
   justMeasured: boolean
   /** v2.31 추천 전압 근거(한국어) — 없으면 null(첫 기록·수정·미선택) */
   rationale: string | null
-  /** v2.31 추천 계산 중 — 전압 필드 "추천 계산 중…" 힌트 */
+  /** v2.35 AI 추천 요청 중 — [AI 추천] 버튼 "요청 중…" */
   recommendPending: boolean
+  /** v2.35 현재 추천 출처(휴리스틱 기본 / AI) — 배지·버튼 라벨용. null = 추천 없음 */
+  recommendSource: 'ai' | 'heuristic' | null
   submit: () => void
   restoreFromMeasureReturn: (restore: RaceMeasureReturnRestore) => void
 }
@@ -237,6 +243,8 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
   // v2.31 전압 추천 — 근거 문구 + 계산 중 플래그(하이브리드: 서버리스 LLM 또는 휴리스틱 폴백)
   const [rationale, setRationale] = useState<string | null>(null)
   const [recommendPending, setRecommendPending] = useState(false)
+  // v2.35 — 현재 추천 출처(기본 휴리스틱 / [AI 추천] 클릭 시 ai). null = 추천 없음(첫 기록·수정)
+  const [recommendSource, setRecommendSource] = useState<'ai' | 'heuristic' | null>(null)
   // state 반영 전 같은 tick의 중복 탭까지 차단하는 동기 가드 (H-4)
   const inFlightRef = useRef(false)
   // 추천 응답 경합 방지 — 최신 요청 seq만 반영(빠른 목표 재선택·닫힘 대비)
@@ -261,6 +269,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     setErrorMessage(null)
     setRationale(null)
     setRecommendPending(false)
+    setRecommendSource(null)
     recommendSeqRef.current += 1 // 진행 중 추천 무효화(닫힘·재오픈 시 stale 반영 금지)
   }
 
@@ -270,27 +279,37 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     setSheetOpen(true)
   }
 
-  // v2.31 — 목표 팝업에서 목표 선택 후 진입. 시트를 즉시 열고(추천 계산 중 표시), 하이브리드
-  // 추천기(서버리스 LLM → 실패 시 휴리스틱)가 resolve되면 전압을 프리필하고 근거를 노출한다.
+  // v2.31/v2.35 — 목표 팝업에서 목표 선택 후 진입. **기본 추천은 휴리스틱**(즉시·오프라인·무료).
+  // AI 추천은 시트 내 [AI 추천] 버튼(requestAiVoltage)으로 명시 요청한다.
   const openWithGoal = (
     goal: RaceGoal,
     adviceInput: {currentPanoHz: number; history: ReadonlyArray<VoltageAdviceRace>},
   ): void => {
     if (pending) return
     resetEntry()
-    setDraft({...createInitialRaceEntryDraft(), goal})
-    setRecommendPending(true)
+    const advice = recommendVoltageHeuristic({
+      goal,
+      currentPanoHz: adviceInput.currentPanoHz,
+      history: adviceInput.history,
+    })
+    setDraft({...createInitialRaceEntryDraft(), goal, voltageRaw: advice.voltage.toFixed(2)})
+    setRationale(advice.rationale)
+    setRecommendSource(advice.source)
     setSheetOpen(true)
+  }
+
+  // v2.35 — [AI 추천] 클릭 시 현재 상태(목표·현재 파노·최근 이력)로 서버리스 LLM 요청.
+  // 실패·오프라인·키없음이면 recommendVoltage 내부에서 휴리스틱으로 폴백(무음 실패 금지).
+  const requestAiVoltage = (adviceInput: VoltageAdviceInput): void => {
+    if (pending || recommendPending) return
+    setRecommendPending(true)
     const seq = ++recommendSeqRef.current
     void (async () => {
-      const advice = await recommendVoltage({
-        goal,
-        currentPanoHz: adviceInput.currentPanoHz,
-        history: adviceInput.history,
-      })
+      const advice = await recommendVoltage(adviceInput)
       if (recommendSeqRef.current !== seq) return // 최신 요청만 반영(경합·닫힘 방어)
       setDraft(prev => ({...prev, voltageRaw: advice.voltage.toFixed(2)}))
       setRationale(advice.rationale)
+      setRecommendSource(advice.source)
       setRecommendPending(false)
     })()
   }
@@ -406,19 +425,15 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     setErrorMessage(restore.saveFailed ? RACE_ENTRY_MESSAGES.measureSaveFailed : null)
     setRationale(null)
     setRecommendPending(false)
+    setRecommendSource(null)
+    recommendSeqRef.current += 1 // 진행 중 AI 요청 무효화(재오픈 시 stale 반영 금지)
     setSheetOpen(true)
-    // v2.33 — 재측정 재추천: 새 파노에 맞게 전압을 다시 추천(파노↔전압 상관 재평가). 없으면 유지.
-    const seq = ++recommendSeqRef.current
+    // v2.33/v2.35 — 재측정 재추천: 새 파노로 **휴리스틱** 재추천(기본). AI는 [AI 추천] 버튼으로.
     if (restore.recompute !== undefined) {
-      const input = restore.recompute
-      setRecommendPending(true)
-      void (async () => {
-        const advice = await recommendVoltage(input)
-        if (recommendSeqRef.current !== seq) return // 최신 요청만 반영
-        setDraft(prev => ({...prev, voltageRaw: advice.voltage.toFixed(2)}))
-        setRationale(advice.rationale)
-        setRecommendPending(false)
-      })()
+      const advice = recommendVoltageHeuristic(restore.recompute)
+      setDraft(prev => ({...prev, voltageRaw: advice.voltage.toFixed(2)}))
+      setRationale(advice.rationale)
+      setRecommendSource(advice.source)
     }
   }
 
@@ -427,6 +442,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     mode,
     openSheet,
     openWithGoal,
+    requestAiVoltage,
     editRecord,
     closeSheet,
     draft,
@@ -438,6 +454,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     justMeasured,
     rationale,
     recommendPending,
+    recommendSource,
     submit,
     restoreFromMeasureReturn,
   }

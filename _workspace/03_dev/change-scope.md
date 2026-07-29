@@ -1561,3 +1561,44 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - 브라우저: 속도 요청 시 "속도 상한 3.2V 초과 → 안정 권장 → 3.00V" 다운그레이드 확인 /
   2.88V 입력 후 안정 추천 프리필 "2.88V"(0.02 단위·2자리) 확인. 테스트 기록 생성 후 삭제 복구.
 - **미검증(장비 필요)**: 실기기 measuring·다중 파노 추세선·재측정 재추천은 마이크 필요(단위테스트로 커버).
+
+---
+
+## v2.35 — 기본 휴리스틱 추천 + [AI 추천] 버튼 (사용자)
+
+### TARGET_BEHAVIOR
+- 전압은 **기본적으로 휴리스틱**으로 추천(즉시·오프라인·무료). 전압 입력폼 아래 **[AI 추천]** 버튼을
+  누르면 그때 현재 상태(목표·현재 파노·최근 이력)로 서버리스 LLM에 요청한다.
+
+### 변경
+- `use-race-entry`: openWithGoal·재측정 재추천을 **동기 휴리스틱**(recommendVoltageHeuristic)으로 전환
+  (기존 자동 AI 호출 제거). 신규 `requestAiVoltage(adviceInput)` — 비동기 recommendVoltage(AI→폴백)
+  호출, `recommendPending`·`recommendSource`('ai'|'heuristic'|null) 상태 노출.
+- `RaceEntrySheet`: 전압 FormField 아래 [AI 추천] 버튼(목표 있을 때만·pending 시 "AI 추천 요청 중…")
+  + 'ai' 출처면 "AI 추천됨" 배지. helperText 문구 갱신.
+- `RaceDetailPage`: handleAiRecommend 배선(목표·파노·최근 이력 전달), recommendSource·onRequestAiVoltage 전달.
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 95건.
+- 브라우저: 목표 선택 시 휴리스틱 프리필(2.90V) + [AI 추천] 버튼 노출, 클릭 시 로컬은 휴리스틱 폴백(오류 0).
+
+---
+
+## v2.36 — 직전 기록 미완성 확인 팝업 (사용자)
+
+### TARGET_BEHAVIOR
+- [+ 기록] 클릭 시 **직전 기록에 결과(완주/이탈) 미입력**이면 "직전에 입력 안 된 항목이 있습니다.
+  입력하시겠습니까?" 확인 팝업. **네 → 그 기록 수정 폼**으로 이동 / **아니오 → 이전 입력 없이 새 기록 추가**.
+
+### 변경
+- `RaceDetailPage`: handleAddRecord가 races[0].result === undefined면 확인 Dialog 오픈(incompleteTarget).
+  네=editRecord(target), 아니오=proceedAddRecord(목표 팝업/시트). 일반 MUI Dialog(비파괴 Yes/No —
+  ConfirmDialog는 destructive 전용이라 미사용).
+
+### NON_GOALS
+- 랩타임 등 순수 옵션 항목은 미완성 판정에서 제외(결과 미입력만 트리거).
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0.
+- 브라우저: 결과 없이 저장 후 [+ 기록] → "직전 기록 확인" 팝업(네/아니오). 네 → 수정 폼(전압 2.9 유지·결과 옵션),
+  결과 완주 저장해 완성 후 [+ 기록] → 팝업 없이 목표 팝업. 테스트 기록 생성 후 삭제 복구.

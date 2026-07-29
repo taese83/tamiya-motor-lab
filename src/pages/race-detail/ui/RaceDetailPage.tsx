@@ -1,6 +1,17 @@
 import {useEffect, useRef, useState} from 'react'
 
-import {Alert, Box, Button, Stack, Typography} from '@mui/material'
+import {
+  Alert,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Stack,
+  Typography,
+} from '@mui/material'
 import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext, useParams} from 'react-router'
 
@@ -19,6 +30,7 @@ import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
 import {useToast} from '@shared/ui/toast'
 
+import type {RaceRecord} from '@entities/race-record'
 import type {RaceMeasureDraft} from '@features/race-measure-handoff'
 import type {RaceEntryDraft, RaceEntryPano} from '@features/race-record/ui'
 import type {RaceGoal} from '@shared/config/domain'
@@ -129,6 +141,8 @@ export function RaceDetailPage() {
   // 첫 기록(과거 0건)은 근거로 삼을 정보가 없어 목표 없이 바로 시트를 연다.
   const races = racesQuery.data ?? []
   const [goalSheetOpen, setGoalSheetOpen] = useState(false)
+  // v2.36 — 직전 기록에 결과(완주/이탈) 미입력 시 [+ 기록] 클릭에서 "입력하시겠습니까?" 확인
+  const [incompleteTarget, setIncompleteTarget] = useState<RaceRecord | null>(null)
   const lastGoal: RaceGoal | null = races[0]?.goal ?? null
   // v2.34(사용자) — 추천 근거는 "현재→가장 최근 완주 기록까지"의 최근 구간(오래된 상태 드리프트 배제).
   // races는 최신순(desc)이라 최근 완주 index까지 자르면 [최신…그 완주] 포함. 완주가 없으면
@@ -146,13 +160,39 @@ export function RaceDetailPage() {
   // 현재 파노 — auto 인용값 우선, 없으면 직전 레이스 파노로 대체(휴리스틱은 0이면 파노 보정 생략)
   const currentPanoHz = initialPano.kind !== 'none' ? initialPano.panoHz : (races[0]?.panoHz ?? 0)
 
-  const handleAddRecord = (): void => {
+  // 새 기록 진입 — 2번째+는 목표 팝업, 첫 기록은 바로 시트
+  const proceedAddRecord = (): void => {
     if (races.length >= 1) setGoalSheetOpen(true)
-    else entry.openSheet() // 첫 기록 — 목표 팝업 없이 바로
+    else entry.openSheet()
+  }
+  // v2.36 — [+ 기록]: 직전 기록에 결과(완주/이탈) 미입력이면 먼저 확인 팝업.
+  // 네 → 그 기록 수정 폼으로 이동 / 아니오 → 이전 입력 없이 새 기록 추가.
+  const handleAddRecord = (): void => {
+    const last = races[0]
+    if (last !== undefined && last.result === undefined) {
+      setIncompleteTarget(last)
+      return
+    }
+    proceedAddRecord()
+  }
+  const handleIncompleteEdit = (): void => {
+    const target = incompleteTarget
+    setIncompleteTarget(null)
+    if (target !== null) entry.editRecord(target)
+  }
+  const handleIncompleteSkip = (): void => {
+    setIncompleteTarget(null)
+    proceedAddRecord()
   }
   const handleGoalSelect = (goal: RaceGoal): void => {
     setGoalSheetOpen(false)
     entry.openWithGoal(goal, {currentPanoHz, history: adviceHistory})
+  }
+  // v2.35 — [AI 추천] 클릭: 현재 목표·파노·최근 이력으로 서버리스 LLM 요청(목표 있을 때만)
+  const handleAiRecommend = (): void => {
+    const goal = entry.draft.goal
+    if (goal === null) return
+    entry.requestAiVoltage({goal, currentPanoHz, history: adviceHistory})
   }
 
   // 왕복 복귀 소비(§7.2) — mount 시 1회. consume은 read-and-clear라 StrictMode 이중
@@ -347,9 +387,30 @@ export function RaceDetailPage() {
           justMeasured={entry.justMeasured}
           recommendation={entry.rationale}
           recommendPending={entry.recommendPending}
+          recommendSource={entry.recommendSource}
+          onRequestAiVoltage={handleAiRecommend}
           onClose={entry.closeSheet}
         />
       )}
+
+      {/* v2.36 직전 기록 미완성 확인 — 결과(완주/이탈) 미입력 시. 네=수정 폼 / 아니오=새 기록 추가 */}
+      <Dialog
+        open={incompleteTarget !== null}
+        onClose={handleIncompleteSkip}
+        aria-labelledby="incomplete-title">
+        <DialogTitle id="incomplete-title">직전 기록 확인</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            직전 기록에 아직 입력하지 않은 항목(결과)이 있습니다. 지금 입력하시겠습니까?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleIncompleteSkip}>아니오</Button>
+          <Button variant="contained" onClick={handleIncompleteEdit}>
+            네
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* v2.31 목표 선택 팝업 — 2번째+ [+ 기록] 진입점. 선택 시 전압 추천 걸고 입력 시트로 */}
       <RaceGoalSheet

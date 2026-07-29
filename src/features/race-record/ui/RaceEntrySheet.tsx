@@ -61,10 +61,14 @@ export interface RaceEntrySheetProps {
   fieldErrors: RaceEntryFieldErrors
   /** 왕복 자동 복귀 직후 1회 true — sr 고지 후 해제는 상위 소유 */
   justMeasured: boolean
-  /** v2.31 전압 추천 근거(한국어) — 목표 팝업 후 계산된 프리필 전압의 설명. 없으면 미표시 */
+  /** v2.31 전압 추천 근거(한국어) — 프리필 전압의 설명(휴리스틱/AI 공통). 없으면 미표시 */
   recommendation: string | null
-  /** v2.31 추천 계산 중 — 전압 필드에 "추천 계산 중…" 힌트 */
+  /** v2.35 AI 추천 요청 중 — [AI 추천] 버튼 "요청 중…" */
   recommendPending: boolean
+  /** v2.35 현재 추천 출처 — 'ai'면 "AI 추천됨" 배지 */
+  recommendSource: 'ai' | 'heuristic' | null
+  /** v2.35 [AI 추천] 클릭 — 현재 상태로 AI 추천 요청(목표 있을 때만 노출) */
+  onRequestAiVoltage: () => void
   onClose: () => void
 }
 
@@ -105,6 +109,8 @@ export function RaceEntrySheet({
   justMeasured,
   recommendation,
   recommendPending,
+  recommendSource,
+  onRequestAiVoltage,
   onClose,
 }: RaceEntrySheetProps) {
   const resultErrorId = useId()
@@ -232,7 +238,7 @@ export function RaceEntrySheet({
             errorId={voltageErrorId}
             helperText={
               recommendPending
-                ? '추천 전압 계산 중…'
+                ? 'AI 추천 요청 중…'
                 : recommendation !== null
                   ? recommendation
                   : undefined
@@ -246,6 +252,28 @@ export function RaceEntrySheet({
               errorId={voltageErrorId}
             />
           </FormField>
+          {/*
+            v2.35 — 기본 추천은 휴리스틱(즉시). [AI 추천]을 누르면 현재 상태(목표·파노·최근 이력)로
+            서버리스 LLM에 요청한다(실패 시 휴리스틱 폴백). 목표가 있을 때만 노출(추천은 목표 기반).
+          */}
+          {draft.goal !== null && (
+            <Box
+              sx={{display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, mt: 0.5}}>
+              {recommendSource === 'ai' && !recommendPending && (
+                <Typography component="span" variant="caption" color="primary">
+                  AI 추천됨
+                </Typography>
+              )}
+              <Button
+                variant="text"
+                size="small"
+                onClick={onRequestAiVoltage}
+                disabled={pending || recommendPending}
+                sx={{minHeight: 36}}>
+                {recommendPending ? 'AI 추천 요청 중…' : 'AI 추천'}
+              </Button>
+            </Box>
+          )}
         </Box>
 
         {/* ④ 랩타임 (옵션) — 초 단위 입력, ms 변환은 제출 시(state-contract).
