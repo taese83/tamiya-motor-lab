@@ -12,7 +12,8 @@ import type {RaceGoal} from '@shared/config/domain'
 /** 추천 입력에 필요한 과거 레이스 최소 형태(엔티티 RaceRecord의 부분집합) */
 export interface VoltageAdviceRace {
   voltage: number
-  result: 'finished' | 'retired'
+  /** v2.31 옵션 — 결과 미정(레이스 전 세팅 기록)이면 이탈 보정 없이 중립 처리 */
+  result?: 'finished' | 'retired' | undefined
   panoHz: number
   goal?: RaceGoal | undefined
 }
@@ -64,7 +65,8 @@ export function recommendVoltageHeuristic({
     reasons.push('과거 기록 없음', `${RACE_GOAL_LABELS[goal]} 목표 기준값`)
   } else {
     v = last.voltage
-    reasons.push(`직전 ${last.voltage.toFixed(1)}V ${RACE_RESULT_LABELS[last.result]}`)
+    const lastResultLabel = last.result !== undefined ? RACE_RESULT_LABELS[last.result] : '기록'
+    reasons.push(`직전 ${last.voltage.toFixed(1)}V ${lastResultLabel}`)
 
     // 결과 보정 — 이탈(과속 추정)은 낮춘다
     if (last.result === 'retired') {

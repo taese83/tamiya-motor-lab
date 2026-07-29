@@ -41,7 +41,7 @@ export const raceRecordSchema = z.object({
   id: z.uuid(), // 구조 필드 — 불변
   motorId: z.uuid(), // FK 구조 필드 — dangling 금지 (INV-03)
   panoHz: panoHzStoredSchema, // R-3①: 최신 MeasureRecord 인용 or 왕복 즉석 측정값
-  result: raceResultSchema, // 완주/이탈 2택
+  result: raceResultSchema.optional(), // v2.31 완주/이탈 — 옵션(레이스 전 세팅 시 미정, 이후 수정)
   voltage: voltageSchema,
   lapTimeMs: lapTimeMsSchema.optional(), // 옵션 — undefined는 저장하지 않음
   goal: raceGoalSchema.optional(), // v2.31 목표(완주/안정/속도) — 옵션(구 데이터·미선택 시 부재)
@@ -53,7 +53,7 @@ export type RaceRecord = z.infer<typeof raceRecordSchema>
 export const createRaceRecordDraftSchema = z.object({
   motorId: z.uuid(),
   panoHz: panoHzStoredSchema, // 주의: write에도 stored(완화) 적용 — 상단 AR-2 각주
-  result: raceResultSchema,
+  result: raceResultSchema.optional(), // v2.31 — 옵션(미정 저장 허용)
   voltage: voltageSchema,
   lapTimeMs: lapTimeMsSchema.optional(),
   goal: raceGoalSchema.optional(), // v2.31 — 목표 팝업 선택값(미선택 시 생략)
@@ -64,7 +64,7 @@ export type CreateRaceRecordDraft = z.input<typeof createRaceRecordDraftSchema>
 // lapTimeMs 생략 = 랩타임 미측정으로 설정(기존 값 제거) — §2.1 null vs 생략 규칙 준수.
 // panoHz·motorId·id·createdAt은 이 스키마에 없다 — command가 기존 값을 보존한다.
 export const updateRaceRecordPatchSchema = z.object({
-  result: raceResultSchema,
+  result: raceResultSchema.optional(), // v2.31 — 옵션(미정 유지·해제 허용)
   voltage: voltageSchema,
   lapTimeMs: lapTimeMsSchema.optional(),
 })

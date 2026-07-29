@@ -1459,3 +1459,31 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - **Stage 2 (미구현 — 다음)**: `api/recommend-voltage`(Vercel 서버리스, Anthropic REST fetch, Haiku 4.5)
   + `vercel.json` /api 제외 + ESLint/tsconfig api 스코프. 활성화: Vercel에 `ANTHROPIC_API_KEY` 설정.
   Stage 1의 client 서비스가 이미 `/api/recommend-voltage`를 호출하므로 Stage 2 배포+키만으로 AI 전환.
+
+---
+
+## v2.32 — 레이스 결과(완주/이탈) 필수 → 옵션 (사용자)
+
+### TARGET_BEHAVIOR
+- 결과를 필수에서 **옵션**으로. 새 흐름(목표 팝업 + 전압 추천)은 레이스 **전** 세팅이라
+  입력 시점에 결과를 모를 수 있다 → 결과 없이도 저장, 이후 [수정]으로 결과 기입.
+
+### 변경
+- schema: raceRecordSchema·create·patch의 `result`를 `.optional()`. read-lenient — 기존 데이터 무손상.
+- repository: create·update가 result 있을 때만 저장(undefined 미저장, §2.1).
+- use-race-entry: result 필수 검증 제거(RACE_ENTRY_MESSAGES.resultRequired 삭제), commandDraft·
+  update patch에서 result 조건부. 제출 활성 = 파노·전압만.
+- RaceEntrySheet: 라벨 "결과 · 필수"→"결과 · 옵션", canSubmit에서 result 제외, SegmentControl
+  allowDeselect(재탭 미정 해제).
+- RaceRecordRow: 결과 미정이면 '미정' 표시.
+- voltage-advisor: VoltageAdviceRace.result 옵션화(미정이면 이탈 보정 없이 중립).
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- voltage 0.1~9.9·panoHz·goal 검증 불변 · rehydrate(INV-16) — result 옵션이라 구 데이터 통과
+- edit 시 panoHz·구조 필드 보존 · single-flight
+
+### CHANGE_BUDGET
+- 신규 의존성 0 · 로직 축소(필수 검증 제거)
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 93건

@@ -51,8 +51,10 @@ export function RaceRecordRow({
   onSwipeOpenChange,
 }: RaceRecordRowProps) {
   const dateTimeLabel = formatDateTimeShort(record.createdAt)
+  // v2.31 result 옵션 — 미정이면 '미정' 표시(결과를 아직 안 넣은 세팅 기록)
+  const resultLabel = record.result !== undefined ? RACE_RESULT_LABELS[record.result] : '미정'
   // 보조 줄 — 결과·전압(·랩타임). 파노는 우측 주값으로 빠졌다(다른 목록과 동일 축)
-  const detailLine = `${RACE_RESULT_LABELS[record.result]} · ${formatVoltage(record.voltage)}${
+  const detailLine = `${resultLabel} · ${formatVoltage(record.voltage)}${
     record.lapTimeMs !== undefined ? ` · ${formatLapTimeSec(record.lapTimeMs)}` : ''
   }`
   const rowLabel = `${index}회차, ${dateTimeLabel}, ${detailLine}, 파노 ${formatFanoHz(record.panoHz)}`

@@ -116,9 +116,8 @@ export function RaceEntrySheet({
   const isEdit = mode === 'edit'
   const hasSubmitError = errorMessage !== null && errorMessage !== ''
   const hasLapTimeError = fieldErrors.lapTime !== undefined && fieldErrors.lapTime !== ''
-  // [입력] 활성 = 파노·결과·전압 충족(§6.3) — 범위·포맷 검증은 제출 시(fieldErrors)
-  const canSubmit =
-    pano.kind !== 'none' && draft.result !== null && draft.voltageRaw.trim() !== ''
+  // [입력] 활성 = 파노·전압 충족. v2.31: result는 옵션이라 활성 조건에서 제외(레이스 전 세팅)
+  const canSubmit = pano.kind !== 'none' && draft.voltageRaw.trim() !== ''
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -201,13 +200,13 @@ export function RaceEntrySheet({
           (labelFor 미지정 → 이중 낭독 방지).
         */}
         <Box sx={fieldRowSx}>
-          <FormField label="결과 · 필수" error={fieldErrors.result ?? null} errorId={resultErrorId}>
+          <FormField label="결과 · 옵션" error={fieldErrors.result ?? null} errorId={resultErrorId}>
             <SegmentControl<RaceResult>
               options={RESULT_OPTIONS}
               value={draft.result}
-              onChange={next => {
-                if (next !== null) onDraftChange({result: next})
-              }}
+              // v2.31 result 옵션 — 재탭으로 미정(null) 해제 허용
+              onChange={next => onDraftChange({result: next})}
+              allowDeselect
               aria-label="레이스 결과"
               error={fieldErrors.result !== undefined}
               aria-describedby={fieldErrors.result !== undefined ? resultErrorId : undefined}

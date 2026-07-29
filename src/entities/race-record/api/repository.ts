@@ -43,9 +43,9 @@ export async function createRaceRecord(draft: CreateRaceRecordDraft): Promise<Re
     id: crypto.randomUUID(),
     motorId: parsed.data.motorId,
     panoHz: parsed.data.panoHz,
-    result: parsed.data.result,
     voltage: parsed.data.voltage,
     // undefined 필드는 IndexedDB에 저장하지 않는다 (§2.1 null vs 생략 규칙)
+    ...(parsed.data.result !== undefined ? {result: parsed.data.result} : {}), // v2.31 옵션
     ...(parsed.data.lapTimeMs !== undefined ? {lapTimeMs: parsed.data.lapTimeMs} : {}),
     ...(parsed.data.goal !== undefined ? {goal: parsed.data.goal} : {}), // v2.31 목표
     createdAt: new Date().toISOString(),
@@ -92,9 +92,9 @@ export async function updateRaceRecord(
       motorId: current.motorId, // FK 보존
       panoHz: current.panoHz, // 측정값 보존 (수정 대상 아님)
       createdAt: current.createdAt, // 정렬 키 보존 (수정해도 순서 불변)
-      result: patchParsed.data.result,
       voltage: patchParsed.data.voltage,
-      // 생략은 저장하지 않음 = 랩타임 제거 (§2.1 null vs 생략 규칙)
+      // 생략은 저장하지 않음 = 해당 필드 제거 (§2.1 null vs 생략 규칙)
+      ...(patchParsed.data.result !== undefined ? {result: patchParsed.data.result} : {}), // v2.31 옵션
       ...(patchParsed.data.lapTimeMs !== undefined ? {lapTimeMs: patchParsed.data.lapTimeMs} : {}),
       // v2.31 goal은 수정 patch 대상 아님 — 기존 값 보존(생성 시 선택된 목표 유지)
       ...(current.goal !== undefined ? {goal: current.goal} : {}),

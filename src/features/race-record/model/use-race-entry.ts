@@ -25,7 +25,6 @@ export type RaceEntryMode = 'create' | 'edit'
 
 /** §6.3 고정 오류·고지 문구 — 하드코딩 분산 금지, UI는 이 상수만 소비 */
 export const RACE_ENTRY_MESSAGES = {
-  resultRequired: '결과를 선택하세요',
   voltageNotNumeric: '숫자를 입력하세요',
   voltageOutOfRange: `${VOLTAGE_RANGE.min}~${VOLTAGE_RANGE.max} V 범위로 입력하세요`,
   lapTimeNotNumeric: '초 단위 숫자로 입력하세요 (소수 둘째 자리까지)',
@@ -100,7 +99,7 @@ function validateRaceEntry(
   const fieldErrors: RaceEntryFieldErrors = {}
   let bannerMessage: string | null = pano.kind === 'none' ? RACE_ENTRY_MESSAGES.panoRequired : null
 
-  if (draft.result === null) fieldErrors.result = RACE_ENTRY_MESSAGES.resultRequired
+  // v2.31 — result는 옵션(레이스 전 세팅 시 미정). 필수 검증 없음.
 
   const voltageRaw = draft.voltageRaw.trim()
   let voltage: number | null = null
@@ -126,20 +125,15 @@ function validateRaceEntry(
     }
   }
 
-  if (
-    pano.kind === 'none' ||
-    draft.result === null ||
-    voltage === null ||
-    fieldErrors.lapTime !== undefined
-  ) {
+  if (pano.kind === 'none' || voltage === null || fieldErrors.lapTime !== undefined) {
     return {ok: false, fieldErrors, bannerMessage}
   }
 
   const commandDraft: CreateRaceRecordDraft = {
     motorId,
     panoHz: pano.panoHz, // kind별 추출 — auto(캐시 인용)/measured(왕복 스냅샷) 동일 경로
-    result: draft.result,
     voltage,
+    ...(draft.result !== null ? {result: draft.result} : {}), // v2.31 result 옵션
     ...(lapTimeMs !== undefined ? {lapTimeMs} : {}),
     ...(draft.goal !== null ? {goal: draft.goal} : {}), // v2.31 — 목표 팝업 선택값
   }
@@ -304,7 +298,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     setEditPanoHz(record.panoHz)
     setMeasuredPanoHz(null)
     setDraft({
-      result: record.result,
+      result: record.result ?? null, // v2.31 result 옵션 — 미정이면 null
       voltageRaw: String(record.voltage),
       lapTimeRaw: record.lapTimeMs !== undefined ? String(record.lapTimeMs / 1000) : '',
       goal: record.goal ?? null, // 기존 목표 보존(수정 시 추천은 재실행하지 않음 — 값 그대로)
@@ -360,8 +354,10 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
           await updateRaceRecord.mutateAsync({
             id: editingTarget,
             patch: {
-              result: validation.commandDraft.result,
               voltage: validation.commandDraft.voltage,
+              ...(validation.commandDraft.result !== undefined
+                ? {result: validation.commandDraft.result}
+                : {}),
               ...(validation.commandDraft.lapTimeMs !== undefined
                 ? {lapTimeMs: validation.commandDraft.lapTimeMs}
                 : {}),
