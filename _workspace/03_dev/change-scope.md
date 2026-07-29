@@ -1103,3 +1103,39 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - dock unit: standalone은 측정 시간 무관 즉시 활성(100ms·800ms도 활성), persistence 불가만 비활성
 - 미검증(마이크 필요): 실제 measuring 상태에서 [기록] 즉시 동작·MotorPickSheet 표시.
   순수 산출은 unit 고정, [새 모터 추가]는 기존 onRequestRegister 경로 재사용(기존 empty 경로 검증됨)
+
+---
+
+## v2.24 — 레이스 기록 초기화 버튼 하단 고정 + 스타일 통일 (req8)
+
+### TARGET_BEHAVIOR
+[레이스 기록 초기화]를 모터 상세 [측정]처럼 **하단 고정**하고 버튼 스타일을 통일.
+
+### 설계 결정
+- RaceDetailPage를 MotorDetailPage와 **동일한 고정 셸**로 재구성: `pageShellSx`(뷰포트 고정) +
+  기록 목록 `scrollAreaSx`(overflow) + `footerSx`(하단 고정·헤어라인 상단). 이전에는 초기화가
+  목록 흐름 맨 끝에 있어 기록이 많으면 스크롤 끝까지 내려야 보였다.
+- 버튼 크기 통일: minHeight 44→**48**, full-width(측정 버튼과 동일).
+- **톤은 통일하지 않고 error outlined 유지.** [측정]은 라임 primary(안전한 주 행동)인데,
+  전체 레이스 기록을 지우는 파괴 액션에 같은 라임을 입히면 "안전한 주 행동"으로 오독된다
+  (이전 라운드 textError에서 겪은 오폭 위험과 동일). req8의 "스타일 통일"을 **위치·크기 통일 +
+  파괴 톤 유지**로 해석했다. 확정은 여전히 ConfirmDialog가 소유(범위 고지 불변 — v2.3).
+
+### ALLOWED_PATHS
+- `src/pages/race-detail/ui/RaceDetailPage.tsx` (고정 셸 재구성)
+- `src/features/race-record/ui/ResetRecordsBlock.tsx` (버튼 48px)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 초기화 범위(이 모터 레이스 기록만 — 측정·타 모터 유지, v2.3) · ConfirmDialog 고지·pending·오류
+- 기록 목록 정렬(최신순)·스와이프 트레이·왕복 복원 · not-found·로딩·오류 분기 · 탭 바 높이 계산
+
+### NON_GOALS
+- 초기화 톤을 라임 primary로 변경(파괴 톤 유지) · 초기화 범위·확정 흐름 변경
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 79건
+- 브라우저(375px, 다크): [레이스 기록 초기화]가 하단 고정(bottom 744/812, 탭바 위)·full-width·48px,
+  헤어라인 상단, 기록 목록은 그 위에서 스크롤. 모터 상세 [측정] 푸터와 동일 배치

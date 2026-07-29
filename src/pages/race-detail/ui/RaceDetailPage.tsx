@@ -41,6 +41,36 @@ interface ShellOutletContext {
   resetPersistedData: () => Promise<boolean>
 }
 
+// ── v2.24 고정 셸 (req8: [레이스 기록 초기화]를 하단 고정) ─────────────────────
+// 모터 상세(MotorDetailPage)의 [측정] 하단 고정과 동일 패턴: 페이지를 뷰포트에 고정하고
+// 기록 목록만 스크롤, 초기화 버튼은 하단에 고정한다. 이전에는 초기화가 목록 흐름 맨 끝에 있어
+// 기록이 많으면 스크롤을 끝까지 내려야 보였다. 높이 계산은 MotorDetailPage와 동일(탭 바 예약분 제외).
+const pageShellSx = {
+  display: 'flex',
+  flexDirection: 'column',
+  height: `calc(100dvh - ${layoutTokens.bottomNavHeight}px - ${layoutTokens.safeAreaBottom})`,
+} as const
+
+const scrollAreaSx = {
+  px: 2,
+  py: 2,
+  flex: 1,
+  minHeight: 0,
+  overflowY: 'auto',
+  overscrollBehaviorY: 'contain',
+} as const
+
+// 하단 고정 초기화 도크 — 모터 상세 [측정] 푸터와 동일 배치·헤어라인. 버튼 색은 파괴 톤을
+// 유지한다(측정=라임 primary와 동일 색을 쓰면 전체 초기화가 안전한 주 행동으로 오독된다 —
+// 위치·크기만 통일, 톤은 error outlined 유지가 req8의 안전한 해석).
+const footerSx = {
+  px: 2,
+  py: 1.5,
+  flexShrink: 0,
+  borderTop: '1px solid',
+  borderTopColor: 'divider',
+} as const
+
 // ── 왕복 draft 매핑 — slot(수치형 RaceMeasureDraft) ↔ 폼(원시 문자열 RaceEntryDraft) ──
 // slot 계약이 수치형이라 파싱 불가한 원시 입력(비수치 문자열)은 왕복 시 보존되지 않는다.
 
@@ -132,68 +162,40 @@ export function RaceDetailPage() {
 
   return (
     <>
-      {/* [H] 화면 헤더 — [←] [h1 모터명] [+ 기록] */}
-      <PageHeader
-        onBack={handleBack}
-        title={motor?.name ?? '레이스'}
-        actions={
-          motor !== null ? (
-            // v2.6: 화면의 주 행동 — 라임 contained(컷코너)로 위계를 명확히 한다
-            <Button variant="contained" onClick={entry.openSheet} sx={{minHeight: '2.75rem'}}>
-              + 기록
-            </Button>
-          ) : undefined
-        }
-      />
-
-      {corrupted ? (
-        <Box sx={{px: 2, py: 2}}>
-          <RecoveryPanel
-            onRetry={shell.retryPersistence}
-            retryPending={shell.persistenceRetryPending}
-            onResetAllData={async () => {
-              const ok = await shell.resetPersistedData()
-              if (ok) toast.showSuccess('초기화되었습니다')
-              return ok
-            }}
-          />
-        </Box>
-      ) : motorQuery.isPending ? (
-        <Typography color="text.secondary" sx={{px: 2, py: 2}}>
-          불러오는 중…
-        </Typography>
-      ) : motorQuery.isError ? (
-        <Box sx={{px: 2, py: 2}}>
-          <Alert
-            severity="error"
-            action={
-              <Button
-                color="inherit"
-                size="small"
-                onClick={() => {
-                  void motorQuery.refetch()
-                }}>
-                다시 시도
+      {/* v2.24 고정 셸 — 헤더는 고정, 기록 목록만 스크롤, [초기화]는 하단 고정 */}
+      <Box sx={pageShellSx}>
+        {/* [H] 화면 헤더 — [←] [h1 모터명] [+ 기록] */}
+        <PageHeader
+          onBack={handleBack}
+          title={motor?.name ?? '레이스'}
+          actions={
+            motor !== null ? (
+              // v2.6: 화면의 주 행동 — 라임 contained(컷코너)로 위계를 명확히 한다
+              <Button variant="contained" onClick={entry.openSheet} sx={{minHeight: '2.75rem'}}>
+                + 기록
               </Button>
-            }>
-            모터 정보를 불러오지 못했습니다
-          </Alert>
-        </Box>
-      ) : notFound ? (
-        // in-place not-found — URL 보존, 라우트 404 금지 (layout-spec §2.2)
-        <EmptyState
-          title="모터를 찾을 수 없습니다"
-          description="삭제되었거나 잘못된 주소입니다"
-          actionLabel="레이스 목록으로"
-          onAction={() => {
-            void navigate('/race', {replace: true})
-          }}
+            ) : undefined
+          }
         />
-      ) : (
-        <Box sx={{px: 2, py: 2}}>
-          {racesQuery.isPending ? (
-            <Typography color="text.secondary">기록 불러오는 중…</Typography>
-          ) : racesQuery.isError ? (
+
+        {corrupted ? (
+          <Box sx={{px: 2, py: 2}}>
+            <RecoveryPanel
+              onRetry={shell.retryPersistence}
+              retryPending={shell.persistenceRetryPending}
+              onResetAllData={async () => {
+                const ok = await shell.resetPersistedData()
+                if (ok) toast.showSuccess('초기화되었습니다')
+                return ok
+              }}
+            />
+          </Box>
+        ) : motorQuery.isPending ? (
+          <Typography color="text.secondary" sx={{px: 2, py: 2}}>
+            불러오는 중…
+          </Typography>
+        ) : motorQuery.isError ? (
+          <Box sx={{px: 2, py: 2}}>
             <Alert
               severity="error"
               action={
@@ -201,48 +203,85 @@ export function RaceDetailPage() {
                   color="inherit"
                   size="small"
                   onClick={() => {
-                    void racesQuery.refetch()
+                    void motorQuery.refetch()
                   }}>
                   다시 시도
                 </Button>
               }>
-              레이스 기록을 불러오지 못했습니다
+              모터 정보를 불러오지 못했습니다
             </Alert>
-          ) : races === undefined || races.length === 0 ? (
-            // 기록 0건 — 안내 텍스트 블록 (오류 위장 금지)
-            <Typography color="text.secondary" sx={{py: 2, textAlign: 'center'}}>
-              아직 레이스 기록이 없습니다 — [+ 기록]으로 첫 기록을 남기세요
-            </Typography>
-          ) : (
-            // createdAt 역순(repository 보장 — 재정렬 금지). 회차 번호는 내림차순 부여 —
-            // 최신 행 = 총 건수 (R-2)
-            <Stack component="ol" spacing={1} sx={{listStyle: 'none', m: 0, p: 0}}>
-              {races.map((record, arrayIndex) => (
-                <Box component="li" key={record.id}>
-                  <RaceRecordRow
-                    record={record}
-                    index={races.length - arrayIndex}
-                    onEdit={entry.editRecord}
-                    onDelete={id =>
-                      deleteFlow.requestDelete(id, formatDateTimeShort(record.createdAt))
-                    }
-                    deletePending={deleteFlow.pendingId === record.id}
-                    swipeOpen={swipe.openId === record.id}
-                    onSwipeOpenChange={open => swipe.setOpen(record.id, open)}
-                  />
-                </Box>
-              ))}
-            </Stack>
-          )}
-
-          {/* v2.3 — 모터별 [레이스 기록 초기화]: 이 모터의 레이스 기록만 삭제, 측정(파노)은 유지 (목록 하단, sectionGap 이격) */}
-          {motor !== null && (
-            <Box sx={{mt: `${layoutTokens.sectionGap}px`}}>
-              <ResetRecordsBlock motorName={motor.name} onReset={resetFlow.reset} />
+          </Box>
+        ) : notFound ? (
+          // in-place not-found — URL 보존, 라우트 404 금지 (layout-spec §2.2)
+          <EmptyState
+            title="모터를 찾을 수 없습니다"
+            description="삭제되었거나 잘못된 주소입니다"
+            actionLabel="레이스 목록으로"
+            onAction={() => {
+              void navigate('/race', {replace: true})
+            }}
+          />
+        ) : (
+          <>
+            <Box sx={scrollAreaSx}>
+              {racesQuery.isPending ? (
+                <Typography color="text.secondary">기록 불러오는 중…</Typography>
+              ) : racesQuery.isError ? (
+                <Alert
+                  severity="error"
+                  action={
+                    <Button
+                      color="inherit"
+                      size="small"
+                      onClick={() => {
+                        void racesQuery.refetch()
+                      }}>
+                      다시 시도
+                    </Button>
+                  }>
+                  레이스 기록을 불러오지 못했습니다
+                </Alert>
+              ) : races === undefined || races.length === 0 ? (
+                // 기록 0건 — 안내 텍스트 블록 (오류 위장 금지)
+                <Typography color="text.secondary" sx={{py: 2, textAlign: 'center'}}>
+                  아직 레이스 기록이 없습니다 — [+ 기록]으로 첫 기록을 남기세요
+                </Typography>
+              ) : (
+                // createdAt 역순(repository 보장 — 재정렬 금지). 회차 번호는 내림차순 부여 —
+                // 최신 행 = 총 건수 (R-2)
+                <Stack component="ol" spacing={1} sx={{listStyle: 'none', m: 0, p: 0}}>
+                  {races.map((record, arrayIndex) => (
+                    <Box component="li" key={record.id}>
+                      <RaceRecordRow
+                        record={record}
+                        index={races.length - arrayIndex}
+                        onEdit={entry.editRecord}
+                        onDelete={id =>
+                          deleteFlow.requestDelete(id, formatDateTimeShort(record.createdAt))
+                        }
+                        deletePending={deleteFlow.pendingId === record.id}
+                        swipeOpen={swipe.openId === record.id}
+                        onSwipeOpenChange={open => swipe.setOpen(record.id, open)}
+                      />
+                    </Box>
+                  ))}
+                </Stack>
+              )}
             </Box>
-          )}
-        </Box>
-      )}
+
+            {/*
+            v2.24(req8) — [레이스 기록 초기화]를 목록 흐름 끝 → **하단 고정 푸터**로 이동.
+            모터 상세 [측정] 푸터와 동일 배치(헤어라인 상단·flexShrink 0). 이 모터의 레이스 기록만
+            삭제하고 측정(파노)·다른 모터 기록은 유지한다(v2.3 범위 불변, 고지는 ConfirmDialog).
+          */}
+            {motor !== null && (
+              <Box sx={footerSx}>
+                <ResetRecordsBlock motorName={motor.name} onReset={resetFlow.reset} />
+              </Box>
+            )}
+          </>
+        )}
+      </Box>
 
       {/* 입력 시트 — useRaceEntry 전개 배선(제어형), motorName은 detail 결과 */}
       {motor !== null && (

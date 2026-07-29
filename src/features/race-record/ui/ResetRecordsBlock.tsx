@@ -53,7 +53,7 @@ export function ResetRecordsBlock({motorName, onReset}: ResetRecordsBlockProps) 
         color="error"
         fullWidth
         onClick={() => setState({open: true, pending: false, errorMessage: null})}
-        sx={{minHeight: 44}}>
+        sx={{minHeight: 48}}>
         레이스 기록 초기화
       </Button>
       <ConfirmDialog
