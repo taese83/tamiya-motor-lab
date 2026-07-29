@@ -289,7 +289,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
         history: adviceInput.history,
       })
       if (recommendSeqRef.current !== seq) return // 최신 요청만 반영(경합·닫힘 방어)
-      setDraft(prev => ({...prev, voltageRaw: advice.voltage.toFixed(1)}))
+      setDraft(prev => ({...prev, voltageRaw: advice.voltage.toFixed(2)}))
       setRationale(advice.rationale)
       setRecommendPending(false)
     })()
@@ -415,7 +415,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
       void (async () => {
         const advice = await recommendVoltage(input)
         if (recommendSeqRef.current !== seq) return // 최신 요청만 반영
-        setDraft(prev => ({...prev, voltageRaw: advice.voltage.toFixed(1)}))
+        setDraft(prev => ({...prev, voltageRaw: advice.voltage.toFixed(2)}))
         setRationale(advice.rationale)
         setRecommendPending(false)
       })()

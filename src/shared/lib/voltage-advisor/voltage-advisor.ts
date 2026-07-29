@@ -1,4 +1,4 @@
-import {RACE_GOAL_LABELS, RACE_RESULT_LABELS, VOLTAGE_RANGE} from '@shared/config/domain'
+import {RACE_GOAL_LABELS, RACE_RESULT_LABELS, VOLTAGE_ADVICE_RANGE} from '@shared/config/domain'
 
 import type {RaceGoal} from '@shared/config/domain'
 
@@ -39,18 +39,19 @@ export interface VoltageAdvice {
   source: 'ai' | 'heuristic'
 }
 
-/** 과거 기록 없을 때 목표별 시작 전압(AA 2셀 명목 ~2.4~3.0V 근사 — 실기기 튜닝 대상) */
-const GOAL_BASE: Record<RaceGoal, number> = {finish: 2.4, stability: 2.7, speed: 3.0}
-/** 학습된 기준선에 더하는 목표별 보정 */
-const GOAL_DELTA: Record<RaceGoal, number> = {finish: -0.2, stability: 0, speed: 0.2}
+/** 과거 기록 없을 때 중립 기준선(안정 위치) — 목표 보정으로 완주 2.6 / 안정 2.9 / 속도 3.2 */
+const NEUTRAL_BASE = 2.9
+/** 학습된 기준선에 더하는 목표별 보정 — 권장 대역 2.6~3.2 폭에 맞춤 */
+const GOAL_DELTA: Record<RaceGoal, number> = {finish: -0.3, stability: 0, speed: 0.3}
 /** 이탈 회피 판정 — 현재 파노와 이 비율 이내의 과거 이탈 레이스를 "비슷한 조건"으로 본다 */
 const RETIRED_PANO_TOLERANCE = 0.15
 
-/** 0.1 step으로 반올림 후 0.1~9.9로 클램프 (부동소수 잔차 제거) */
+/** 0.02 step으로 반올림 후 권장 대역(2.6~3.2)으로 클램프 — 추천값 전용(입력 허용 대역과 별개) */
 export function clampVoltage(v: number): number {
-  if (!Number.isFinite(v)) return VOLTAGE_RANGE.min
-  const stepped = Math.round(v * 10) / 10
-  return Math.min(VOLTAGE_RANGE.max, Math.max(VOLTAGE_RANGE.min, stepped))
+  if (!Number.isFinite(v)) return VOLTAGE_ADVICE_RANGE.min
+  // step 0.02 반올림 → 부동소수 잔차 제거(소수 2자리로 고정)
+  const stepped = Math.round(Math.round(v / VOLTAGE_ADVICE_RANGE.step) * VOLTAGE_ADVICE_RANGE.step * 100) / 100
+  return Math.min(VOLTAGE_ADVICE_RANGE.max, Math.max(VOLTAGE_ADVICE_RANGE.min, stepped))
 }
 
 /** 파노 P에서의 전압을 이력으로 학습해 추정 — 1건=비례, 2건+=선형적합(퇴화 시 평균) */
@@ -103,26 +104,35 @@ export function recommendVoltageHeuristic({
   // panoHz 양수 표본만 상관 학습에 사용(스키마상 항상 양수지만 방어)
   const pts = history.filter(r => r.panoHz > 0)
   const pano = currentPanoHz > 0 ? currentPanoHz : (pts[0]?.panoHz ?? 0)
-  let v: number
 
+  // 기준선 — 이력 있으면 파노↔전압 상관으로 학습, 없으면 중립값
+  let baseV: number
   if (pts.length === 0 || pano <= 0) {
-    v = GOAL_BASE[goal]
-    reasons.push(pts.length === 0 ? '과거 기록 없음' : '파노 없음', `${RACE_GOAL_LABELS[goal]} 기준값`)
+    baseV = NEUTRAL_BASE
+    reasons.push(pts.length === 0 ? '과거 기록 없음' : '파노 없음')
   } else {
     const fit = fitVoltageForPano(pts, pano)
-    v = fit.voltage
+    baseV = fit.voltage
     reasons.push(`파노 ${Math.round(pano)}Hz`, fit.reason)
+  }
 
-    v += GOAL_DELTA[goal]
+  // 목표 보정 + 속도 상한 다운그레이드 — 속도가 권장 상한(3.2V)을 넘겨야 하면 안정으로 낮춘다
+  // (풀충 배터리로도 ~3.2V가 한계·배터리 부담이라 무리한 속도 대신 안정을 권장).
+  let v = baseV + GOAL_DELTA[goal]
+  if (goal === 'speed' && v > VOLTAGE_ADVICE_RANGE.max) {
+    v = baseV + GOAL_DELTA.stability
+    reasons.push(`속도 상한 ${VOLTAGE_ADVICE_RANGE.max}V 초과 → 안정 권장`)
+  } else {
     reasons.push(`${RACE_GOAL_LABELS[goal]} 목표`)
+  }
 
-    const cap = retiredVoltageCap(pts, pano)
-    if (cap !== null && v >= cap) {
-      v = cap - 0.1
-      reasons.push(`${RACE_RESULT_LABELS.retired} 회피(<${cap.toFixed(1)}V)`)
-    }
+  // 이탈 회피 — 비슷한 파노에서 이탈했던 전압 이상 회피(한 스텝 아래로)
+  const cap = retiredVoltageCap(pts, pano)
+  if (cap !== null && v >= cap) {
+    v = cap - VOLTAGE_ADVICE_RANGE.step
+    reasons.push(`${RACE_RESULT_LABELS.retired} 회피(<${cap.toFixed(2)}V)`)
   }
 
   const voltage = clampVoltage(v)
-  return {voltage, source: 'heuristic', rationale: `${reasons.join(' · ')} → ${voltage.toFixed(1)}V`}
+  return {voltage, source: 'heuristic', rationale: `${reasons.join(' · ')} → ${voltage.toFixed(2)}V`}
 }

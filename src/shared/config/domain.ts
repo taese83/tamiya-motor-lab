@@ -64,6 +64,11 @@ export const LAP_TIME_MAX_MS = 3_600_000
 // ── 전압 (A5 baseline — v1 유지)
 export const VOLTAGE_RANGE = {min: 0.1, max: 9.9, step: 0.1, maxDecimals: 2} as const
 
+// ── 전압 추천(권장) 대역 (v2.34 — 입력 허용 대역과 별개). 실사용상 풀충 배터리로도 ~3.2V가
+// 상한(모터 밀어넣기로 간신히 도달, 배터리 부담)이고 하한은 2.6V다. 추천기(휴리스틱·LLM)는
+// 이 대역으로만 제안하고, 속도 목표라도 3.2V를 넘겨야 더 빨라지는 상황이면 안정으로 낮춘다.
+export const VOLTAGE_ADVICE_RANGE = {min: 2.6, max: 3.2, step: 0.02} as const
+
 // ── 표시 라벨 (CP-2 확정 — v1 유지. M-4: 파노가 주지표로 승격, 라벨 자체는 무변경)
 export const PANO_LABEL = '파노'
 

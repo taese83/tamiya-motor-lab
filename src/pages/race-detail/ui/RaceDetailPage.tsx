@@ -130,7 +130,14 @@ export function RaceDetailPage() {
   const races = racesQuery.data ?? []
   const [goalSheetOpen, setGoalSheetOpen] = useState(false)
   const lastGoal: RaceGoal | null = races[0]?.goal ?? null
-  const adviceHistory: VoltageAdviceRace[] = races.map(r => ({
+  // v2.34(사용자) — 추천 근거는 "현재→가장 최근 완주 기록까지"의 최근 구간(오래된 상태 드리프트 배제).
+  // races는 최신순(desc)이라 최근 완주 index까지 자르면 [최신…그 완주] 포함. 완주가 없으면
+  // 최근 RECENT_FALLBACK건으로 대체(추세선 학습 최소 표본 확보).
+  const RECENT_FALLBACK = 5
+  const lastFinishedIdx = races.findIndex(r => r.result === 'finished')
+  const windowRaces =
+    lastFinishedIdx >= 0 ? races.slice(0, lastFinishedIdx + 1) : races.slice(0, RECENT_FALLBACK)
+  const adviceHistory: VoltageAdviceRace[] = windowRaces.map(r => ({
     voltage: r.voltage,
     result: r.result,
     panoHz: r.panoHz,
