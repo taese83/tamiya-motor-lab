@@ -13,10 +13,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import {Box, Stack} from '@mui/material'
-import {useQuery} from '@tanstack/react-query'
 import {useMemo, useState} from 'react'
-
-import {measureQueries} from '@entities/measure-record'
 
 import {MotorRow} from './MotorRow'
 
@@ -27,26 +24,21 @@ import type {MotorSummary} from '@entities/motor'
 // DndContext + SortableContext(verticalListSortingStrategy). 드롭/놓기 확정 시
 // onReorder(orderedIds) — entity id 순열만(view index 금지). 낙관 재배열은 로컬 상태,
 // commit settle 후 해제(성공: canonical 확정 재렌더 / 실패: IDB 순서 롤백 렌더 — §5.3).
-// 상태 전수: populated / empty(상위 EmptyState — 본 컴포넌트 미렌더) / dragging(전 행 접힘) /
+// 상태 전수: populated / empty(상위 EmptyState — 본 컴포넌트 미렌더) / dragging /
 // reorder-pending(입력 차단 없음 — 낙관) / reorder-error(롤백 — 안내 copy는 소비 페이지 소관).
+// v2.2: 인라인 확장 폐지 — 행 탭은 onSelect(상세 페이지 진입).
 
 export interface MotorListProps {
   /** sortOrder asc (listMotorSummaries) */
   summaries: ReadonlyArray<MotorSummary>
-  /** 다중 확장 허용(LO-5) — 휘발 상태, 소유는 상위 페이지 */
-  expandedIds: ReadonlySet<string>
-  onToggleExpand: (motorId: string) => void
-  /** 드래그/키보드 들기 시작 — 상위 expandedIds 전체 clear(§5.1 확장 접힘 계약, 프리뷰 높이 안정) */
-  onCollapseAll: () => void
   /**
    * 드롭/놓기 확정 — entity id 순열. useReorderMotors().mutateAsync(...)의 Promise를 반환하면
    * settle 시점(성공 invalidate·실패 refetch 정정 완료)에 낙관 순서를 해제한다.
-   * 실패 reject 처리(토스트 "순서를 저장하지 못했습니다" / permutation "목록이 갱신되었습니다")는
-   * 소비 페이지 소관 — isReorderPermutationError(features/motor-management/api)로 분기.
+   * 실패 reject 처리는 소비 페이지 소관.
    */
   onReorder: (orderedIds: string[]) => void | Promise<unknown>
-  onEdit: (motorId: string) => void
-  onDelete: (motorId: string) => void
+  /** 행 본체 탭 — 상세 페이지 진입 (v2.2: 인라인 확장 폐지) */
+  onSelect: (motorId: string) => void
 }
 
 // SR 안내 한국어 주입 (§5.1 — dnd-kit accessibility). 키보드 재정렬은 QA 필수 게이트.
@@ -55,15 +47,7 @@ const SCREEN_READER_INSTRUCTIONS: ScreenReaderInstructions = {
     '순서 변경 핸들입니다. Space 또는 Enter로 들어 올리고, 위/아래 화살표로 이동한 뒤 다시 Space로 놓습니다. Escape로 취소합니다.',
 }
 
-export function MotorList({
-  summaries,
-  expandedIds,
-  onToggleExpand,
-  onCollapseAll,
-  onReorder,
-  onEdit,
-  onDelete,
-}: MotorListProps) {
+export function MotorList({summaries, onReorder, onSelect}: MotorListProps) {
   // 낙관 재배열 — 로컬 상태만(query 캐시 직접 조작 금지, api-schema §6.4 어댑터 규약)
   const [optimisticOrder, setOptimisticOrder] = useState<ReadonlyArray<string> | null>(null)
 
@@ -136,59 +120,17 @@ export function MotorList({
       sensors={sensors}
       collisionDetection={closestCenter}
       accessibility={{announcements, screenReaderInstructions: SCREEN_READER_INSTRUCTIONS}}
-      // 드래그/들기 시작 시 확장 패널 전부 접힘(포인터·키보드 동일 — LD-1 트레이드오프 해소)
-      onDragStart={() => onCollapseAll()}
       onDragEnd={handleDragEnd}>
       <SortableContext items={[...ids]} strategy={verticalListSortingStrategy}>
         <Stack component="ul" spacing={1} sx={{listStyle: 'none', m: 0, p: 0}}>
           {orderedSummaries.map(summary => (
             // key = stable entity id (렌더 index 금지)
             <Box component="li" key={summary.motor.id}>
-              <MotorListRow
-                summary={summary}
-                expanded={expandedIds.has(summary.motor.id)}
-                onToggleExpand={onToggleExpand}
-                onEdit={onEdit}
-                onDelete={onDelete}
-              />
+              <MotorRow summary={summary} onSelect={onSelect} />
             </Box>
           ))}
         </Stack>
       </SortableContext>
     </DndContext>
-  )
-}
-
-interface MotorListRowProps {
-  summary: MotorSummary
-  expanded: boolean
-  onToggleExpand: (motorId: string) => void
-  onEdit: (motorId: string) => void
-  onDelete: (motorId: string) => void
-}
-
-/**
- * 내부 전용 행 래퍼 — 확장 시에만 measureQueries.byMotor 구독(entity queryOptions 소비,
- * 전용 query 신설 없음)해 MotorRow(§5.2 presentational 계약)에 records를 주입한다.
- * 결과는 measuredAt asc ≤10 (repository 보장 — 재정렬 금지).
- */
-function MotorListRow({summary, expanded, onToggleExpand, onEdit, onDelete}: MotorListRowProps) {
-  const recordsQuery = useQuery({
-    ...measureQueries.byMotor(summary.motor.id),
-    enabled: expanded,
-  })
-  return (
-    <MotorRow
-      summary={summary}
-      expanded={expanded}
-      onToggleExpand={onToggleExpand}
-      onEdit={onEdit}
-      onDelete={onDelete}
-      records={recordsQuery.data}
-      recordsError={recordsQuery.isError}
-      onRetryRecords={() => {
-        void recordsQuery.refetch()
-      }}
-    />
   )
 }

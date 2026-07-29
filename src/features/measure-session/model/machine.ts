@@ -118,10 +118,15 @@ export function toEngineFrame(estimate: DisplayEstimate): EngineFrameView {
     estimate.f0 !== null &&
     estimate.rpm !== null
   ) {
+    // 표시·기록 canonical 정규화 (버그 수정): raw f0를 그대로 실으면 수집 write 스키마
+    // (소수 1자리 + rpm===round(panoHz×60) 쌍 불변식)에 걸려 "입력값을 확인해 주세요"로
+    // 수집이 전면 실패한다. view 경계에서 소수 1자리로 반올림하고 rpm을 그 값에서
+    // 재계산해 표시값 = 기록값 = 쌍 불변식을 한 번에 보장한다.
+    const panoHz = Math.round(estimate.f0 * 10) / 10
     return {
       kind: 'measuring',
-      rpm: estimate.rpm,
-      panoHz: estimate.f0,
+      rpm: Math.round(panoHz * 60),
+      panoHz,
       isStable: estimate.status === 'stable',
     }
   }

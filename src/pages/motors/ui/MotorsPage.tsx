@@ -2,34 +2,26 @@ import {useState} from 'react'
 
 import {Alert, Box, Button, Typography} from '@mui/material'
 import {useQuery} from '@tanstack/react-query'
-import {useOutletContext} from 'react-router'
+import {useNavigate, useOutletContext} from 'react-router'
 
 import {motorQueries} from '@entities/motor'
-import {
-  useCreateMotor,
-  useDeleteMotorCascade,
-  useReorderMotors,
-  useUpdateMotor,
-} from '@features/motor-management/api'
-import {useMotorDeleteFlow} from '@features/motor-management/model'
+import {useCreateMotor, useReorderMotors} from '@features/motor-management/api'
 import {MotorFormSheet, MotorList} from '@features/motor-management/ui'
-import {ConfirmDialog} from '@shared/ui/confirm-dialog'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
 import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
-import type {MotorFormValues} from '@features/motor-management/ui'
 import type {MotorKind} from '@shared/config/domain'
 import type {PersistenceStatus} from '@shared/lib/persistence'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// S3 모터 목록 ('/motors') — v2 전면 교체 (component-spec v2 §5).
-// 조립 계약: PageHeader(+모터/ThemeToggle) + MotorList(DnD 재정렬 + 인라인 확장) +
-// MotorFormSheet(create/edit) + useMotorDeleteFlow(cascade ConfirmDialog) + EmptyState.
-// corrupt면 본문 = RecoveryPanel. 확장 행의 측정 기록(measureQueries.byMotor) 구독은
-// MotorList 내부(MotorListRow) 소관 — 페이지는 summaries만 공급한다.
+// S3 모터 목록 ('/motors') — 버그 리포트 #2: 인라인 확장을 상세 페이지로 전환.
+// 조립 계약: PageHeader(+모터/ThemeToggle) + MotorList(DnD 재정렬, 행 탭 → 상세 진입) +
+// MotorFormSheet(create 전용) + EmptyState. corrupt면 본문 = RecoveryPanel.
+// 수정·삭제·차트·기록 목록은 상세 페이지('/motors/:motorId')로 이동 — 이 페이지는
+// 확장 상태·edit 시트·삭제 플로우를 소유하지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // RootLayout Outlet context의 로컬 구조 선언 — pages는 app을 import할 수 없다
@@ -41,86 +33,33 @@ interface ShellOutletContext {
   resetPersistedData: () => Promise<boolean>
 }
 
-/** MotorFormSheet 오케스트레이션 상태 — 시트 1개를 create/edit 겸용으로 재사용 */
-type SheetState =
-  | {mode: 'create'}
-  | {mode: 'edit'; motorId: string; initial: MotorFormValues}
-
 const REORDER_ERROR_MESSAGE = '순서를 저장하지 못했습니다 — 목록이 저장된 순서로 되돌아갑니다'
 
 export function MotorsPage() {
   const toast = useToast()
+  const navigate = useNavigate()
   const shell = useOutletContext<ShellOutletContext>()
   const corrupted = shell.persistenceStatus?.status === 'corrupted'
 
   // v2: 파생 join은 entity 데이터 계층 소유(listMotorSummaries) — 페이지 합성 제거
   const summariesQuery = useQuery({...motorQueries.summaries(), enabled: !corrupted})
 
-  // 인라인 확장 상태 — 휘발·다중 허용(LO-5), 드래그 시작 시 전체 접힘(§5.1)
-  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set())
-  const toggleExpand = (motorId: string) => {
-    setExpandedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(motorId)) next.delete(motorId)
-      else next.add(motorId)
-      return next
-    })
+  // 행 탭 → 상세 페이지 push (v2.2 — 차트·기록·수정·삭제는 상세 소유)
+  const openDetail = (motorId: string) => {
+    void navigate(`/motors/${motorId}`)
   }
 
-  // ── 등록/수정 시트 ──────────────────────────────────────────────────────────
-  const [sheet, setSheet] = useState<SheetState | null>(null)
+  // ── 등록 시트 (create 전용 — edit는 상세 페이지 소관) ──────────────────────
+  const [createOpen, setCreateOpen] = useState(false)
   const createMotor = useCreateMotor()
-  const updateMotor = useUpdateMotor()
 
   const openCreateSheet = () => {
     createMotor.reset()
-    setSheet({mode: 'create'})
+    setCreateOpen(true)
   }
 
-  const openEditSheet = (motorId: string) => {
-    const summary = summariesQuery.data?.find(item => item.motor.id === motorId)
-    if (summary === undefined) return
-    updateMotor.reset()
-    setSheet({
-      mode: 'edit',
-      motorId,
-      initial: {name: summary.motor.name, kind: summary.motor.kind},
-    })
-  }
-
-  const sheetPending = sheet?.mode === 'edit' ? updateMotor.isPending : createMotor.isPending
-  const sheetError =
-    sheet === null
-      ? null
-      : sheet.mode === 'edit'
-        ? updateMotor.isError
-          ? updateMotor.error.message
-          : null
-        : createMotor.isError
-          ? createMotor.error.message
-          : null
-
-  const handleSheetSubmit = (values: {name: string; kind: MotorKind}) => {
-    if (sheet === null) return
-    if (sheet.mode === 'create') {
-      createMotor.mutate(values, {onSuccess: () => setSheet(null)})
-      return
-    }
-    updateMotor.mutate({id: sheet.motorId, patch: values}, {onSuccess: () => setSheet(null)})
-  }
-
-  // ── cascade 삭제 (CP-3) — count 실측 → ConfirmDialog → deleteMotorCascade ──
-  const deleteMotorCascade = useDeleteMotorCascade()
-  const deleteFlow = useMotorDeleteFlow({
-    deleteMotor: async motorId => {
-      await deleteMotorCascade.mutateAsync(motorId)
-    },
-  })
-
-  const requestDelete = (motorId: string) => {
-    const summary = summariesQuery.data?.find(item => item.motor.id === motorId)
-    if (summary === undefined) return
-    deleteFlow.requestDelete({id: motorId, name: summary.motor.name})
+  const handleCreateSubmit = (values: {name: string; kind: MotorKind}) => {
+    createMotor.mutate(values, {onSuccess: () => setCreateOpen(false)})
   }
 
   // ── DnD 재정렬 (T-6) — 낙관 순서는 MotorList 소유, settle 대기용 Promise 반환 ──
@@ -201,44 +140,21 @@ export function MotorsPage() {
               {reorderError}
             </Alert>
           )}
-          {deleteFlow.countError !== null && (
-            <Alert
-              severity="error"
-              action={
-                <Button color="inherit" size="small" onClick={deleteFlow.retryCount}>
-                  다시 시도
-                </Button>
-              }>
-              {deleteFlow.countError}
-            </Alert>
-          )}
-          <MotorList
-            summaries={summaries}
-            expandedIds={expandedIds}
-            onToggleExpand={toggleExpand}
-            onCollapseAll={() => setExpandedIds(new Set())}
-            onReorder={handleReorder}
-            onEdit={openEditSheet}
-            onDelete={requestDelete}
-          />
+          <MotorList summaries={summaries} onReorder={handleReorder} onSelect={openDetail} />
         </Box>
       )}
 
-      {/* 등록/수정 시트 — 닫힘 = 폼 파기, pending 중 닫힘 차단(single-flight) */}
+      {/* 등록 시트 — 닫힘 = 폼 파기, pending 중 닫힘 차단(single-flight) */}
       <MotorFormSheet
-        open={sheet !== null}
-        mode={sheet?.mode ?? 'create'}
-        initial={sheet?.mode === 'edit' ? sheet.initial : undefined}
-        pending={sheetPending}
-        errorMessage={sheetError}
-        onSubmit={handleSheetSubmit}
+        open={createOpen}
+        mode="create"
+        pending={createMotor.isPending}
+        errorMessage={createMotor.isError ? createMotor.error.message : null}
+        onSubmit={handleCreateSubmit}
         onClose={() => {
-          if (!sheetPending) setSheet(null)
+          if (!createMotor.isPending) setCreateOpen(false)
         }}
       />
-
-      {/* cascade 삭제 confirm — copy·pending·오류는 flow가 소유 (§3.1 스프레드 계약) */}
-      <ConfirmDialog {...deleteFlow.dialogProps} />
     </>
   )
 }

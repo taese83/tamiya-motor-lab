@@ -29,9 +29,10 @@ import type {IconProps} from '@shared/ui/icons'
 import type {ReactElement} from 'react'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// layout-spec v2 §2 라우팅 계약 구현 — 측정('/')·모터('/motors')·레이스('/race')·
+// layout-spec v2 §2 라우팅 계약 구현 — 측정('/')·모터('/motors')·모터 상세
+// ('/motors/:motorId' 스택 — 버그 리포트 #2로 재도입)·레이스('/race')·
 // 레이스 상세('/race/:motorId' 스택)·'/guide' → '/race' redirect·'*' 404.
-// v2 제거 라우트: '/record/new'(S2 폐지 — [기록] 수집 팝업으로 대체)·'/motors/:id'.
+// v2 제거 라우트: '/record/new'(S2 폐지 — [기록] 수집 팝업으로 대체).
 // 문서상 파일 배치는 app/routes/router.tsx + app/layouts/* + app/ui/*지만, 본 하네스의
 // ownership 경계상 라우팅은 이 파일(Routes.tsx)에 둔다 — RootLayout·RootErrorFallback·
 // BottomTabBar·GlobalPersistenceBanner도 여기에 함께 있다.
@@ -373,6 +374,11 @@ export const router = createBrowserRouter([
         path: 'motors', // 모터 목록·관리
         lazy: () => import('@pages/motors'),
         handle: {title: '모터', tab: 'motors'} satisfies RouteHandle,
+      },
+      {
+        path: 'motors/:motorId', // 모터 상세 (스택) — 모터 탭 활성 유지, 미존재 id는 in-place 처리
+        lazy: () => import('@pages/motor-detail'),
+        handle: {title: '모터 상세', tab: 'motors'} satisfies RouteHandle,
       },
       {
         path: 'race', // 레이스 진입 목록

@@ -96,7 +96,9 @@ export const measureStatusSchemeValues = {
     idle: { fg: darkColor.smoke400, bg: darkColor.carbon900, valueFg: darkColor.smoke400 },
     measuring: { fg: darkColor.lime400, bg: darkColor.carbon900, valueFg: darkColor.smoke200 },
     stable: { fg: darkColor.lime400, bg: darkColor.limeTint, valueFg: darkColor.white },
-    'weak-signal': { fg: darkColor.amber400, bg: darkColor.amberTint, valueFg: darkColor.smoke400 },
+    // v2.2 버그 수정: bg amberTint → carbon900 — 게이지를 덮는 노란 레이어 제거(실기기 피드백).
+    // 상태 구분은 fg 앰버 + 라벨 + signal-low 아이콘 3요소가 유지한다(REQ-NFR-003).
+    'weak-signal': { fg: darkColor.amber400, bg: darkColor.carbon900, valueFg: darkColor.smoke400 },
     'no-permission': { fg: darkColor.red400, bg: darkColor.redTint, valueFg: darkColor.smoke400 },
     suspended: { fg: darkColor.smoke400, bg: darkColor.carbon700, valueFg: darkColor.smoke400 },
   },
@@ -104,7 +106,7 @@ export const measureStatusSchemeValues = {
     idle: { fg: color.gray700, bg: color.white, valueFg: color.gray700 },
     measuring: { fg: color.lime700, bg: color.white, valueFg: color.gray600 }, // v3: amber800→lime700 (시그니처 통합)
     stable: { fg: color.lime700, bg: color.limeTintL, valueFg: color.gray900 },
-    'weak-signal': { fg: color.amber800, bg: color.amber50, valueFg: color.gray700 },
+    'weak-signal': { fg: color.amber800, bg: color.white, valueFg: color.gray700 }, // v2.2: 노란 레이어 제거 — 다크와 동일 원칙
     'no-permission': { fg: color.red800, bg: color.red50, valueFg: color.gray700 },
     suspended: { fg: color.gray700, bg: color.gray100, valueFg: color.gray700 },
   },

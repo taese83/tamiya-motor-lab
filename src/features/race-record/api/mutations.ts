@@ -4,7 +4,7 @@ import {measureKeys} from '@entities/measure-record'
 import {motorKeys} from '@entities/motor'
 import {createRaceRecord, deleteRaceRecord, raceKeys} from '@entities/race-record'
 import {isDomainError} from '@shared/lib/errors'
-import {resetAllRecords} from '@shared/lib/persistence'
+import {resetRecordsByMotor} from '@shared/lib/persistence'
 import {unwrap} from '@shared/lib/result'
 
 import type {CreateRaceRecordDraft, RaceRecord} from '@entities/race-record'
@@ -69,20 +69,19 @@ export const useDeleteRaceRecord = () => {
 }
 
 /**
- * mutation: resetAllRecords (RV-A4 — 전체 기록 초기화, destructive confirm은 UI 책임).
- * measureRecords + raceRecords 단일 tx clear — 모터는 유지 (INV-12, motors store 무접근).
- * §6.4: 성공 시 measureKeys.root · raceKeys.root · motorKeys.summaries() invalidate —
- * motors 목록·detail 캐시(motorKeys.list/detail)는 건드리지 않는다 (모터 유지 계약).
+ * mutation: resetRecordsByMotor (v2.2 — 사용자 결정: 초기화는 모터 단위, destructive confirm은 UI 책임).
+ * 해당 모터의 measureRecords + raceRecords만 단일 tx 삭제 — 모터·타 모터 기록 유지.
+ * 성공 시 해당 모터의 기록 캐시 + summaries invalidate — motors 목록·detail 캐시는 유지.
  * optimistic 완료 처리 금지 — 성공 응답 후에만 UI 반영.
  */
-export const useResetAllRecords = () => {
+export const useResetMotorRecords = () => {
   const queryClient = useQueryClient()
-  return useMutation<ResetAllRecordsResult, DomainError, void>({
-    mutationFn: async () => unwrap(await resetAllRecords()),
-    onSuccess: () =>
+  return useMutation<ResetAllRecordsResult, DomainError, string>({
+    mutationFn: async motorId => unwrap(await resetRecordsByMotor(motorId)),
+    onSuccess: (_result, motorId) =>
       Promise.all([
-        queryClient.invalidateQueries({queryKey: measureKeys.root}),
-        queryClient.invalidateQueries({queryKey: raceKeys.root}),
+        queryClient.invalidateQueries({queryKey: measureKeys.byMotor(motorId)}),
+        queryClient.invalidateQueries({queryKey: raceKeys.byMotor(motorId)}),
         queryClient.invalidateQueries({queryKey: motorKeys.summaries()}),
       ]),
   })

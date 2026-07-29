@@ -3,9 +3,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext} from 'react-router'
 
 import {motorQueries} from '@entities/motor'
-import {useResetRecordsFlow} from '@features/race-record/model'
-import {RaceMotorList, ResetRecordsBlock} from '@features/race-record/ui'
-import {layoutTokens} from '@shared/config/design-tokens'
+import {RaceMotorList} from '@features/race-record/ui'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
@@ -38,7 +36,6 @@ export function RacePage() {
 
   // S3와 동일 원본(motorQueries.summaries) — 화면 간 순서·데이터 불일치 금지 (INV-09)
   const summariesQuery = useQuery({...motorQueries.summaries(), enabled: !corrupted})
-  const resetFlow = useResetRecordsFlow()
 
   const summaries = summariesQuery.data
 
@@ -93,16 +90,13 @@ export function RacePage() {
         />
       ) : (
         <Box sx={{px: 2, py: 2}}>
+          {/* v2.2: [기록 초기화]는 모터별 처리로 이동 — 레이스 상세(/race/:motorId) 하단 */}
           <RaceMotorList
             summaries={summaries}
             onSelect={motorId => {
               void navigate(`/race/${motorId}`)
             }}
           />
-          {/* R-6 [기록 초기화] — 목록 최하단, sectionGap 이격 (모터는 유지·기록만 삭제) */}
-          <Box sx={{mt: `${layoutTokens.sectionGap}px`}}>
-            <ResetRecordsBlock motorCount={summaries.length} onReset={resetFlow.reset} />
-          </Box>
         </Box>
       )}
     </>
