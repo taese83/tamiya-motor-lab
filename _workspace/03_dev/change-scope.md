@@ -99,3 +99,4 @@
 ### TEST_EVIDENCE
 - Node 22 typecheck·lint·build 클린, vitest 회귀 없음
 - 브라우저: 다중선택 필터 · 필터 중 핸들 비활성+안내 · 필터 0건 문구 · 상세 왕복 후 필터 유지 · 다크/라이트
+
