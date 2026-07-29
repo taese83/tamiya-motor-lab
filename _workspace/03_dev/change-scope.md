@@ -518,3 +518,56 @@ Fitbit·Apple Health 수면 / PLATA 목록 / 계정 편집 input). 사용자 결
 - 브라우저 실측: 트랙·레드라인 stroke-width 13 + round/butt 캡, 라벨 2개(200·600), 눈금 20개.
   스크린샷으로 라벨 관통·레드라인 혹 결함 2건을 잡아 수정 후 재확인.
 - placeholder: 이전 99×142px 막대 → 축소·muted 확인(사용자 지적 재현 후 정정).
+
+## v2.14 라운드 (2026-07-29 — 남은 레퍼런스 적용: 섹션 헤딩 · 목록 통일 · 다이얼로그)
+
+### TARGET_BEHAVIOR
+1. **모터 상세 섹션 구분** — "파노 추세"·"측정 기록 n건" 헤딩으로 블록을 끊는다.
+   기록 행을 좌측(회차·일시)/우측(파노·rpm) 2열로 정렬한다.
+2. **레이스 목록 통일** — RaceMotorList를 MotorRow와 같은 종류색 카드 패턴으로.
+3. **ConfirmDialog** — Spotify 구조(중앙 정렬 제목·설명 → 풀폭 주 액션 → 텍스트 보조).
+4. 탭 인디케이터는 **이미 구현돼 있어 작업 없음**(활성 탭 상단 24×2px 라임 바 — theme
+   MuiBottomNavigationAction::before). 확인만 하고 건드리지 않았다.
+
+### 설계 판단
+- SectionHeading은 h2 타이포 토큰을 쓰지 않는다 — PageHeader의 h1보다 커지면 위계가 뒤집힌다.
+  굵기로 구분한다(레퍼런스도 본문 크기 + bold). 장식 섹션(차트)은 `as="span"`으로 heading
+  트리에서 빼 스크린리더 목차를 오염시키지 않는다(차트는 aria-hidden이고 canonical은 목록 텍스트).
+- "측정 기록" 헤딩을 스크롤 영역 **안**에 둔다 — 고정 영역에 두면 기록 0건일 때도 남아
+  "아직 기록 없음" 안내와 층이 중복된다.
+- 기록 행 2열 정렬 근거: 이전에는 값·rpm이 한 줄에 이어 붙어 **일시 문자열 길이에 따라 값의 x
+  위치가 행마다 흔들렸다**. 우측 정렬하면 값끼리 눈으로 비교된다(모터 카드와 같은 스캔 축).
+- 행마다 테두리를 두르지 않고 구분선으로 한 목록으로 묶는다(레퍼런스 목록 패턴).
+- RaceMotorList를 MotorRow와 같은 패턴으로 맞춘 근거: 같은 모터를 두 화면이 다르게 그리면
+  동일 대상이라는 인식이 끊긴다. 우측 주값만 화면 관심사에 맞게 다르다(모터=최신 파노,
+  레이스=마지막 레이스 파노).
+- 다이얼로그: 이전에는 제목·설명이 좌측, 액션이 우측 하단 가로 배치라 시선이 좌상→우하로 튀었다.
+  중앙 스택은 읽는 순서와 누르는 순서가 일치한다. 주 액션(파괴)이 위로 오지만
+  **초기 포커스는 [취소] 유지** — Enter 오폭 방지 계약(§3.1)은 그대로다.
+
+### ALLOWED_PATHS
+- `src/shared/ui/section-heading/**` (신규)
+- `src/pages/motor-detail/ui/MotorDetailPage.tsx`
+- `src/features/race-record/ui/RaceMotorList.tsx`
+- `src/shared/ui/confirm-dialog/ConfirmDialog.tsx`
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 고정 셸·스크롤 계약(v2.8) · 기록 정렬(오래된 순, 차트 X축과 일치 CD2-A1) · rolling 10
+- ConfirmDialog 초기 포커스 [취소] · pending 중 닫기 차단 · 오류 인라인 Alert · role="alertdialog"
+- 결과 라벨 중립색(DS-A5) · 값 없음 EM_DASH · 44px 타깃 · 화면 간 모터 순서 일치(INV-09)
+
+### NON_GOALS
+- 탭 바 재작업(이미 인디케이터 존재) · RaceRecordRow(레이스 기록 행) 레이아웃 — 별도 판단 필요
+- 차트 종류·상호작용 변경
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build·test 전부 exit 0, vitest 38건 회귀 없음
+- 브라우저(다크): 모터 상세 — "파노 추세"·"측정 기록 6건" 헤딩, 6행 값이 우측 정렬로 일치,
+  구분선 렌더, 하단 [측정] 고정 유지
+- 브라우저: 레이스 목록 3행(기록 있음 2 / 없음 1) — 종류색 카드·accent bar·2열,
+  aria-label 3건이 의도한 문장으로 생성됨(기록 없음 행은 "레이스 기록 없음")
+- 브라우저: ConfirmDialog 중앙 스택 확인 — 버튼 순서 [삭제, 취소], **초기 포커스 "취소"** 실측
+- 콘솔 오류 0

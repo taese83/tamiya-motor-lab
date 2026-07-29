@@ -21,6 +21,7 @@ import {ConfirmDialog} from '@shared/ui/confirm-dialog'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
+import {SectionHeading} from '@shared/ui/section-heading'
 import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
@@ -303,21 +304,32 @@ export function MotorDetailPage() {
               <MotorKindChip kind={motor.kind} />
             </Box>
 
-            {/* 차트는 추세 보조(aria-hidden) — canonical 데이터는 아래 기록 리스트 텍스트.
-                기록이 있을 때만 렌더한다(0건에 빈 축만 남기지 않는다) */}
+            {/* v2.14 섹션 구분 — 차트와 기록 목록이 서로 다른 덩어리임을 명시한다.
+                차트는 추세 보조(aria-hidden)라 헤딩은 장식(span) — 스크린리더 목차를 오염시키지 않고
+                canonical 데이터는 아래 기록 목록 텍스트가 담당한다. */}
             {records !== undefined && records.length > 0 && (
-              <PanoLineChart
-                points={records.map(record => ({
-                  id: record.id,
-                  measuredAt: record.measuredAt,
-                  panoHz: record.panoHz,
-                }))}
-              />
+              <>
+                <SectionHeading as="span">파노 추세</SectionHeading>
+                <PanoLineChart
+                  points={records.map(record => ({
+                    id: record.id,
+                    measuredAt: record.measuredAt,
+                    panoHz: record.panoHz,
+                  }))}
+                />
+              </>
             )}
           </Box>
 
-          {/* ── 스크롤 영역: 기록 목록만 ── */}
+          {/* ── 스크롤 영역: 기록 목록만 ──
+              헤딩은 스크롤 안에 둔다 — 고정 영역에 두면 목록이 비었을 때도 남아
+              "기록 없음" 안내와 중복된 층이 생긴다 */}
           <Box sx={scrollAreaSx}>
+            {records !== undefined && records.length > 0 && (
+              <Box sx={{mb: 0.5}}>
+                <SectionHeading meta={`${records.length}건`}>측정 기록</SectionHeading>
+              </Box>
+            )}
             {recordsQuery.isPending ? (
               <Typography variant="body2" sx={{color: 'text.secondary'}}>
                 기록 불러오는 중…
@@ -344,33 +356,63 @@ export function MotorDetailPage() {
                 아직 기록 없음 — 아래 [측정]으로 첫 기록을 수집하세요
               </Typography>
             ) : (
-              // 기록 리스트 ≤10행 — 오래된 순 01부터(차트 X축과 정렬 일치, CD2-A1)
+              /*
+                기록 리스트 ≤10행 — 오래된 순 01부터(차트 X축과 정렬 일치, CD2-A1).
+                v2.14: 좌측(회차·일시) / 우측(파노 값·rpm) 2열로 맞춘다 — 모터 카드와 같은
+                스캔 축이라 화면 간 읽는 방식이 일치한다. 이전에는 값과 rpm이 한 줄에 이어 붙어
+                일시 길이에 따라 값의 x 위치가 행마다 흔들렸다.
+                행마다 테두리를 두르지 않고 구분선으로 한 목록으로 묶는다(레퍼런스 목록 패턴).
+              */
               <Box
                 component="ol"
-                sx={{listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 0.5}}>
+                sx={{listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column'}}>
                 {records.map((record, index) => (
                   <Box
                     component="li"
                     key={record.id}
-                    sx={{display: 'flex', alignItems: 'baseline', gap: 1}}>
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      py: 1,
+                      '&:not(:last-of-type)': {
+                        borderBottom: '1px solid',
+                        borderBottomColor: 'divider',
+                      },
+                    }}>
                     <Typography
                       variant="overline"
                       component="span"
-                      sx={{color: 'text.secondary', lineHeight: 1.5, minWidth: '1.5em'}}>
+                      sx={{color: 'text.secondary', lineHeight: 1, minWidth: '1.75em'}}>
                       {String(index + 1).padStart(2, '0')}
                     </Typography>
                     <Typography variant="body2" component="span" sx={{color: 'text.secondary'}}>
                       {formatDateTimeShort(record.measuredAt)}
                     </Typography>
-                    <Typography component="span" sx={{...numericTypography.listValue, ml: 'auto'}}>
-                      {formatFanoHz(record.panoHz)}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      component="span"
-                      sx={{color: 'text.secondary', fontVariantNumeric: 'tabular-nums lining-nums'}}>
-                      · {formatRpm(record.rpm)} rpm
-                    </Typography>
+                    <Box
+                      sx={{
+                        ml: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                        gap: 0.25,
+                      }}>
+                      <Typography
+                        component="span"
+                        sx={{...numericTypography.listValue, lineHeight: 1.2}}>
+                        {formatFanoHz(record.panoHz)}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        component="span"
+                        sx={{
+                          color: 'text.secondary',
+                          lineHeight: 1.2,
+                          fontVariantNumeric: 'tabular-nums lining-nums',
+                        }}>
+                        {formatRpm(record.rpm)} rpm
+                      </Typography>
+                    </Box>
                   </Box>
                 ))}
               </Box>
