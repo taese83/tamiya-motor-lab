@@ -1316,3 +1316,49 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   rpm placeholder=205px(hub+45, 바닥-20). 파노는 컬럼 이동 전후 rpm 추가 이동에도 111px로 불변.
 - **미검증(마이크 필요)**: measuring 실제 숫자 표시 — placeholder와 행 높이 동일이라 같은 위치 보장,
   실기기 확인 대상.
+
+---
+
+## v2.29 — 게이지 색 밝게 + 근접 감지 게이트 완화 (실기기 피드백)
+
+### TARGET_BEHAVIOR
+- **req1**: 게이지 트랙·눈금·눈금 숫자 색을 더 밝게.
+- **req2**: "모터에 많이 가까이 대야만 측정됨" → 소리 감지 범위(근접 RMS 게이트) 완화.
+
+### 원인·해석
+- req1: 트랙 opacity 0.6·보조눈금 0.5로 낮고, **주 눈금·라벨 숫자가 text.secondary(어두운 색)**라
+  전반적으로 흐렸다.
+- req2 (조사 결과): `audio-analysis/types.ts`의 `proximityRms: 0.008`이 근접 게이트다
+  (`analyze-frame.ts:80` — `rms < max(silenceRms, proximityRms)`면 분석 생략 → weak-signal).
+  음압 RMS는 거리에 반비례(∝1/거리)라 이 절대 하한이 "가까운 모터 하나"를 강제한다. 0.008이
+  높아 통상 사용 거리의 신호가 하한 미만이라 매우 가까이 대야만 통과.
+
+### 변경
+- PanoGauge: `TRACK_OPACITY 0.6→0.8`, `MINOR_TICK_OPACITY 0.5→0.7`, 주 눈금 stroke
+  `text.secondary→text.primary`, 눈금 라벨 fill `text.secondary→text.primary`. dim(대기 0.45)은 유지.
+- audio-analysis `proximityRms 0.008→0.004`: 하한 절반 ≈ 검출 거리 2배. comb 채점이 최강
+  후보를 채택하므로 여러 모터가 하한을 넘어도 가장 크게 들리는(가까운) 모터가 우선. 실기기
+  튜닝 값 — 더 넓히려면 0.003/0.002.
+
+### ALLOWED_PATHS
+- `src/features/measure-session/ui/PanoGauge.tsx` (색 상수·눈금·라벨 색)
+- `src/shared/lib/audio-analysis/types.ts` (DEFAULT_TUNING.proximityRms)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 게이지 aria-hidden 장식·layout-shift 0·스케일 0~700 · dim(대기) 동작
+- 엔진 계약(silenceRms·voicing 게이트·comb 채점·Viterbi)·fixture 판정(진폭 ≥0.4 RMS) 불변
+- weak-signal↔measuring 전이·수치 null 불변식(INV-13)
+
+### NON_GOALS
+- 게이지 형상·스케일 변경 · 엔진 알고리즘/다른 튜닝 상수 변경 · silenceRms 변경
+
+### CHANGE_BUDGET
+- 신규 의존성 0 · 2파일 · req1 순수 시각, req2 단일 상수(fixture·테스트 무영향)
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 85건(오디오 fixture 포함 — proximityRms 0.004는
+  fixture 진폭 ≥0.4에 영향 없음, 전건 통과)
+- 브라우저(375px, 다크) `/`: 트랙 stroke=text.primary(rgb 244,245,242)·opacity 0.8, 주눈금
+  stroke=primary·opacity 1, 보조눈금 opacity 0.7, 라벨 fill=primary. 대기 dim 0.45 유지.
+- **미검증(마이크 필요)**: req2 실제 감지 거리 개선 — 런타임 튜닝 값이라 실기기 확인 대상.
+  더 가까워도/멀어도 되는지 실사용 피드백으로 0.003/0.002 추가 조정 가능.

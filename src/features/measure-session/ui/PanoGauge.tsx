@@ -56,8 +56,10 @@ const REDLINE_START = 600
  * 키운다(양 모드 대비는 실측 재확인 — text.primary라 모드별 반전 유지). 진행 채움은
  * 단색 라임 대신 **그라디언트**(어두운 라임→밝은 라임)로 차트(파노 라인)와 톤을 맞춘다.
  */
-const TRACK_OPACITY = 0.6
-const MINOR_TICK_OPACITY = 0.5
+// v2.29(사용자: 더 밝게) — 트랙·보조눈금 opacity 상향(0.6→0.8, 0.5→0.7). 주눈금·라벨은
+// text.secondary(어두움)에서 text.primary(밝음)로 승격(아래 JSX). dim(대기)은 그대로.
+const TRACK_OPACITY = 0.8
+const MINOR_TICK_OPACITY = 0.7
 const DIM_OPACITY = 0.45
 
 const round2 = (n: number): number => Math.round(n * 100) / 100
@@ -182,7 +184,8 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
               y2={tick.line[3]}
               strokeWidth={tick.major ? 1.5 : 1}
               style={{
-                stroke: tick.major ? palette.text.secondary : palette.text.primary,
+                // v2.29: 주·보조 모두 text.primary(밝게). 이전엔 주 눈금이 text.secondary라 더 어두웠다
+                stroke: palette.text.primary,
                 ...(tick.major ? {} : {opacity: MINOR_TICK_OPACITY}),
               }}
             />
@@ -193,7 +196,7 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
                 textAnchor="middle"
                 dominantBaseline="central"
                 style={{
-                  fill: palette.text.secondary,
+                  fill: palette.text.primary, // v2.29(사용자: 밝게) — 눈금 숫자 text.secondary→primary
                   fontSize: 6.5, // v2.26(사용자): 100단위 라벨 숫자 조금 더 축소(8→6.5)
                   fontWeight: 700,
                   letterSpacing: '0.04em',

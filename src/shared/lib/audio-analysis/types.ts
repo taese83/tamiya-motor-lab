@@ -175,7 +175,11 @@ export const DEFAULT_TUNING: EngineTuning = {
   gateMinHarmonics: 2,
   gateVoicingThreshold: 0.15,
   silenceRms: 1e-5,
-  proximityRms: 0.008, // 실기기 보정 대상 baseline — 원거리 모터 잡음(통상 <0.005 RMS) 차단
+  // v2.29(사용자: 너무 가까이 대야만 검출됨) — 근접 게이트를 0.008→0.004로 완화.
+  // RMS는 거리에 반비례(음압 ∝ 1/거리)라 하한 절반 ≈ 검출 거리 2배. 원거리 잡음 <0.005와
+  // 근접하므로 먼 모터를 간헐 포착할 수 있으나, comb 채점이 최강(=가장 크게 들리는) 후보를
+  // 채택하므로 가까운 모터가 우선된다. 실기기 튜닝 대상 — 더 넓히려면 0.003/0.002로.
+  proximityRms: 0.004,
 
   viterbiLag: 5,
   driftCostWeight: 4,
