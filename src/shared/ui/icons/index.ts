@@ -1,8 +1,10 @@
 export {
   CheckIcon,
   ChevronLeftIcon,
+  GaugeIcon,
   MicIcon,
   MoonIcon,
+  MotorIcon,
   PencilIcon,
   StarIcon,
   SunIcon,

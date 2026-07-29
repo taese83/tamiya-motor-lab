@@ -1362,3 +1362,41 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   stroke=primary·opacity 1, 보조눈금 opacity 0.7, 라벨 fill=primary. 대기 dim 0.45 유지.
 - **미검증(마이크 필요)**: req2 실제 감지 거리 개선 — 런타임 튜닝 값이라 실기기 확인 대상.
   더 가까워도/멀어도 되는지 실사용 피드백으로 0.003/0.002 추가 조정 가능.
+
+---
+
+## v2.30 — 탭 바 아이콘 교체: 측정=게이지, 모터=모터 (사용자)
+
+### TARGET_BEHAVIOR
+- 측정 탭 아이콘 마이크 → **게이지(speedometer)**, 모터 탭 목록 → **모터(캔모터)**, 레이스=번개 유지.
+- 사용자 아이콘 추천 후 선택: 측정=게이지, 모터=엔진/모터, 레이스=번개.
+
+### 원인·해석
+- 측정: 마이크(입력 장치)보다 파노 타코미터 게이지와 은유가 일치 → "측정 결과" 직관 전달.
+- 모터: 기어(설정 혼동)·번개(레이스 중복) 회피하고 미니카 캔모터 실루엣으로 도메인 정합.
+
+### 변경
+- `icons.tsx`: `GaugeIcon`(Material "speed" filled)·`MotorIcon`(캔모터 — 바디+베인 슬롯 3개
+  evenodd 홀+좌측 단자 2개+우측 샤프트) 신설. 규격 24×24·currentColor·aria-hidden 유지.
+- `icons/index.ts`: 두 아이콘 export 추가.
+- `Routes.tsx`: TAB_ITEMS 측정 Icon MicIcon→GaugeIcon, 모터 ListIcon→MotorIcon. 미사용
+  로컬 `ListIcon` 정의 제거 + `MicIcon` import 제거(BoltIcon·IconProps는 유지). 레이스 무변경.
+- 헤더 마이크(측정 상태 라벨)는 탭과 무관해 유지 — scope 밖.
+
+### ALLOWED_PATHS
+- `src/shared/ui/icons/icons.tsx` · `src/shared/ui/icons/index.ts` · `src/app/routes/Routes.tsx`
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 아이콘 규격(24×24·currentColor·aria-hidden, 의미는 병행 라벨) · 탭 3종·라우트·활성 표시
+- MicIcon export 유지(다른 소비처 대비) · IconProps 계약
+
+### NON_GOALS
+- 헤더 마이크 상태 아이콘 변경 · 레이스 아이콘 변경 · 탭 구조/라벨 변경
+
+### CHANGE_BUDGET
+- 신규 의존성 0 · 3파일 · 순수 시각(로직·데이터·테스트 무변경)
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 85건
+- 브라우저(375px, 다크) `/`: 탭 측정=게이지(1 path, 라임 활성)·모터=캔모터(3 path)·레이스=번개(1 path),
+  콘솔 오류 0. 게이지 니들·눈금 정상 렌더.

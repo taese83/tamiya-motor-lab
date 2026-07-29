@@ -64,6 +64,48 @@ export function MicIcon({size = 24}: IconProps) {
   )
 }
 
+/**
+ * 게이지(speedometer) — 측정 탭 아이콘 (v2.30, 사용자). 파노 타코미터 게이지와 은유 일치
+ * (마이크=입력 장치보다 "측정 결과"를 직관 전달). Material "speed" filled glyph.
+ */
+export function GaugeIcon({size = 24}: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor">
+      <path d="M20.38 8.57l-1.23 1.85a8 8 0 0 1-.22 7.58H5.07A8 8 0 0 1 15.58 6.85l1.85-1.23A10 10 0 0 0 3.35 19a2 2 0 0 0 1.72 1h13.85a2 2 0 0 0 1.74-1 10 10 0 0 0-.27-10.44zm-9.79 6.84a2 2 0 0 0 2.83 0l5.66-8.49-8.49 5.66a2 2 0 0 0 0 2.83z" />
+    </svg>
+  )
+}
+
+/**
+ * 모터 — 모터 탭 아이콘 (v2.30, 사용자). 미니카 캔모터 실루엣: 실린더 바디 + 냉각 베인 슬롯 3개
+ * (evenodd 홀) + 좌측 단자 2개 + 우측 출력 샤프트. 기어(설정 혼동)·번개(레이스 중복) 회피.
+ */
+export function MotorIcon({size = 24}: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor">
+      <path d="M0 9h2v2H0zM0 13h2v2H0z" />
+      <path d="M17 11h4a1 1 0 0 1 0 2h-4z" />
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M5 6h9a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V9a3 3 0 0 1 3-3zm1.6 3.2h1.4v5.6H6.6zm2.9 0h1.4v5.6H9.5zm2.9 0h1.4v5.6h-1.4z"
+      />
+    </svg>
+  )
+}
+
 // v2 추가 (design-system v2 §9 아이콘 인벤토리 14→16종) — ThemeToggle 전용
 export function SunIcon({size = 24}: IconProps) {
   return (

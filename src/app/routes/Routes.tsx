@@ -20,7 +20,7 @@ import {raceRecordSchema} from '@entities/race-record'
 import {cancelRaceMeasure} from '@features/race-measure-handoff'
 import {config} from '@shared/config'
 import {getPersistenceStatus, initPersistence, resetAllData} from '@shared/lib/persistence'
-import {MicIcon} from '@shared/ui/icons'
+import {GaugeIcon, MotorIcon} from '@shared/ui/icons'
 import {StatusBanner} from '@shared/ui/status-banner'
 import {ToastHost} from '@shared/ui/toast'
 
@@ -97,23 +97,9 @@ function GlobalPersistenceBanner({status}: {status: PersistenceStatus | null}) {
   )
 }
 
-// shared/ui/icons 인벤토리에 없는 탭 아이콘 2종 — icons/icons.tsx 규격(24×24 viewBox,
-// currentColor, aria-hidden — 의미 전달은 병행 라벨 담당)을 그대로 따르는 소비자 로컬 정의.
-// shared/ui/icons 승격 시 이 정의를 제거하고 import로 교체한다 (icons.tsx 주석 계약).
-function ListIcon({size = 24}: IconProps) {
-  return (
-    <svg
-      aria-hidden="true"
-      focusable="false"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="currentColor">
-      <path d="M3 13h2v-2H3zm0 4h2v-2H3zm0-8h2V7H3zm4 4h14v-2H7zm0 4h14v-2H7zM7 7v2h14V7z" />
-    </svg>
-  )
-}
-
+// 레이스 탭 아이콘 — icons/icons.tsx 규격(24×24 viewBox, currentColor, aria-hidden — 의미
+// 전달은 병행 라벨 담당)을 따르는 소비자 로컬 정의. shared/ui/icons 승격 시 import로 교체한다.
+// v2.30: 측정(mic→GaugeIcon)·모터(list→MotorIcon)는 shared로 승격돼 로컬 정의를 제거했다.
 function BoltIcon({size = 24}: IconProps) {
   return (
     <svg
@@ -128,10 +114,10 @@ function BoltIcon({size = 24}: IconProps) {
   )
 }
 
-// v2 탭 3종 — 측정(mic)·모터(list)·레이스(bolt) (design-system §9)
+// v2.30 탭 3종 — 측정(gauge)·모터(motor)·레이스(bolt) (사용자: 측정=게이지·모터=모터 아이콘)
 const TAB_ITEMS = [
-  {key: 'measure', label: '측정', to: '/', Icon: MicIcon},
-  {key: 'motors', label: '모터', to: '/motors', Icon: ListIcon},
+  {key: 'measure', label: '측정', to: '/', Icon: GaugeIcon},
+  {key: 'motors', label: '모터', to: '/motors', Icon: MotorIcon},
   {key: 'race', label: '레이스', to: '/race', Icon: BoltIcon},
 ] as const satisfies readonly {
   key: NonNullable<RouteHandle['tab']>
