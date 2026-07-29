@@ -156,17 +156,30 @@ export function RaceDetailPage() {
   useEffect(() => {
     restoreRef.current = entry.restoreFromMeasureReturn
   })
+  // v2.33 — 재측정 재추천용 이력 최신 참조(effect 안 stale closure 방지, restoreRef와 동일 패턴)
+  const adviceHistoryRef = useRef(adviceHistory)
+  useEffect(() => {
+    adviceHistoryRef.current = adviceHistory
+  })
   useEffect(() => {
     // 자기 왕복만 소비(v2.5 — origin·motorId 일치 시에만 clear). 모터 상세에서 시작한
     // 왕복은 여기서 소비되지 않고 보존된다.
     const slot = consumeRaceMeasureReturn({origin: 'race', motorId})
     if (slot === null) return
+    const draft = fromHandoffDraft(slot.draft)
+    const measuredPanoHz = slot.measured?.panoHz ?? null
+    // v2.33 — 목표가 있고 새 파노가 측정됐으면 그 파노로 전압 재추천(파노↔전압 상관 재평가)
+    const recompute =
+      draft.goal !== null && measuredPanoHz !== null
+        ? {goal: draft.goal, currentPanoHz: measuredPanoHz, history: adviceHistoryRef.current}
+        : undefined
     restoreRef.current({
-      draft: fromHandoffDraft(slot.draft),
-      measuredPanoHz: slot.measured?.panoHz ?? null,
+      draft,
+      measuredPanoHz,
       // 자동 확정 저장 성공 시에만 sr "방금 측정" 고지, storage 실패는 비차단 배너(§7.2-3)
       justMeasured: slot.measured?.save === 'saved',
       saveFailed: slot.measured?.save === 'failed',
+      ...(recompute !== undefined ? {recompute} : {}),
     })
     if (slot.measured?.save === 'saved') toast.showSuccess(`'${slot.motorName}'에 기록됨`)
   }, [motorId, toast])

@@ -1487,3 +1487,51 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 
 ### TEST_EVIDENCE
 - typecheck·lint·build·test 전부 exit 0, vitest 93건
+
+---
+
+## v2.33 — 파노↔전압 상관 학습 + 재측정 재추천 + Stage 2 서버리스 LLM (사용자)
+
+### TARGET_BEHAVIOR
+- 전압 추천을 **이 모터의 레이스 이력에서 파노↔전압 상관을 학습**해 현재 파노에 맞게 산출.
+- 입력 시트 [측정] 왕복으로 **파노가 바뀌면 그 파노로 전압을 재추천**.
+- **Stage 2**: 실제 Claude(Haiku 4.5) 호출을 Vercel 서버리스로 구현(개인 API 키·Vercel 배포·단독 사용).
+
+### 원인·해석 (사용자 질문: "파노↔전압 상관 알아야 할 듯, 가능?")
+- 측정 기록에는 전압이 없어 (전압,파노) 표본은 **레이스 기록**뿐. 각 레이스=(Vᵢ,Pᵢ,결과ᵢ).
+- 레이스 파노는 "레이스 전 측정 인용값", 전압은 "사용자가 고른 값" → 순수 물리가 아니라
+  **경험적 상관**(측정 파노가 P일 때 내가 V를 골랐다). 추천 목적(파노 보고 전압 정하기)에 정확히 부합.
+
+### 변경
+- `voltage-advisor`: 상관 학습으로 재작성 — 0건=목표 기준값 / 1건=원점 비례 V=(V₁/P₁)·P /
+  2건+=최소제곱 선형적합 V≈a·P+b(방향·절편 학습, 퇴화 시 평균). + 목표 보정(속도+/완주−) +
+  이탈 회피(비슷한 파노 이탈 전압 이상 회피) + 0.1~9.9 클램프. 단위 10건.
+- `use-race-entry` + `RaceDetailPage`: 왕복 복귀 시 목표 있고 새 파노 있으면 `recompute` 페이로드로
+  재추천(파노↔전압 재평가). adviceHistoryRef로 effect stale closure 회피.
+- **Stage 2** `api/recommend-voltage.js`(신규 — Vercel 서버리스): Anthropic REST fetch·Haiku 4.5·
+  JSON 출력·서버에서 전압 클램프·입력 검증·이력 20건 컷. 키는 서버 env 전용(번들 미포함).
+- `vercel.json`: SPA rewrite를 `/((?!api/).*)`로 바꿔 `/api`를 서버리스로 라우팅.
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 클라이언트 recommendVoltage는 서버리스 실패·오프라인·키없음 시 휴리스틱 폴백(무음 실패 금지)
+- voltage 0.1~9.9 최종 검증(voltageSchema)·클램프 이중화 · 왕복 handoff goal 보존 · single-flight
+
+### NON_GOALS
+- 키 클라이언트 노출 · 다중 사용자·레이트리밋 인프라 · 측정 기록에 전압 추가
+
+### CHANGE_BUDGET
+- 신규 의존성 0(Anthropic REST fetch — SDK 미설치) · 서버리스 1함수(.js, tsc 스코프 밖·eslint js 규칙)
+
+### TEST_EVIDENCE
+- typecheck·lint(api/*.js 포함)·build·test 전부 exit 0, vitest **95건**(advisor 상관 학습 10건).
+- 브라우저(375px, 다크) `/race/:motorId`:
+  - 결과 없이 저장 → "미정 · 2.5 V"(result 옵션 회귀 확인).
+  - 2번째 [+ 기록]→목표 팝업→속도 → 프리필 2.7V, 근거 "파노 415Hz · 파노 비례 추정 · 속도 목표 → 2.7V".
+  - 검증용 테스트 기록 생성 후 삭제(데이터 원상 복구).
+- **미검증(장비 필요)**: 재측정 왕복은 실제 마이크 측정이 있어야 새 파노가 생겨 로컬 재현 불가
+  (재추천 로직은 복원 경로 공유 + 단위테스트로 커버). 실제 AI 경로는 Vercel `ANTHROPIC_API_KEY`
+  설정 후 활성(로컬 정적 서버는 서버리스 미실행 → 휴리스틱 폴백).
+
+### 배포 활성화 (사용자 실행)
+- Vercel 프로젝트 Settings→Environment Variables에 `ANTHROPIC_API_KEY` 추가 후 재배포.
+- 그러면 클라이언트가 `/api/recommend-voltage`(서버리스)로 실제 Claude 추천을 받고, 실패 시 휴리스틱 폴백.

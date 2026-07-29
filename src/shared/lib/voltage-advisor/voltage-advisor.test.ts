@@ -4,7 +4,8 @@ import {clampVoltage, recommendVoltageHeuristic} from './voltage-advisor'
 
 import type {VoltageAdviceRace} from './voltage-advisor'
 
-// 전압 추천 휴리스틱 unit (v2.31). 추천값은 매 입력마다 사용자에게 보이는 숫자라 규칙을 고정한다.
+// 전압 추천 휴리스틱 unit (v2.31 / v2.33 상관 학습). 추천값·상관 학습은 매 입력마다 사용자에게
+// 보이는 숫자라 규칙을 고정한다.
 
 const race = (over: Partial<VoltageAdviceRace> = {}): VoltageAdviceRace => ({
   voltage: 2.7,
@@ -25,8 +26,8 @@ describe('clampVoltage', () => {
   })
 })
 
-describe('recommendVoltageHeuristic', () => {
-  it('과거 기록 없으면 목표 기준값(속도>안정>완주)에서 시작한다', () => {
+describe('recommendVoltageHeuristic — 목표 기준값(이력 0건)', () => {
+  it('속도>안정>완주 순으로 시작한다', () => {
     const base = {currentPanoHz: 400, history: []}
     const finish = recommendVoltageHeuristic({...base, goal: 'finish'}).voltage
     const stability = recommendVoltageHeuristic({...base, goal: 'stability'}).voltage
@@ -34,43 +35,66 @@ describe('recommendVoltageHeuristic', () => {
     expect(finish).toBeLessThan(stability)
     expect(stability).toBeLessThan(speed)
   })
+})
 
-  it('직전 전압을 앵커로 삼는다(같은 파노·안정 목표면 직전값 근처)', () => {
+describe('recommendVoltageHeuristic — 파노 비례(이력 1건)', () => {
+  it('같은 파노·안정 목표면 직전 전압을 그대로 쓴다', () => {
     const advice = recommendVoltageHeuristic({
       goal: 'stability',
       currentPanoHz: 400,
       history: [race({voltage: 3.0, panoHz: 400})],
     })
-    expect(advice.voltage).toBe(3.0) // 안정 delta 0 · 파노 변화 없음
+    expect(advice.voltage).toBe(3.0)
   })
 
-  it('직전 이탈이면 직전 전압보다 낮춘다', () => {
+  it('파노가 2배면 전압도 비례해 커진다(원점 통과 비례)', () => {
     const advice = recommendVoltageHeuristic({
       goal: 'stability',
-      currentPanoHz: 400,
-      history: [race({voltage: 3.0, result: 'retired', panoHz: 400})],
+      currentPanoHz: 800,
+      history: [race({voltage: 3.0, panoHz: 400})],
     })
-    expect(advice.voltage).toBeLessThan(3.0)
+    expect(advice.voltage).toBeCloseTo(6.0, 5)
+  })
+})
+
+describe('recommendVoltageHeuristic — 파노-전압 추세선(이력 2건+)', () => {
+  // (400,2.5),(500,3.5) → 기울기 0.01/Hz, 절편 −1.5 → V(P)=0.01P−1.5
+  const history = [race({voltage: 3.5, panoHz: 500}), race({voltage: 2.5, panoHz: 400})]
+
+  it('학습한 추세선을 현재 파노에서 평가한다', () => {
+    const advice = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 450, history})
+    expect(advice.voltage).toBe(3.0) // 0.01·450−1.5 = 3.0
   })
 
-  it('속도 목표는 완주 목표보다 높은 전압을 추천한다(동일 이력)', () => {
-    const history = [race({voltage: 3.0, panoHz: 400})]
-    const finish = recommendVoltageHeuristic({goal: 'finish', currentPanoHz: 400, history}).voltage
-    const speed = recommendVoltageHeuristic({goal: 'speed', currentPanoHz: 400, history}).voltage
+  it('파노가 오르면 추세선을 따라 전압도 오른다(학습된 방향)', () => {
+    const low = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 450, history}).voltage
+    const high = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 600, history}).voltage
+    expect(high).toBeGreaterThan(low)
+  })
+
+  it('속도 목표는 완주 목표보다 높은 전압을 추천한다(동일 파노)', () => {
+    const finish = recommendVoltageHeuristic({goal: 'finish', currentPanoHz: 450, history}).voltage
+    const speed = recommendVoltageHeuristic({goal: 'speed', currentPanoHz: 450, history}).voltage
     expect(speed).toBeGreaterThan(finish)
   })
+})
 
-  it('파노가 오르면(모터가 빨라짐) 안정 목표는 전압을 낮춘다', () => {
-    const history = [race({voltage: 3.0, panoHz: 400})]
-    const same = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 400, history}).voltage
-    const faster = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 440, history}).voltage
-    expect(faster).toBeLessThan(same)
+describe('recommendVoltageHeuristic — 이탈 회피 · 방어', () => {
+  it('비슷한 파노에서 이탈했던 전압 이상은 회피한다', () => {
+    // 안정 추천이 3.0인데 파노 450 근처에서 2.8V 이탈 이력 → 2.8 미만으로 낮춤
+    const history = [
+      race({voltage: 3.5, panoHz: 500, result: 'finished'}),
+      race({voltage: 2.5, panoHz: 400, result: 'finished'}),
+      race({voltage: 2.8, panoHz: 450, result: 'retired'}),
+    ]
+    const advice = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 450, history})
+    expect(advice.voltage).toBeLessThan(2.8)
   })
 
-  it('항상 0.1~9.9 범위로 클램프하고 원본 history를 변형하지 않는다', () => {
+  it('항상 0.1~9.9로 클램프하고 원본 history를 변형하지 않으며 source=heuristic', () => {
     const history = [race({voltage: 9.9, panoHz: 400})]
     const snapshot = JSON.stringify(history)
-    const advice = recommendVoltageHeuristic({goal: 'speed', currentPanoHz: 400, history})
+    const advice = recommendVoltageHeuristic({goal: 'speed', currentPanoHz: 900, history})
     expect(advice.voltage).toBeLessThanOrEqual(9.9)
     expect(advice.voltage).toBeGreaterThanOrEqual(0.1)
     expect(JSON.stringify(history)).toBe(snapshot)

@@ -11,7 +11,7 @@ import type {RaceEntryDraft, RaceEntryField, RaceEntryFieldErrors, RaceEntryPano
 import type {CreateRaceRecordDraft, RaceRecord} from '@entities/race-record'
 import type {RaceGoal} from '@shared/config/domain'
 import type {DomainError} from '@shared/lib/errors'
-import type {VoltageAdviceRace} from '@shared/lib/voltage-advisor'
+import type {VoltageAdviceInput, VoltageAdviceRace} from '@shared/lib/voltage-advisor'
 
 /** 시트 모드 — create(신규 기록) / edit(기존 기록 수정, v2.3) */
 export type RaceEntryMode = 'create' | 'edit'
@@ -166,6 +166,11 @@ export interface RaceMeasureReturnRestore {
   justMeasured: boolean
   /** collectMeasureRecord storage 실패(§7.2-3) — 비차단 배너 고지, 복귀·파노 갱신은 수행 */
   saveFailed: boolean
+  /**
+   * v2.33 — 재측정 재추천 입력. 목표가 있고 새 파노가 측정됐을 때 page가 (새 파노 + 이력)을
+   * 담아 넘기면, 복귀 즉시 그 파노에 맞게 전압을 다시 추천한다(파노↔전압 상관 재평가). 없으면 생략.
+   */
+  recompute?: VoltageAdviceInput | undefined
 }
 
 /** RaceEntrySheet props에 그대로 전개 가능한 형태(open·onSubmit·onClose만 이름 매핑) */
@@ -399,11 +404,22 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     setJustMeasured(restore.justMeasured)
     setFieldErrors({})
     setErrorMessage(restore.saveFailed ? RACE_ENTRY_MESSAGES.measureSaveFailed : null)
-    // 왕복 복귀 — draft.goal은 보존되나 추천 근거는 재계산 대상이 아니라 비운다(파노 갱신 시 stale)
     setRationale(null)
     setRecommendPending(false)
-    recommendSeqRef.current += 1
     setSheetOpen(true)
+    // v2.33 — 재측정 재추천: 새 파노에 맞게 전압을 다시 추천(파노↔전압 상관 재평가). 없으면 유지.
+    const seq = ++recommendSeqRef.current
+    if (restore.recompute !== undefined) {
+      const input = restore.recompute
+      setRecommendPending(true)
+      void (async () => {
+        const advice = await recommendVoltage(input)
+        if (recommendSeqRef.current !== seq) return // 최신 요청만 반영
+        setDraft(prev => ({...prev, voltageRaw: advice.voltage.toFixed(1)}))
+        setRationale(advice.rationale)
+        setRecommendPending(false)
+      })()
+    }
   }
 
   return {
