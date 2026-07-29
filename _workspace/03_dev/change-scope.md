@@ -913,3 +913,56 @@ v2.4가 param을 고른 실제 이유("상세 왕복 후 필터 유지")는 영�
   진행 아크·바늘 이동을 브라우저에서 볼 수 없다. 아크 캡·클램프는 unit으로 고정했고
   대비 수치는 dim 상태에서 측정한 트랙 색 자체(opacity 1 기준 환산)라 active 값과 동일하다.
   **라임 진행 아크가 강해진 트랙 위에서 충분히 구분되는지는 실기기 확인이 필요하다.**
+
+---
+
+## v2.20 — 권한 안내를 게이지 위 인라인 Collapse → Dialog (ui-change)
+
+### TARGET_BEHAVIOR
+[설정 방법 보기]가 게이지를 가리지 않고 **팝업(Dialog)** 으로 열린다.
+
+### 원인
+안내가 Z2 히어로 존 **안에서** Collapse로 펼쳐졌다. 그 존은 게이지를 장식 배경층(absolute
+inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 5줄이 게이지 눈금·라벨과
+겹쳤다. v2.19에서 트랙 대비를 1.1:1 → 3:1↑로 올리자 그 충돌이 눈에 띄게 드러났다.
+
+### 부수적으로 정리된 것
+- Z2의 `scrollable` 특수 분기(`no-permission && permanent`일 때만 flex-start + overflow auto)를
+  **삭제**했다. 존은 이제 어떤 view에서도 중앙 정렬 고정 높이다 — 상태별 레이아웃 분기 1개 감소.
+- 안내가 길어져도 히어로 존 높이 계약(layout shift 0)에 영향이 없다.
+
+### a11y 결정
+트리거의 **`aria-expanded`·`aria-controls`를 제거**했다. 열리는 것이 인접 영역이 아니라
+대화상자이므로 disclosure 패턴을 그대로 두면 스크린리더에 잘못된 구조를 알린다.
+포커스 트랩·ESC·트리거 복귀는 MUI Dialog 기본. 파괴 액션이 없어 `alertdialog`가 아닌 `dialog`다.
+열림 상태는 세션 store의 기존 `settingsHelpOpen`을 그대로 쓴다 — 새 상태를 만들지 않았다.
+
+### ALLOWED_PATHS
+- `src/features/measure-session/ui/PermissionHelpDialog.tsx` (신규) + `.test.tsx`
+- `src/features/measure-session/ui/MeasureFigures.tsx` (인라인 안내·scrollable 분기 제거)
+- `src/features/measure-session/ui/MeasureActionDock.tsx` (disclosure aria 제거)
+- `src/features/measure-session/ui/index.ts` · `src/pages/measure/ui/MeasurePage.tsx` (배선)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- Z2 고정 높이·layout shift 0 · 게이지 aria-hidden 장식층 · 상태 문구 슬롯 1줄 유지
+- `toggleSettingsHelp` 액션·`settingsHelpOpen` 상태 계약 무변경 · MeasureFigures 공개 props 무변경
+
+### NON_GOALS
+- 안내 문구 내용 변경 · 게이지 자체 변경(라이브러리 검토는 별건으로 리서치 진행)
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build·test 전부 exit 0, vitest **86건**(80 → 86, 신규 6건)
+- 신규 unit: dialog role·접근 이름 · 닫힘 시 DOM 부재 · 안내 5항목 · [닫기] 콜백 ·
+  **영구 거부 + 안내 열림 상태에서 MeasureFigures가 안내를 인라인 렌더하지 않음**(핵심 회귀 고정) ·
+  안내 제거 후에도 게이지 SVG·상태 문구 유지
+- 브라우저: 게이지 영역을 덮는 가시 텍스트가 의도된 placeholder("—") 1건뿐 —
+  이전에 겹쳤던 안내 문구는 사라짐. 콘솔 오류 0
+
+### 미검증 (실기기 필요)
+- **실제 no-permission(영구) 상태에서 Dialog 열림.** preview에는 마이크 장치가 없어
+  getUserMedia 거부가 2회 누적되지 않고 세션이 `starting`에서 멈춘다 —
+  [설정 방법 보기] 버튼 자체가 노출되지 않아 실제 클릭 경로를 브라우저로 밟을 수 없었다.
+  컴포넌트와 "존이 안내를 품지 않는다"는 계약은 unit으로 고정했다.

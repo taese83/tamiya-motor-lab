@@ -1,9 +1,8 @@
-import {Box, Collapse, Typography} from '@mui/material'
+import {Box, Typography} from '@mui/material'
 import {darkColor, layoutTokens, measureStatusTokens} from '@shared/config/design-tokens'
 import {formatPanoValue, formatRpm} from '@shared/lib/format'
 import {BigNumber} from '@shared/ui/big-number'
 import type {ReactNode} from 'react'
-import {S1_SETTINGS_HELP_ID} from './constants'
 import type {MeasureView} from './measure-view'
 import {PanoGauge} from './PanoGauge'
 
@@ -75,26 +74,6 @@ function Row({height, children}: {height: string; children?: ReactNode}) {
   )
 }
 
-/** no-permission 영구 — 설정 경로 Collapse (Z2 내부 스크롤 수용, 존 높이 불변 — §2.2) */
-function PermanentPermissionHelp({open, color}: {open: boolean; color: string}) {
-  return (
-    <Collapse in={open}>
-      <Box id={S1_SETTINGS_HELP_ID} sx={{color, pb: 1}}>
-        <Typography
-          variant="body2"
-          component="ul"
-          sx={{m: 0, pl: 2.5, display: 'flex', flexDirection: 'column', gap: 0.5}}>
-          <li>iOS Safari: 설정 → Safari(또는 앱 → Safari) → 마이크 허용</li>
-          <li>Android Chrome: 주소창 자물쇠 아이콘 → 권한 → 마이크 허용</li>
-          <li>매번 묻지 않게 하기 — iOS Safari: 주소창 ᴀA → 웹 사이트 설정 → 마이크 → 허용</li>
-          <li>매번 묻지 않게 하기 — Chrome: 권한 요청에서 “방문할 때마다 허용” 선택</li>
-          <li>변경 후 이 페이지를 새로고침하세요</li>
-        </Typography>
-      </Box>
-    </Collapse>
-  )
-}
-
 /**
  * S1 Z2 히어로 존 v2 (component-spec §2.5 / DS v3 §9.4 "계기판 한 장") —
  * 높이 고정 소유: `layoutTokens.measureValueMinHeight`(v3 재클램프), view 8종 전부 동일 —
@@ -113,7 +92,6 @@ function PermanentPermissionHelp({open, color}: {open: boolean; color: string}) 
 export function MeasureFigures({view}: MeasureFiguresProps) {
   const visual = measureStatusTokens[statusTokenKey(view)]
   const measuring = view.status === 'measuring'
-  const scrollable = view.status === 'no-permission' && view.permanent
   const message = messageFor(view)
   return (
     <Box
@@ -153,9 +131,10 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          // 영구 권한 안내(Collapse)가 열리면 위에서부터 흘러 내부 스크롤 (존 높이 불변 — §2.2)
-          justifyContent: scrollable ? 'flex-start' : 'center',
-          overflowY: scrollable ? 'auto' : 'hidden',
+          // v2.20: 영구 권한 안내가 Dialog로 빠져 상태별 스크롤 분기가 사라졌다 —
+          // 이 존은 어떤 view에서도 중앙 정렬 고정 높이다(§2.2 존 높이 불변).
+          justifyContent: 'center',
+          overflowY: 'hidden',
           px: 2,
         }}>
         <Row height={ROW_HEIGHTS.pano}>
@@ -175,7 +154,12 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
         </Row>
         <Row height={ROW_HEIGHTS.rpm}>
           {measuring ? (
-            <BigNumber size="fano" value={formatRpm(view.rpm)} unit="rpm" valueColor={visual.valueFg} />
+            <BigNumber
+              size="fano"
+              value={formatRpm(view.rpm)}
+              unit="rpm"
+              valueColor={visual.valueFg}
+            />
           ) : (
             // rpm 보조 행도 "—" (§2.5) — sr 중복 방지: sr-only는 주지표 BigNumber가 1회 담당
             <Typography aria-hidden="true" sx={{color: visual.valueFg}}>
@@ -199,9 +183,6 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
             </Typography>
           )}
         </Row>
-        {scrollable && (
-          <PermanentPermissionHelp open={view.settingsHelpOpen} color={visual.valueFg} />
-        )}
       </Box>
     </Box>
   )

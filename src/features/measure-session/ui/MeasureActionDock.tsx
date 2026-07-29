@@ -2,7 +2,6 @@ import {Box, Button} from '@mui/material'
 
 import {MIN_MEASURE_DURATION_MS} from '@shared/config/domain'
 
-import {S1_SETTINGS_HELP_ID} from './constants'
 import type {MeasureView} from './measure-view'
 
 /**
@@ -135,8 +134,8 @@ function slotConfig(action: MeasureAction, handlers: SlotHandlers): SlotConfig {
         variant: 'contained',
         onClick: handlers.onToggleSettingsHelp,
         softDisabled: false,
-        ariaExpanded: action.expanded,
-        ariaControls: S1_SETTINGS_HELP_ID,
+        // v2.20: 안내가 Dialog로 바뀌어 aria-expanded/aria-controls를 제거했다 —
+        // 대화상자를 여는 버튼에 disclosure 패턴을 쓰면 스크린리더에 잘못된 구조를 알린다.
       }
     case 'resume':
       return {

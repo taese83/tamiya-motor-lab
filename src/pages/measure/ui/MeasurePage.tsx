@@ -17,7 +17,12 @@ import {
   useMeasureAnnouncement,
   useMeasureView,
 } from '@features/measure-session/model'
-import {MeasureActionDock, MeasureFigures, deriveMeasureAction} from '@features/measure-session/ui'
+import {
+  MeasureActionDock,
+  MeasureFigures,
+  PermissionHelpDialog,
+  deriveMeasureAction,
+} from '@features/measure-session/ui'
 import {useCreateMotor} from '@features/motor-management/api'
 import {MotorFormSheet} from '@features/motor-management/ui'
 import {
@@ -181,6 +186,16 @@ export function MeasurePage() {
       <Typography component="h1" sx={srOnlySx}>
         측정
       </Typography>
+
+      {/*
+        v2.20 권한 안내 — 게이지를 가리는 인라인 Collapse에서 Dialog로 옮겼다.
+        오버레이는 히어로 존이 아니라 페이지가 소유한다(존은 고정 높이 계약만 지킨다).
+        열림 상태는 세션 store가 이미 들고 있어(settingsHelpOpen) 새 상태를 만들지 않았다.
+      */}
+      <PermissionHelpDialog
+        open={view.status === 'no-permission' && view.permanent && view.settingsHelpOpen}
+        onClose={toggleSettingsHelp}
+      />
 
       {/* 왕복 모드 스트립 (component-spec §7.1) — slot 존재와 렌더가 동치(INV-21), 최상단 */}
       {slot !== null && <RaceMeasureStrip motorName={slot.motorName} origin={slot.origin} />}
