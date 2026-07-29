@@ -42,8 +42,10 @@ export const RACE_RESULT_LABELS: Record<RaceResult, string> = {
   retired: '이탈',
 }
 
-// ── 측정 기록 rolling 상한 (T-3 확정: 모터당 최대 10건, 초과 시 최고(最古) 자동 삭제 — INV-20)
-export const MEASURE_RECORD_LIMIT = 10
+// ── 측정 기록 rolling 상한 (T-3·INV-20: 모터당 최대 N건, 초과 시 최고령(最古) 자동 삭제)
+// v2.21(사용자): 10 → 20으로 상향. rolling·eviction 로직은 상수만 참조하므로 값 변경으로 족하다
+// (INV-20의 "N건 유지·초과 시 최고령 삭제" 불변식 자체는 불변, 경계값만 20).
+export const MEASURE_RECORD_LIMIT = 20
 
 // ── 레이스 랩타임 상한 (SC2-A2: ≤1시간 — 미니카 랩타임 sanity 상한, 상수 1곳)
 export const LAP_TIME_MAX_MS = 3_600_000

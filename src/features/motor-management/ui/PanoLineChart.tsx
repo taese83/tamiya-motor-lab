@@ -18,24 +18,19 @@ export interface PanoLineChartPoint {
 }
 
 export interface PanoLineChartProps {
-  /** measuredAt asc, ≤10건 — listMeasureRecordsByMotor 결과 그대로(재정렬 금지) */
+  /** measuredAt asc, ≤20건 — listMeasureRecordsByMotor 결과 그대로(재정렬 금지) */
   points: ReadonlyArray<PanoLineChartPoint>
 }
 
 const CHART_HEIGHT = 200
 
-/** X축 전체 라벨 — "MM-DD HH:mm" (툴팁용 — 측정 시각까지 표시) */
-const dateTimeLabel = (value: Date | number | string): string =>
-  formatDateTimeShort(new Date(value).toISOString())
-
-/** X축 tick 라벨 — 날짜부만 (시간축 tick 밀집 회피) */
-const datePart = (value: Date | number | string): string =>
-  dateTimeLabel(value).split(' ')[0] ?? EM_DASH
-
 /**
- * X = measuredAt 실제 시간 축(time scale — 등간격 아님), Y = panoHz(라이브러리 자동 도메인).
- * 라임 시그니처 라인 + 완만한 곡선(monotoneX) + 영역 tint로 추세를 강조한다.
- * points=0은 렌더하지 않는다 — 상위(소비 화면)가 "아직 기록 없음" 블록 소유(고정 높이 비유지).
+ * v2.21(사용자): X축을 **시간축 → 측정 인덱스(1..N 회차)** 로 바꿨다. 측정 간격이 불규칙해서
+ * 시간축으로 두면 점들이 한쪽에 몰려 추세가 안 보였다 — 등간격 회차 축이 "몇 번째 측정에서
+ * 파노가 어떻게 변했나"를 곧게 보여준다. 측정 시각은 툴팁 헤더에 남겨 맥락을 유지한다
+ * (canonical 데이터는 여전히 기록 리스트 텍스트 — §5.2).
+ * Y = panoHz(라이브러리 자동 도메인). 라임 라인 + monotoneX + 영역 tint로 추세 강조.
+ * points=0은 렌더하지 않는다 — 상위가 "아직 기록 없음" 블록 소유.
  */
 export function PanoLineChart({points}: PanoLineChartProps) {
   const theme = useTheme()
@@ -46,8 +41,15 @@ export function PanoLineChart({points}: PanoLineChartProps) {
   const hairline = palette.divider
   const markStroke = palette.background.paper // 마커 외곽선 = 배경색(면과 분리)
 
-  const xData = points.map(point => new Date(point.measuredAt))
+  // X = 측정 회차(1..N, 등간격 point scale). 회차→측정 시각 역참조로 툴팁에 시각 표시
+  const xData = points.map((_, index) => index + 1)
+  const timeBySeq = new Map(points.map((point, index) => [index + 1, point.measuredAt]))
   const yData = points.map(point => point.panoHz)
+  const seqTooltip = (seq: Date | number | string): string => {
+    const n = Number(seq)
+    const at = timeBySeq.get(n)
+    return at === undefined ? `${n}회차` : `${n}회차 · ${formatDateTimeShort(at)}`
+  }
 
   // Y 도메인 — 실측 min/max에 여유(range의 15%, 단일값은 ±5%)를 둬 파노 변화를 넓게 보인다
   // (0 기준 자동 스케일은 170~620 Hz 대역 변화를 상단에 눌러 붙여 추세가 안 보인다).
@@ -73,11 +75,10 @@ export function PanoLineChart({points}: PanoLineChartProps) {
         xAxis={[
           {
             data: xData,
-            scaleType: 'time',
-            // tick은 날짜만(밀집 회피), 툴팁 헤더는 측정 시각까지 — location으로 분기
+            scaleType: 'point', // 회차 등간격 — 측정 간격 불규칙을 흡수
+            // tick은 회차 숫자만, 툴팁 헤더는 "N회차 · 측정 시각" — location으로 분기
             valueFormatter: (value: Date | number | string, context) =>
-              context.location === 'tooltip' ? dateTimeLabel(value) : datePart(value),
-            tickNumber: 3,
+              context.location === 'tooltip' ? seqTooltip(value) : String(value),
             disableLine: true,
             disableTicks: true,
           },
@@ -110,7 +111,10 @@ export function PanoLineChart({points}: PanoLineChartProps) {
           '& .MuiChartsGrid-line': {stroke: hairline, strokeDasharray: '3 3'},
           '& .MuiChartsAxis-tickLabel': {fill: palette.text.secondary, fontSize: '0.7rem'},
           // hover crosshair — 그리드보다 뚜렷하되 라인보다 약하게(장식 위계 유지)
-          '& .MuiChartsAxisHighlight-root': {stroke: palette.text.secondary, strokeDasharray: '4 3'},
+          '& .MuiChartsAxisHighlight-root': {
+            stroke: palette.text.secondary,
+            strokeDasharray: '4 3',
+          },
         }}
       />
     </Box>

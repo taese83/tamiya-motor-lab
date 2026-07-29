@@ -1019,3 +1019,45 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - 브라우저(375px, 라이트·다크): 라벨 0~700이 아크 **바깥**, 중앙 placeholder가 라벨과 겹치지 않음,
   레드라인 600~700, 바늘 0 위치. layout-shift 0(고정 viewBox)
 - **미검증(마이크 필요)**: measuring 상태의 그라디언트 채움 실제 모습·바늘 이동. 순수 기하는 unit 고정.
+
+---
+
+## v2.22 — 측정 기록: 상한 20·최근 상단·차트 회차 축 (req1·4)
+
+### TARGET_BEHAVIOR
+- 측정 기록 rolling 상한 10 → **20** (req4 후단)
+- 측정 기록 목록은 **최근이 위로**(내림차순) (req1)
+- 모터 상세 파노 차트 X축을 **시간축 → 측정 회차(1..N)** (req4)
+
+### 설계 결정
+- **상한은 상수만 변경.** `MEASURE_RECORD_LIMIT` 10→20. rolling·eviction은 상수를 참조하므로
+  로직 무변경, INV-20 불변식(N건 유지·초과 시 최고령 삭제)도 경계값만 바뀐다.
+- **목록만 표시 시점에 역순.** 데이터층(measuredAt asc)은 재정렬하지 않고, MotorDetailPage가
+  표시할 때만 `.reverse()`. 회차 번호는 오래된 것 01 → 최신 = 총 건수(RaceRecordRow와 동일 규칙),
+  최신 행이 가장 큰 번호로 맨 위. 차트는 여전히 asc(왼→오)라 목록과 방향이 반대다 —
+  목록은 "최근 먼저 훑기", 차트는 "시간 흐름"으로 관심사가 다르다.
+- **차트 X축 point scale(회차).** 측정 간격이 불규칙해 time scale은 점이 몰려 추세가 안 보였다.
+  1..N 등간격 회차 축으로 "몇 번째 측정에서 어떻게 변했나"를 곧게 보인다. 측정 시각은 툴팁
+  헤더("N회차 · 시각")에 남겨 맥락 유지. canonical 데이터는 여전히 기록 리스트 텍스트.
+
+### ALLOWED_PATHS
+- `src/shared/config/domain.ts` (MEASURE_RECORD_LIMIT)
+- `src/pages/motor-detail/ui/MotorDetailPage.tsx` (목록 역순·번호)
+- `src/features/motor-management/ui/PanoLineChart.tsx` (X축 회차)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- INV-20(rolling·최고령 eviction) · 데이터층 정렬(asc) 불변 · 차트 aria-hidden·canonical=리스트
+- 기록 0건 안내 경로 · 고정 셸·스크롤 계약(v2.8)
+
+### NON_GOALS
+- rolling 로직 재작성 · 목록 데이터 정렬 변경(표시만 역순) · 차트 상호작용 확대
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 82건
+- 브라우저(다크): 기록 9건 — 목록 09(최신 380Hz) 상단 → 01(최古) 하단, 차트 X축 1~9 회차,
+  Y 파노. "측정 기록 9건" 헤딩·하단 [측정] 고정 유지
+- 미검증: rolling 20 경계(21번째 삽입 시 최고령 삭제)는 마이크 수집 경로라 실측 못 함 — INV-20
+  로직은 상수 참조라 값만 바뀌고 기존 eviction 테스트 커버(엔티티 단위 테스트 존재)
