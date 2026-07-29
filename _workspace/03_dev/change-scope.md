@@ -463,3 +463,58 @@ Fitbit·Apple Health 수면 / PLATA 목록 / 계정 편집 input). 사용자 결
   6장 모두 tint·accent bar 구분 가능, 스파크라인 5개 렌더(기록 0건은 미렌더), 값 없음 EM_DASH.
 - 결함 1건을 실측으로 잡아 수정: 스파크라인을 종류색으로 그렸을 때 울트라대시(검정)가
   다크 카드에서 소실 → currentColor로 교체.
+
+## v2.13 라운드 (2026-07-29 — 폼 라벨 위로 회귀 · 게이지 개편 · placeholder·바늘 정정)
+
+### TARGET_BEHAVIOR
+1. **폼 라벨을 필드 위 굵은 텍스트로** (사용자 결정 A — 최신 레퍼런스 "Edit profile details").
+   v2.11의 notch를 철회한다.
+2. **측정 게이지 개편** (레퍼런스 게이지): 두꺼운 라운드 트랙 + 동일 두께 진행 아크 +
+   대비색 바늘 + 링 허브 + sparse 라벨.
+3. **BigNumber 값없음 placeholder 축소** — hero 사이즈 em dash가 검은 막대로 읽히는 문제 정정.
+4. **dim 상태에서도 바늘 노출**(최소 위치) — 사용자 요청.
+
+### 설계 판단
+- notch 철회 근거: 이 앱 폼에는 텍스트 입력이 아닌 컨트롤(세그먼트·스테퍼)이 섞여 있어 notch를
+  씌우면 라벨이 컨트롤 위에 겹쳐 z-index로 눌러야 했고, 라벨 뒤를 배경색으로 덮어야 해서
+  "background.paper 표면 위에서만 정상 렌더"라는 제약이 생겼다. 라벨을 위로 빼면 둘 다 사라진다.
+- 게이지 반지름을 두께에 맞춰 재계산했다(viewBox 고정 유지): 상단 CY−R−W/2=8.5, 하단
+  CY+R·cos70°+W/2=119.5 ≤ 120. 트랙·레드라인·진행 아크를 **같은 두께**로 맞춰 진행분이 트랙을
+  채우는 것으로 읽히게 했다(이전엔 트랙 2 위에 진행 4로 어긋났다).
+- 레드라인은 별도 반지름 밴드가 아니라 **트랙 구간을 덮는다**(두꺼운 트랙 밖에 덧붙일 여유 없음).
+  캡은 butt — round면 아크 끝을 넘어 부풀어 트랙 밖 혹처럼 보인다(실측 확인).
+- 바늘 색은 라임이 아니라 text.primary — 두꺼워진 라임 진행 아크와 겹치면 바늘이 사라진다.
+- 라벨을 2개(200·600)로 줄이고 반지름을 안쪽(40)으로 — 두꺼운 트랙 때문에 라벨이 안쪽으로
+  들어오면서 주 눈금선이 글자를 관통했다(실측 확인).
+- placeholder는 바깥에 typography를 유지한 채 **안쪽 span에서 em**으로 축소한다 — 바깥에 바로
+  em을 주면 부모(16px) 기준으로 계산돼 글리프가 붕괴한다. 행 높이는 상위 Row가 고정하므로
+  글리프만 줄여도 layout shift가 없다("동일 타이포" 규칙의 원래 목적은 시프트 방지였다).
+- dim에서 바늘을 남기는 근거: 숨기면 빈 트랙만 남아 "고장난 계기판"으로 보인다. 값 없음은
+  진행 아크 부재·중앙 placeholder·상태 라벨이 이미 전달하므로 시작점 바늘은 오해를 만들지 않는다.
+
+### ALLOWED_PATHS
+- `src/shared/ui/form-field/FormField.tsx` (라벨 위로·surfaceColor 제거)
+- `src/features/measure-session/ui/PanoGauge.tsx` + 신규 `PanoGauge.test.tsx`
+- `src/shared/ui/big-number/BigNumber.tsx`
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 게이지 viewBox 고정(layout shift 0) · 전체 aria-hidden(canonical은 BigNumber 텍스트) ·
+  바늘 CSS 보간 100ms linear · reduced-motion 무효화 · F0_RANGE 상수 1곳 소비
+- BigNumber sr-only "측정값 없음" 유지 · 폼 오류 결속(errorId) · 폼 공통 높이 48
+- 값 없음에 0·이전 값을 표시하지 않는다(위장 금지)
+
+### NON_GOALS
+- 게이지 스윕 각도·대역·눈금 간격 변경 · 상태 tint 체계 변경
+- 나머지 레퍼런스 영역(모터 상세 섹션, 다이얼로그, 탭 인디케이터) — 후속
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build·test 전부 exit 0, vitest 38건(게이지 신규 7건)
+- **게이지 active 상태는 브라우저로 도달 불가**(마이크 없으면 measuring이 안 됨) → unit으로 고정:
+  바늘 각도(min/중앙/max)·대역 밖 클램프·진행 아크 empty↔full·트랙/아크 동일 두께·aria-hidden·
+  dim에서 아크 부재+바늘 최소 위치.
+- 브라우저 실측: 트랙·레드라인 stroke-width 13 + round/butt 캡, 라벨 2개(200·600), 눈금 20개.
+  스크린샷으로 라벨 관통·레드라인 혹 결함 2건을 잡아 수정 후 재확인.
+- placeholder: 이전 99×142px 막대 → 축소·muted 확인(사용자 지적 재현 후 정정).

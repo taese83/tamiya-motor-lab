@@ -3,16 +3,18 @@ import {layoutTokens} from '@shared/config/design-tokens'
 
 import type {ReactNode} from 'react'
 
-// FormField (v2.11) — 폼 필드 공통 면. 레퍼런스(Mobbin input 패턴) 구조 채택:
-// ① 라벨을 테두리에 파넣어(notch) 필드 위 별도 줄을 없앤다 ② 값·컨트롤은 면 안에 들어간다
-// ③ 우측 인라인 액션(레퍼런스의 EDIT 위치)을 면 안에 둔다.
+// FormField — 폼 필드 공통 면 (레퍼런스: Mobbin 계정/프로필 편집 폼).
+// ① 라벨은 **필드 위 굵은 텍스트** ② 값·컨트롤은 테두리 면 안에 ③ 우측 인라인 액션 슬롯
+// ④ 오류/도움말 슬롯은 높이 예약(등장 시 레이아웃 밀림 금지).
 //
 // 표면 언어는 기존 것을 유지한다 — 직각(라운드 없음)·헤어라인 테두리·라임 포커스 링.
 // 레퍼런스의 라운드/pill은 가져오지 않는다(사용자 결정: 구조만 채택).
 //
-// notch 구현: 라벨을 테두리 위에 절대 배치하고 배경색으로 테두리를 끊는다.
-// 따라서 이 컴포넌트는 **background.paper 표면 위에서만** 정상 렌더된다(시트·카드 내부).
-// 다른 배경 위에 놓으면 라벨 뒤 색이 어긋난다 — 그때는 surfaceColor로 맞춘다.
+// v2.13: v2.11의 notch(라벨을 테두리에 파넣기)를 철회했다. 사용자가 최신 레퍼런스로
+// "라벨은 필드 위" 형태를 지정했고, 실제로 notch는 이 앱과 궁합이 나빴다 —
+// 폼에 텍스트 입력이 아닌 컨트롤(세그먼트·스테퍼)이 섞여 있어 그것들 위에도 라벨이 겹쳐
+// z-index로 눌러야 했고, 라벨 뒤를 배경색으로 덮어야 해서 "background.paper 표면 위에서만
+// 정상 렌더"라는 제약이 붙었다. 라벨을 위로 빼면 두 억지가 모두 사라진다.
 
 export interface FormFieldProps {
   /** 필드 라벨 — 테두리에 파넣어 표시한다 */
@@ -36,8 +38,6 @@ export interface FormFieldProps {
   action?: ReactNode | undefined
   /** 도움말 문구 — error가 없을 때만 표시 */
   helperText?: string | undefined
-  /** notch 라벨 뒤에 깔 배경 — 기본은 시트/카드 표면 */
-  surfaceColor?: string | undefined
   children: ReactNode
 }
 
@@ -49,15 +49,33 @@ export function FormField({
   hideHelperSlot = false,
   action,
   helperText,
-  surfaceColor = 'background.paper',
   children,
 }: FormFieldProps) {
   const hasError = error !== null && error !== ''
   return (
     <Box>
+      {/*
+        라벨 — 필드 위 굵은 텍스트(레퍼런스). 오류 시에도 색을 바꾸지 않는다:
+        오류 신호는 테두리 + 아래 helper 문구가 담당하고, 라벨까지 붉게 물들이면
+        "무엇이 문제인지"보다 "어디가 붉은지"가 먼저 읽힌다.
+      */}
+      <Typography
+        {...(labelFor !== undefined
+          ? {component: 'label' as const, htmlFor: labelFor}
+          : {component: 'span' as const, 'aria-hidden': true})}
+        variant="body2"
+        sx={{
+          display: 'block',
+          mb: 0.75,
+          fontWeight: 700,
+          color: 'text.primary',
+          lineHeight: 1.2,
+        }}>
+        {label}
+      </Typography>
+
       <Box
         sx={{
-          position: 'relative',
           display: 'flex',
           alignItems: 'stretch',
           minHeight: layoutTokens.formControlHeight,
@@ -78,32 +96,6 @@ export function FormField({
             outlineOffset: '1px',
           },
         }}>
-        <Typography
-          {...(labelFor !== undefined
-            ? {component: 'label' as const, htmlFor: labelFor}
-            : {component: 'span' as const, 'aria-hidden': true})}
-          variant="overline"
-          sx={{
-            position: 'absolute',
-            top: 0,
-            left: 10,
-            transform: 'translateY(-50%)',
-            // 내부 컨트롤이 면을 꽉 채우므로(세그먼트 등) 라벨이 그 위로 올라와야 한다.
-            // 없으면 선택된 세그먼트 색에 라벨이 묻힌다(실측 확인).
-            zIndex: 1,
-            px: 0.5,
-            // 테두리를 끊는 핵심 — 라벨 뒤에 표면색을 깐다
-            bgcolor: surfaceColor,
-            color: hasError ? 'error.main' : 'text.secondary',
-            lineHeight: 1,
-            pointerEvents: 'none',
-            maxWidth: 'calc(100% - 20px)',
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-            textOverflow: 'ellipsis',
-          }}>
-          {label}
-        </Typography>
 
         <Box sx={{flex: 1, minWidth: 0, display: 'flex', alignItems: 'center'}}>{children}</Box>
         {action !== undefined && action !== null && (

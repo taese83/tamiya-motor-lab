@@ -18,11 +18,27 @@ const VIEW_BOX = '0 0 200 120'
 const CX = 100
 /** 아크 중심 y — 220° 스윕(하단 y = CY + R·cos70° ≈ CY + 0.342R)이 높이 120 안에 들어가는 값 */
 const CY = 88
-const TRACK_R = 84
-const REDLINE_R = 78
-const MAJOR_TICK_INNER_R = 76
-const MINOR_TICK_INNER_R = 80
-const LABEL_R = 62
+/**
+ * v2.13 두꺼운 라운드 트랙 (레퍼런스 게이지). 이전 트랙은 strokeWidth 2 헤어라인이라
+ * 계기판이 아니라 얇은 선처럼 보였다 — 두께가 이 컴포넌트 인상의 핵심이다.
+ *
+ * 반지름은 두께를 반영해 다시 계산했다(viewBox 200×120 고정, layout shift 0 유지):
+ * - 상단 여유: CY − R − STROKE_W/2 = 88 − 73 − 6.5 = 8.5 ≥ 0 ✓
+ * - 하단 여유: CY + R·cos70° + STROKE_W/2 = 88 + 24.97 + 6.5 = 119.5 ≤ 120 ✓
+ */
+const STROKE_W = 13
+const TRACK_R = 73
+/** 트랙 내부 여백 뒤에서 시작하는 눈금 — 트랙을 가로지르지 않고 안쪽에만 놓는다(레퍼런스) */
+const TICK_OUTER_R = TRACK_R - STROKE_W / 2 - 2.5
+const MAJOR_TICK_INNER_R = TICK_OUTER_R - 8
+const MINOR_TICK_INNER_R = TICK_OUTER_R - 4
+/**
+ * 라벨은 2개만(레퍼런스의 sparse 표기) — 중앙 BigNumber 오버레이와 겹치지 않는 하단 양옆.
+ * 반지름은 주 눈금 끝(MAJOR_TICK_INNER_R)보다 충분히 안쪽이어야 한다 — 가까우면 눈금선이
+ * 라벨 글자를 관통한다(실측 확인). 라벨 위치가 하단 양옆이라 중앙 오버레이와는 겹치지 않는다.
+ */
+const LABEL_R = 40
+const LABELED_HZ = [200, 600] as const
 
 const HZ_MIN = F0_RANGE.min // 170
 const HZ_MAX = F0_RANGE.max // 620
@@ -61,7 +77,13 @@ const arcPath = (fromDeg: number, toDeg: number, r: number): string => {
 }
 
 const TRACK_PATH = arcPath(-SWEEP_DEG / 2, SWEEP_DEG / 2, TRACK_R)
-const REDLINE_PATH = arcPath(hzToDeg(REDLINE_START_HZ), SWEEP_DEG / 2, REDLINE_R)
+/**
+ * 레드라인 — 별도 반지름의 얇은 밴드가 아니라 **트랙 구간 자체를 error 색으로 덮는다**.
+ * 두꺼운 트랙에서는 밖에 덧붙일 여유가 없고(상단 클리핑), 트랙 위에 겹쳐야 "그 구간이
+ * 레드존"으로 읽힌다. 진행 아크가 그 위에 그려지므로 값이 레드존에 들어가면 라임이 덮는데,
+ * 값 너머로 남는 붉은 구간과 바늘 위치가 여전히 레드존을 알린다(장식 채널 — DS-A15).
+ */
+const REDLINE_PATH = arcPath(hzToDeg(REDLINE_START_HZ), SWEEP_DEG / 2, TRACK_R)
 /** 진행 아크는 트랙 경로 자체(DS §9.4 "트랙 위") — dasharray/dashoffset으로 170→현재 값 구간만 노출 */
 const TRACK_ARC_LENGTH = round2((TRACK_R * Math.PI * SWEEP_DEG) / 180)
 
@@ -74,7 +96,7 @@ interface GaugeTick {
 
 const buildTick = (hz: number, major: boolean, labeled: boolean): GaugeTick => {
   const deg = hzToDeg(hz)
-  const [x1, y1] = polar(deg, TRACK_R)
+  const [x1, y1] = polar(deg, TICK_OUTER_R)
   const [x2, y2] = polar(deg, major ? MAJOR_TICK_INNER_R : MINOR_TICK_INNER_R)
   const [lx, ly] = polar(deg, LABEL_R)
   return {
@@ -90,7 +112,9 @@ const TICKS: readonly GaugeTick[] = (() => {
   const ticks: GaugeTick[] = [buildTick(HZ_MIN, true, false), buildTick(HZ_MAX, true, false)]
   for (let hz = Math.ceil(HZ_MIN / MINOR_STEP_HZ) * MINOR_STEP_HZ; hz < HZ_MAX; hz += MINOR_STEP_HZ) {
     const major = hz % MAJOR_STEP_HZ === 0
-    ticks.push(buildTick(hz, major, major))
+    // 라벨은 LABELED_HZ 2개만 — 두꺼운 트랙 때문에 라벨 반지름이 안쪽으로 들어와
+    // 5개를 다 쓰면 중앙 BigNumber 오버레이와 겹친다(레퍼런스도 2개만 표기)
+    ticks.push(buildTick(hz, major, (LABELED_HZ as readonly number[]).includes(hz)))
   }
   return ticks
 })()
@@ -121,14 +145,25 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
       aria-hidden="true"
       style={{display: 'block', width: '100%', height: '100%'}}>
       <g style={{opacity: dim ? 0.45 : 1}}>
-        {/* 트랙 — divider 헤어라인 */}
-        <path d={TRACK_PATH} fill="none" strokeWidth={2} style={{stroke: palette.divider}} />
-        {/* 레드라인 580~620 Hz — error.main 단색 밴드 (v2: 그라디언트 폐기, DS §9.4) */}
+        {/* 트랙 — 두꺼운 라운드 캡(레퍼런스). action.hover로 면을 만들어 divider보다 존재감을 준다 */}
+        <path
+          d={TRACK_PATH}
+          fill="none"
+          strokeWidth={STROKE_W}
+          strokeLinecap="round"
+          style={{stroke: palette.action.hover}}
+        />
+        {/* 레드라인 580~620 Hz — 트랙과 같은 반지름·두께로 그 구간을 덮는다 (DS §9.4 · DS-A15 장식) */}
+        {/*
+          butt 캡을 쓴다 — round면 캡이 아크 끝을 넘어 부풀어서 트랙 밖으로 튀어나온 혹처럼
+          보인다(실측 확인). butt면 트랙 두께 안에 정확히 들어앉는다.
+        */}
         <path
           d={REDLINE_PATH}
           fill="none"
-          strokeWidth={5}
-          style={{stroke: palette.error.main, opacity: 0.9}}
+          strokeWidth={STROKE_W}
+          strokeLinecap="butt"
+          style={{stroke: palette.error.main, opacity: 0.75}}
         />
         {TICKS.map(tick => (
           <g key={tick.hz}>
@@ -171,6 +206,9 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
           }}>
           Hz
         </text>
+        {/*
+          진행 아크는 **값이 있을 때만** 그린다 — dim에서 아크가 보이면 "측정값 있음"으로 오해된다.
+        */}
         {panoHz !== null && (
           <>
             {/* 진행 아크 — 최소점→현재 값. 정적 경로 + dashoffset만 갱신(레이아웃 불변) */}
@@ -178,7 +216,8 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
               component="path"
               d={TRACK_PATH}
               fill="none"
-              strokeWidth={4}
+              // 트랙과 동일 두께 — 진행분이 트랙을 "채우는" 것으로 읽힌다(이전엔 2 위에 4로 어긋났다)
+              strokeWidth={STROKE_W}
               strokeLinecap="round"
               strokeDasharray={TRACK_ARC_LENGTH}
               sx={{
@@ -188,30 +227,46 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
                 '@media (prefers-reduced-motion: reduce)': {transition: 'none'},
               }}
             />
-            {/* 바늘 — 라임, CSS rotate 보간 */}
-            <Box
-              component="g"
-              sx={{
-                transform: `rotate(${hzToDeg(panoHz)}deg)`,
-                transformOrigin: `${CX}px ${CY}px`,
-                transformBox: 'view-box',
-                transition: `transform ${motionTokens.needleMs}ms linear`,
-                '@media (prefers-reduced-motion: reduce)': {transition: 'none'},
-              }}>
-              <line
-                x1={CX}
-                y1={CY + 10}
-                x2={CX}
-                y2={CY - 68}
-                strokeWidth={3}
-                strokeLinecap="round"
-                style={{stroke: limeFg}}
-              />
-            </Box>
-            {/* 허브 — 회전 불변이라 그룹 밖(브라우저 회전 보간 부하 최소화) */}
-            <circle cx={CX} cy={CY} r={4} style={{fill: limeFg}} />
           </>
         )}
+
+        {/*
+          바늘·허브는 **dim에서도 렌더**한다 (v2.13 — 값 없을 때 최소 위치에 둔다).
+          숨기면 게이지가 빈 트랙만 남아 "고장난 계기판"처럼 보인다. 값이 없다는 사실은
+          진행 아크 부재 + 중앙 placeholder + 상태 라벨이 이미 전달하므로, 바늘이 시작점에
+          놓여 있는 것은 오해를 만들지 않는다(dim 그룹 opacity로 함께 낮아진다).
+
+          색은 text.primary(대비색) — 라임으로 두면 같은 라임 진행 아크와 겹치는 구간에서
+          바늘이 사라진다(두꺼워진 아크 때문에 겹침이 크다). 레퍼런스도 컬러 아크 + 중성 바늘이다.
+        */}
+        <Box
+          component="g"
+          sx={{
+            transform: `rotate(${hzToDeg(panoHz ?? HZ_MIN)}deg)`,
+            transformOrigin: `${CX}px ${CY}px`,
+            transformBox: 'view-box',
+            transition: `transform ${motionTokens.needleMs}ms linear`,
+            '@media (prefers-reduced-motion: reduce)': {transition: 'none'},
+          }}>
+          <line
+            x1={CX}
+            y1={CY + 9}
+            x2={CX}
+            y2={CY - 60}
+            strokeWidth={3.5}
+            strokeLinecap="round"
+            style={{stroke: palette.text.primary}}
+          />
+        </Box>
+        {/* 허브 — 회전 불변이라 그룹 밖(브라우저 회전 보간 부하 최소화).
+            레퍼런스처럼 배경색 채움 + 링으로 바늘 뿌리를 정리한다 */}
+        <circle
+          cx={CX}
+          cy={CY}
+          r={5.5}
+          strokeWidth={3}
+          style={{fill: palette.background.paper, stroke: palette.text.primary}}
+        />
       </g>
     </svg>
   )
