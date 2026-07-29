@@ -66,3 +66,37 @@
 ### TEST_EVIDENCE
 - Node 22: tsc·eslint·vite build 클린. 엔진 22건 회귀 없음.
 - preview 스모크(가능 시): 초기화 후 파노 그래프 잔존 / 레이스 기록 수정 왕복 / 차트 렌더·다크·라이트
+
+## v2.4 라운드 (2026-07-29 — 모터 목록 종류 필터)
+
+### TARGET_BEHAVIOR
+`/motors` 목록에서 모터 종류로 필터한다. 종류 칩 **다중선택**(가로 스크롤 행), 선택 0개 = 전체.
+필터가 걸린 동안 **DnD 정렬은 잠근다** — `reorderMotors`가 전체 모터 id의 완전한 순열을 요구하므로
+필터된 부분집합을 전송하면 순열 검증에 실패한다(SO-2). 사용자 결정: 잠금 + 안내 문구.
+필터 상태는 URL search param에 보존해 상세 진입→뒤로 복귀 시 유지한다.
+
+### ALLOWED_PATHS
+- `src/features/motor-management/model/use-motor-kind-filter.ts` (신규)
+- `src/features/motor-management/ui/MotorKindFilter.tsx` (신규)
+- `src/features/motor-management/ui/MotorList.tsx`·`MotorRow.tsx` (reorderDisabled 전달)
+- `src/features/motor-management/{ui,model}/index.ts` (배럴)
+- `src/pages/motors/ui/MotorsPage.tsx` (조립)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- `reorderMotors` 전체 순열 계약·INV-19(sortOrder 연속)·낙관 재배열/롤백 동작
+- `MotorList`/`MotorRow` 기존 props 하위호환(reorderDisabled는 optional additive)
+- 전체 0건 EmptyState 경로(E-1)와 필터 0건 경로를 구분 — 오류·빈 상태 위장 금지
+- 44px 타깃·색 단독 구분 금지·다크/라이트 WCAG AA·키보드 정렬 경로
+
+### NON_GOALS
+- 레이스 진입 목록('/race')·측정 모터 선택 팝업 필터(사용자 결정: 모터 목록만)
+- 이름 검색, 정렬 기준 변경(파노·기록수 정렬), 필터 프리셋 저장
+- 필터된 상태에서의 부분 정렬 커밋(명시적으로 기각)
+
+### CHANGE_BUDGET
+- 신규 의존성 0 — react-router useSearchParams와 기존 MUI Chip 재사용
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build 클린, vitest 회귀 없음
+- 브라우저: 다중선택 필터 · 필터 중 핸들 비활성+안내 · 필터 0건 문구 · 상세 왕복 후 필터 유지 · 다크/라이트
+
