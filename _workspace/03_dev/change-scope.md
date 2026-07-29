@@ -571,3 +571,54 @@ Fitbit·Apple Health 수면 / PLATA 목록 / 계정 편집 input). 사용자 결
   aria-label 3건이 의도한 문장으로 생성됨(기록 없음 행은 "레이스 기록 없음")
 - 브라우저: ConfirmDialog 중앙 스택 확인 — 버튼 순서 [삭제, 취소], **초기 포커스 "취소"** 실측
 - 콘솔 오류 0
+
+---
+
+## v2.15 — 레이스 입력 드로우어 가로 스크롤 제거 (bug-fix)
+
+### TARGET_BEHAVIOR
+- BottomSheet(레이스 입력/수정 시트)에 가로 스크롤이 생기지 않는다.
+
+### 원인 (실측)
+`paper.clientWidth 375 / scrollWidth 383` — **정확히 8px** 초과. 넘긴 요소는 시트 최상단의
+스크린리더 전용 고지 `<Box role="status">`(자식 0개, `left 8 / width 375px / margin -8px`).
+
+`RaceEntrySheet`의 sr-only 레시피가 **단위 없는 숫자**를 썼다. MUI `sx`는 이를 px로 읽지 않는다:
+- `width: 1` → 0~1은 배수 → **100%**(=375px)
+- `margin: -1` → **theme.spacing(-1) = -8px**
+
+→ 폭 100% + 좌측 -8px ⇒ 오른쪽으로 8px 돌출. 같은 레시피의 나머지 3곳
+(`BigNumber`·`MeasureStatusLabel`·`MeasurePage`)은 `'1px'`/`'-1px'` 문자열이라 정상이었고,
+이 파일만 손으로 옮기며 단위가 빠졌다.
+
+### 판단
+증상만 덮는 `overflowX: 'hidden'`은 넣지 않았다 — 이후 실제 넘침이 생기면 콘텐츠가
+**보이지도 닿지도 않게** 잘려 더 찾기 어려운 버그가 된다. 원인만 고친다.
+
+4중 복제가 단위 실수를 허용한 구조라, 값이 동일한 나머지 3곳까지 `srOnlySx` 단일 출처로
+합쳤다(값 변화 0 — 시각·낭독 동작 동일).
+
+### ALLOWED_PATHS
+- `src/shared/config/design-tokens.ts` (`srOnlySx` 신설)
+- `src/features/race-record/ui/RaceEntrySheet.tsx` (버그 지점)
+- `src/shared/ui/big-number/BigNumber.tsx`, `src/shared/ui/measure-status-label/MeasureStatusLabel.tsx`,
+  `src/pages/measure/ui/MeasurePage.tsx` (복제 제거만)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 왕복 복귀 sr 고지 1회(`role="status"`) · S1 visually-hidden h1 "측정"(layout-spec §1)
+- BigNumber 값 없음 sr 문구 "측정값 없음" · MeasureStatusLabel live 단일 채널
+- 시트 컴포넌트 공개 props·포커스 순서·pending 중 닫기 차단 전부 불변
+
+### NON_GOALS
+- 시트 레이아웃·필드 구성 변경 · `overflowX` 방어 코드 추가 · RaceRecordRow 레이아웃
+
+### CHANGE_BUDGET
+- 신규 의존성 0 · 동작 변경은 버그 지점 1곳(나머지는 상수 출처 이동)
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build·test 전부 exit 0, vitest 38건 회귀 없음
+- 브라우저 375px: 입력 시트 `hScroll 0`(수정 전 8) · 넘친 요소 목록 0건 · sr Box 실측 1×1px
+- 브라우저 320px(최협) × {입력, 수정} 모드 + 최대 길이 이름(30자) 조합 — 전부 `hScroll 0`
+- `/`·`/motors`·`/race` 문서 레벨 가로 스크롤 0 · S1 h1 1×1 · 상태 live 1×1 · BigNumber sr 1×1
+- 신규 error 리스너로 재검증: 시트 2모드 개폐 중 콘솔 오류 0건
+  (앞선 `visuallyHiddenSx is not defined`는 import 추가 전 HMR 과도 상태의 흔적 — 모듈 타임스탬프로 확인)

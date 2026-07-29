@@ -25,6 +25,7 @@ import {
   useRaceAutoCollect,
   useRaceMeasureSlot,
 } from '@features/race-measure-handoff'
+import {srOnlySx} from '@shared/config/design-tokens'
 import {MeasureStatusLabel} from '@shared/ui/measure-status-label'
 import {ThemeToggle} from '@shared/ui/theme-toggle'
 
@@ -48,19 +49,6 @@ interface ShellOutletContext {
   persistenceRetryPending: boolean
   resetPersistedData: () => Promise<boolean>
 }
-
-// S1의 h1은 visually-hidden "측정" — Z1 상태 라벨이 heading을 대체하지 않는다 (layout-spec §1).
-const visuallyHiddenSx = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0 0 0 0)',
-  whiteSpace: 'nowrap',
-  border: 0,
-} as const
 
 // view 7종 → MeasureStatusLabel(measureStatusTokens) 키 매핑 — MeasureFigures.statusTokenKey와
 // 동일 규칙(component-spec v2 §2.3): starting·insecure·awaiting-gesture → 'idle'.
@@ -184,7 +172,8 @@ export function MeasurePage() {
         // 가득 채워 Z1/Z2/Z3를 flex spacer(위 1 : 아래 1) 고정 비율로 배치한다 (layout-spec §4.1).
         minHeight: 'calc(100dvh - 56px - var(--mml-safe-bottom))',
       }}>
-      <Typography component="h1" sx={visuallyHiddenSx}>
+      {/* S1의 h1은 visually-hidden "측정" — Z1 상태 라벨이 heading을 대체하지 않는다 (layout-spec §1) */}
+      <Typography component="h1" sx={srOnlySx}>
         측정
       </Typography>
 

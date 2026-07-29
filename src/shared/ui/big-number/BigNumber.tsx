@@ -1,5 +1,5 @@
 import {Box} from '@mui/material'
-import {numericTypography} from '@shared/config/design-tokens'
+import {numericTypography, srOnlySx} from '@shared/config/design-tokens'
 import {EM_DASH} from '@shared/lib/format'
 
 export interface BigNumberProps {
@@ -17,18 +17,6 @@ const SIZE_TO_TYPOGRAPHY = {
   rpm: numericTypography.rpmValue,
   fano: numericTypography.fanoValue,
   guide: numericTypography.guideRange,
-} as const
-
-const srOnlySx = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0 0 0 0)',
-  whiteSpace: 'nowrap',
-  border: 0,
 } as const
 
 /**

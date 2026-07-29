@@ -2,7 +2,7 @@ import {Alert, Box, Button, Chip, InputAdornment, OutlinedInput, Typography} fro
 import {useId, useRef} from 'react'
 
 import {RACE_RESULT_LABELS, RACE_RESULTS} from '@shared/config/domain'
-import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
+import {layoutTokens, numericTypography, srOnlySx} from '@shared/config/design-tokens'
 import {formatFanoHz} from '@shared/lib/format'
 import {BottomSheet} from '@shared/ui/bottom-sheet'
 import {FormField} from '@shared/ui/form-field'
@@ -65,18 +65,6 @@ export interface RaceEntrySheetProps {
 // ── 내부 상수·유틸 ──────────────────────────────────────────────────────────────
 
 const RESULT_OPTIONS = RACE_RESULTS.map(value => ({value, label: RACE_RESULT_LABELS[value]}))
-
-const visuallyHiddenSx = {
-  position: 'absolute',
-  width: 1,
-  height: 1,
-  margin: -1,
-  padding: 0,
-  overflow: 'hidden',
-  clip: 'rect(0 0 0 0)',
-  whiteSpace: 'nowrap',
-  border: 0,
-} as const
 
 /**
  * v2.10 필드 리듬 — 모든 행이 같은 간격을 쓴다. 이전에는 mb 1.5/2가 섞여 있었다.
@@ -144,7 +132,7 @@ export function RaceEntrySheet({
       }}
       onOpened={() => measureButtonRef.current?.focus()}>
       {/* 왕복 자동 복귀 sr 고지 1회 (§6.3) — 수동 복귀(파노 원값)면 미발화 */}
-      <Box role="status" sx={visuallyHiddenSx}>
+      <Box role="status" sx={srOnlySx}>
         {justMeasured && pano.kind === 'measured'
           ? `측정 완료 — 파노 ${formatFanoHz(pano.panoHz)}로 갱신되었습니다`
           : ''}

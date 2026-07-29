@@ -270,6 +270,29 @@ export const shapeTokens = {
   cutCornerLg: 'polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)',
 } as const
 
+/**
+ * 스크린리더 전용 숨김 — 시각 렌더 없음, 레이아웃 점유 없음.
+ *
+ * v2.15 신설: 이 레시피는 네 곳에 손으로 복제돼 있었고 그중 한 곳(RaceEntrySheet)에서
+ * 단위가 빠져 실제 버그가 났다. MUI `sx`는 단위 없는 숫자를 px로 읽지 않는다 —
+ * `width: 1`은 100%(0~1은 배수), `margin: -1`은 theme.spacing(-1) = -8px다.
+ * 그 결과 폭 100% + 좌측 -8px가 되어 BottomSheet에 8px 가로 스크롤이 생겼다.
+ * 단위 실수가 조용히 통과하지 않도록 px 문자열로 고정한 단일 출처를 둔다.
+ *
+ * `clip`은 폐기 속성이지만 `clip-path`보다 지원 폭이 넓어 관례상 함께 유지한다.
+ */
+export const srOnlySx = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+} as const
+
 export const motionTokens = {
   /** stable 확정 시 배경 tint 전환 1회 — reduced-motion이면 0ms */
   stableTransitionMs: 400,

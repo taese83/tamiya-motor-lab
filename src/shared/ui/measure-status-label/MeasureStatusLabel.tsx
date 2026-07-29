@@ -1,5 +1,5 @@
 import {Box} from '@mui/material'
-import {measureStatusTokens, motionTokens} from '@shared/config/design-tokens'
+import {measureStatusTokens, motionTokens, srOnlySx} from '@shared/config/design-tokens'
 import type {MeasureStatusVisual} from '@shared/config/design-tokens'
 import type {ReactElement} from 'react'
 
@@ -27,19 +27,6 @@ const STATUS_LABELS: Record<MeasureStatus, string> = {
   'no-permission': '마이크 권한 필요',
   suspended: '오디오 일시 중지됨',
 }
-
-// sr 전용 숨김 (시각 렌더 없음, live 영역 단일 채널)
-const srOnlySx = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0 0 0 0)',
-  whiteSpace: 'nowrap',
-  border: 0,
-} as const
 
 type StatusIconName = Exclude<MeasureStatusVisual['icon'], 'pulse-dot'>
 
@@ -122,6 +109,7 @@ export function MeasureStatusLabel({status, announcement}: MeasureStatusLabelPro
       <Box component="span" sx={{fontSize: '1rem', fontWeight: 600}}>
         {STATUS_LABELS[status]}
       </Box>
+      {/* live 영역 단일 채널 — 시각 라벨과 별도로 낭독되지 않게 sr 전용으로만 둔다 */}
       <Box role="status" sx={srOnlySx}>
         {announcement}
       </Box>
