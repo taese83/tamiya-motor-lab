@@ -49,8 +49,9 @@ function ThemeColorMetaSync() {
 export function App() {
   return (
     // 다크 기본 + 라이트 토글 (v2 §7): modeStorageKey는 index.html 부팅 스크립트의
-    // localStorage 키('mml-mode')와 문자열 결속 — 변경 시 양쪽 동시 수정.
-    <ThemeProvider theme={theme} defaultMode="dark" modeStorageKey="mml-mode" disableTransitionOnChange noSsr>
+    // localStorage 키('mml-mode-2')와 문자열 결속 — 변경 시 index.html 부팅 스크립트와 동시 수정.
+    // 키 v2: 초기화 버그 시절 기기의 잔존 light 값 무효화 (실기기 피드백 — 다크 재시작).
+    <ThemeProvider theme={theme} defaultMode="dark" modeStorageKey="mml-mode-2" disableTransitionOnChange noSsr>
       <CssBaseline />
       <ThemeColorMetaSync />
       <QueryClientProvider client={queryClient}>

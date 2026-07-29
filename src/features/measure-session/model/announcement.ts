@@ -39,7 +39,7 @@ export function buildAnnouncement(view: MeasureView): string {
     case 'measuring':
       return '측정 중'
     case 'weak-signal':
-      return '신호가 약합니다. 모터에 더 가까이 대세요'
+      return '신호 약함' // 실기기 피드백: 시각 안내 문구 제거에 맞춰 SR도 상태만 간결 전달
     case 'no-permission':
       return view.permanent
         ? '브라우저 설정에서 마이크 권한을 허용해야 합니다'

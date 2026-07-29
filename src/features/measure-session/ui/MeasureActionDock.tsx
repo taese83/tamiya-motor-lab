@@ -163,11 +163,26 @@ export function MeasureActionDock({
         aria-expanded={slot.ariaExpanded}
         aria-controls={slot.ariaControls}
         sx={[
+          // v3 컷코너 버튼은 실제 면을 ::before 레이어가 그린다(theme MuiButton 계약) —
+          // 루트 배경만 바꾸면 라임 면이 그 위에 남아 다크에서 저대비(실기기 피드백).
+          // ::before를 함께 끄고 글자는 text.secondary로 유지(비활성이어도 판독 가능).
           slot.softDisabled &&
             (theme => ({
-              backgroundColor: theme.palette.action.disabledBackground,
-              color: theme.palette.action.disabled,
-              '&:hover': {backgroundColor: theme.palette.action.disabledBackground},
+              color: theme.palette.text.secondary,
+              boxShadow: 'none',
+              cursor: 'default',
+              '&::before': {
+                backgroundColor: theme.palette.action.disabledBackground,
+                filter: 'none',
+              },
+              '&:hover': {
+                boxShadow: 'none',
+                '&::before': {
+                  backgroundColor: theme.palette.action.disabledBackground,
+                  filter: 'none',
+                },
+              },
+              '&:active': {transform: 'none'},
             })),
         ]}>
         {slot.label}

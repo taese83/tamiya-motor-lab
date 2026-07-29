@@ -123,6 +123,14 @@ export interface EngineTuning {
   gateVoicingThreshold: number
   /** 무음 판정 RMS 임계 */
   silenceRms: number
+  /**
+   * 근접 필터 RMS 임계 (v2.1 실기기 피드백) — 이 값 미만이면 분석 생략(weak-signal).
+   * 폰을 가까이 댄 모터는 원거리 모터보다 수십 배 큰 진폭으로 들어오므로,
+   * 절대 음량 하한이 "측정 대상 = 가까운 모터 하나"를 강제한다. 여러 모터가 하한을
+   * 함께 넘으면 고조파 에너지 최강(=가장 크게 들리는) 후보를 채택한다(comb 채점 순위).
+   * 실기기 튜닝 대상 — 합성 fixture(진폭 ≥0.4 RMS)에는 영향 없는 값이어야 한다.
+   */
+  proximityRms: number
   /** fixed-lag Viterbi 지연 (프레임 수) — v2 §1: 5 */
   viterbiLag: number
   /** 연속 드리프트 전이 비용 가중 (옥타브당) */
@@ -167,6 +175,8 @@ export const DEFAULT_TUNING: EngineTuning = {
   gateMinHarmonics: 2,
   gateVoicingThreshold: 0.15,
   silenceRms: 1e-5,
+  proximityRms: 0.008, // 실기기 보정 대상 baseline — 원거리 모터 잡음(통상 <0.005 RMS) 차단
+
   viterbiLag: 5,
   driftCostWeight: 4,
   jumpCostThresholdOctaves: 0.35,

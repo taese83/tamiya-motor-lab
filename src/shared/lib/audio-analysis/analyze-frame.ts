@@ -73,8 +73,11 @@ export function createFrameAnalyzer(
       let sumSq = 0
       for (let i = 0; i < frame.length; i++) sumSq += frame[i]! * frame[i]!
       const rms = Math.sqrt(sumSq / Math.max(1, frame.length))
-      // 무음 가드: 0 RPM·임의 값 표시 금지 (REQ-ST-003) — 분석 자체를 생략
-      if (rms < options.silenceRms) return emptyAnalysis(rms)
+      // 무음 가드: 0 RPM·임의 값 표시 금지 (REQ-ST-003) — 분석 자체를 생략.
+      // 근접 필터(v2.1): 절대 음량 하한 미달 = 원거리 소음 — 측정 대상 아님(weak-signal).
+      // 하한을 넘는 신호가 여럿이면 comb 채점이 고조파 에너지 최강(가장 크게 들리는
+      // 모터)을 선택한다 — "비슷하면 더 큰 소리 기준" 사용자 확정 동작.
+      if (rms < Math.max(options.silenceRms, options.proximityRms)) return emptyAnalysis(rms)
 
       const pyinCandidates = estimateFrame(frame, decimatedRate, {
         fMin: options.fMin,

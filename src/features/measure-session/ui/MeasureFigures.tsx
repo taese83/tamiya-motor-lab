@@ -41,7 +41,7 @@ function messageFor(view: MeasureView): string | null {
     case 'awaiting-gesture':
       return '탭하여 측정을 시작하세요' // 오류 어휘 금지 — 중립 톤 (M-1)
     case 'weak-signal':
-      return '신호가 약합니다. 모터에 더 가까이 대세요'
+      return null // 실기기 피드백: 안내 문구 제거 — 게이지 dim + "—"가 상태를 전달한다
     case 'no-permission':
       return view.permanent
         ? '브라우저 설정에서 마이크 권한을 허용해야 합니다'
