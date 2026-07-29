@@ -47,6 +47,8 @@ export type RaceEntryFieldErrors = Partial<Record<RaceEntryField, string>>
 
 export interface RaceEntrySheetProps {
   open: boolean
+  /** create(신규 입력) / edit(기존 기록 수정, v2.3) — 제목·[측정] 노출·제출 라벨 분기 */
+  mode: 'create' | 'edit'
   motorName: string
   pano: RaceEntryPano
   /** 제어형 — 왕복 복원을 위해 상위(useRaceEntry)가 소유 */
@@ -120,14 +122,17 @@ function FieldLabel({children, htmlFor}: {children: ReactNode; htmlFor?: string 
 }
 
 /**
- * S6 레이스 입력 시트 (component-spec §6.3 — R-3·R-4·LD-3, BottomSheet).
+ * S6 레이스 입력/수정 시트 (component-spec §6.3 — R-3·R-4·LD-3, BottomSheet).
  * 완전 제어형 폼 — draft·pano·오류 전부 상위(useRaceEntry) 소유, 여기는 순수 렌더+콜백.
- * focus order(layout §6.3): 파노 [측정] → 결과 세그먼트 → 전압 → 랩타임 → [입력] → [취소].
+ * mode=create: 파노 [측정] 왕복 + [입력]. mode=edit(v2.3): panoHz 읽기전용([측정] 미노출),
+ * result·voltage·lapTimeMs만 편집 + [저장]. focus order(layout §6.3):
+ * (create) 파노 [측정] → 결과 → 전압 → 랩타임 → [입력] → [취소].
  * 상태 전수: editing(auto/measured/none) / validating-error / pending / submit-error /
  * just-measured / closed.
  */
 export function RaceEntrySheet({
   open,
+  mode,
   motorName,
   pano,
   draft,
@@ -145,6 +150,7 @@ export function RaceEntrySheet({
   const lapTimeErrorId = useId()
   const measureButtonRef = useRef<HTMLButtonElement>(null)
 
+  const isEdit = mode === 'edit'
   const hasSubmitError = errorMessage !== null && errorMessage !== ''
   const hasLapTimeError = fieldErrors.lapTime !== undefined && fieldErrors.lapTime !== ''
   // [입력] 활성 = 파노·결과·전압 충족(§6.3) — 범위·포맷 검증은 제출 시(fieldErrors)
@@ -165,7 +171,7 @@ export function RaceEntrySheet({
   return (
     <BottomSheet
       open={open}
-      title={`레이스 입력 — ${motorName}`}
+      title={`${isEdit ? '레이스 수정' : '레이스 입력'} — ${motorName}`}
       onClose={() => {
         if (!pending) onClose() // 저장 중 닫힘 차단(single-flight — 성공/실패 확정 후 닫힘)
       }}
@@ -184,9 +190,9 @@ export function RaceEntrySheet({
           </Alert>
         )}
 
-        {/* ① 파노 (자동) — 읽기전용 인용값 + [측정] 왕복 진입 */}
+        {/* ① 파노 — create: 자동 인용값 + [측정] 왕복 진입 / edit: 측정값 읽기전용(수정 불가) */}
         <Box sx={{mb: 1.5}}>
-          <FieldLabel>파노 (자동)</FieldLabel>
+          <FieldLabel>{isEdit ? '파노 (측정값 · 수정 불가)' : '파노 (자동)'}</FieldLabel>
           <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
             {pano.kind === 'none' ? (
               <Typography component="span" color="text.secondary" sx={{flex: 1}}>
@@ -203,18 +209,21 @@ export function RaceEntrySheet({
                 )}
               </Box>
             )}
-            <Button
-              ref={measureButtonRef}
-              variant="outlined"
-              onClick={onMeasure}
-              disabled={pending}
-              sx={{minHeight: 44, flexShrink: 0}}>
-              측정
-            </Button>
+            {/* [측정] 왕복은 create 전용 — edit은 측정값을 수정하지 않는다 */}
+            {!isEdit && (
+              <Button
+                ref={measureButtonRef}
+                variant="outlined"
+                onClick={onMeasure}
+                disabled={pending}
+                sx={{minHeight: 44, flexShrink: 0}}>
+                측정
+              </Button>
+            )}
           </Box>
-          {/* 파노는 필수 — none이면 [입력] 비활성, 유도 문구 슬롯(1줄 상시) */}
+          {/* 파노는 필수 — create에서 none이면 [입력] 비활성, 유도 문구 슬롯(1줄 상시) */}
           <Box sx={{minHeight: '1.25rem', mt: 0.5}}>
-            {pano.kind === 'none' && (
+            {!isEdit && pano.kind === 'none' && (
               <FormHelperText sx={{m: 0}}>[측정]으로 파노를 먼저 측정하세요</FormHelperText>
             )}
           </Box>
@@ -279,7 +288,7 @@ export function RaceEntrySheet({
             fullWidth
             disabled={pending || !canSubmit}
             sx={{minHeight: 48}}>
-            {pending ? '저장 중…' : hasSubmitError ? '다시 저장' : '입력'}
+            {pending ? '저장 중…' : hasSubmitError ? '다시 저장' : isEdit ? '저장' : '입력'}
           </Button>
           <Button variant="text" fullWidth onClick={onClose} disabled={pending} sx={{minHeight: 44}}>
             취소

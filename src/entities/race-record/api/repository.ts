@@ -4,13 +4,17 @@ import {DOMAIN_ERROR_MESSAGES, DomainError, fromZodError} from '@shared/lib/erro
 import {mapStorageError, requireDb, withTransaction} from '@shared/lib/persistence'
 import {err} from '@shared/lib/result'
 
-import {createRaceRecordDraftSchema, parseRaceRecordRow} from '../model/schema'
+import {
+  createRaceRecordDraftSchema,
+  parseRaceRecordRow,
+  updateRaceRecordPatchSchema,
+} from '../model/schema'
 
-import type {CreateRaceRecordDraft, RaceRecord} from '../model/schema'
+import type {CreateRaceRecordDraft, RaceRecord, UpdateRaceRecordPatch} from '../model/schema'
 import type {Result} from '@shared/lib/result'
 
-// RaceRecord command 2건 + query 1건 (api-schema v2 §0·§4.4·§5 — F6-R).
-// RaceRecord는 immutable — update command는 존재하지 않는다 (INV-05, 측정·기록 신뢰성 보호).
+// RaceRecord command 3건 + query 1건 (api-schema v2 §0·§4.4·§5 — F6-R).
+// v2.3(INV-05 완화): update command 추가 — result·voltage·lapTimeMs만 편집, 측정값·구조 필드는 보존.
 // motors store 접근은 entity 코드 import가 아닌 shared/lib/persistence 경유 store 접근이다
 // (state-contract 위임 계약 5). store·index 이름은 state-contract v2 표기(raceRecords·by-motorId).
 
@@ -54,6 +58,46 @@ export async function createRaceRecord(draft: CreateRaceRecordDraft): Promise<Re
     }
     await tx.objectStore('raceRecords').add(record) // add — id 중복 시 실패 (INV-02)
     return record
+  })
+}
+
+/**
+ * command: updateRaceRecord (v2.3 — 오입력 정정, INV-05 완화).
+ * result·voltage·lapTimeMs만 갱신하고 panoHz·motorId·createdAt은 기존 행 값을 그대로 보존한다
+ * (측정값·정렬 키 불변 — 수정해도 리스트 순서가 바뀌지 않는다). lapTimeMs 생략은 필드 제거.
+ * raceRecords 단일 트랜잭션에서 get→검증→put. 대상 부재 시 not-found throw(abort로 무변경) —
+ * 삭제와 달리 멱등 성공이 아니다(존재하지 않는 기록의 "수정 성공"은 성공 위장이므로).
+ * persisted 행은 rehydrate 검증(INV-16) 후 병합 — corrupt 행은 data-corrupt로 abort.
+ * 오류: validation · not-found · data-corrupt · storage-unavailable · quota-exceeded · transaction-failed.
+ */
+export async function updateRaceRecord(
+  id: string,
+  patch: UpdateRaceRecordPatch,
+): Promise<Result<RaceRecord>> {
+  const idParsed = z.uuid().safeParse(id)
+  if (!idParsed.success) return err(fromZodError(idParsed.error))
+  const patchParsed = updateRaceRecordPatchSchema.safeParse(patch)
+  if (!patchParsed.success) return err(fromZodError(patchParsed.error))
+
+  return withTransaction(['raceRecords'], 'readwrite', async tx => {
+    const store = tx.objectStore('raceRecords')
+    const existing = await store.get(idParsed.data)
+    if (existing === undefined) {
+      throw new DomainError('not-found', DOMAIN_ERROR_MESSAGES['not-found'])
+    }
+    const current = parseRaceRecordRow(existing) // rehydrate 검증 (INV-16, persisted = 외부 입력)
+    const next: RaceRecord = {
+      id: current.id, // 구조 필드 보존
+      motorId: current.motorId, // FK 보존
+      panoHz: current.panoHz, // 측정값 보존 (수정 대상 아님)
+      createdAt: current.createdAt, // 정렬 키 보존 (수정해도 순서 불변)
+      result: patchParsed.data.result,
+      voltage: patchParsed.data.voltage,
+      // 생략은 저장하지 않음 = 랩타임 제거 (§2.1 null vs 생략 규칙)
+      ...(patchParsed.data.lapTimeMs !== undefined ? {lapTimeMs: patchParsed.data.lapTimeMs} : {}),
+    }
+    await store.put(next) // put — 기존 키 갱신
+    return next
   })
 }
 

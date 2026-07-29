@@ -5,11 +5,14 @@ import {LAP_TIME_MAX_MS, VOLTAGE_RANGE} from '@shared/config/domain'
 import {isDomainError} from '@shared/lib/errors'
 import {useToast} from '@shared/ui/toast'
 
-import {useCreateRaceRecord} from '../api'
+import {useCreateRaceRecord, useUpdateRaceRecord} from '../api'
 
 import type {RaceEntryDraft, RaceEntryField, RaceEntryFieldErrors, RaceEntryPano} from '../ui'
-import type {CreateRaceRecordDraft} from '@entities/race-record'
+import type {CreateRaceRecordDraft, RaceRecord} from '@entities/race-record'
 import type {DomainError} from '@shared/lib/errors'
+
+/** 시트 모드 — create(신규 기록) / edit(기존 기록 수정, v2.3) */
+export type RaceEntryMode = 'create' | 'edit'
 
 // S6 레이스 입력 시트 상태 훅 (component-spec §6.3·§7.2 — R-3·R-4, form-state-builder 소유).
 // draft·pano 표시·오류 전부 이 훅이 소유 — RaceEntrySheet는 순수 렌더+콜백(제어형).
@@ -170,8 +173,12 @@ export interface RaceMeasureReturnRestore {
 /** RaceEntrySheet props에 그대로 전개 가능한 형태(open·onSubmit·onClose만 이름 매핑) */
 export interface RaceEntryController {
   sheetOpen: boolean
-  /** [+ 입력] — 새 draft로 시트 오픈 (R-4 반복 입력) */
+  /** 시트 모드 — RaceEntrySheet에 전달(create/edit로 제목·버튼·[측정] 노출 분기) */
+  mode: RaceEntryMode
+  /** [+ 기록] — 새 draft로 시트 오픈 (create, R-4 반복 입력) */
   openSheet: () => void
+  /** 행 [수정] — 기존 기록 값으로 시트를 edit 모드로 오픈 (v2.3). pending 중 no-op */
+  editRecord: (record: RaceRecord) => void
   /** 취소·ESC·backdrop — draft 파기(§6.3, 왕복 복원은 slot이 별도 보존). pending 중 no-op */
   closeSheet: () => void
   draft: RaceEntryDraft
@@ -199,11 +206,17 @@ export interface RaceEntryController {
  */
 export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceEntryController {
   const createRaceRecord = useCreateRaceRecord()
+  const updateRaceRecord = useUpdateRaceRecord()
   const {showSuccess} = useToast()
 
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [mode, setMode] = useState<RaceEntryMode>('create')
+  // edit 대상 기록 id — create이면 null. submit에서 update/create 분기 결정.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  // edit 모드에서 표시할 기존 기록의 panoHz(측정값 — 수정 불가, 읽기전용 인용)
+  const [editPanoHz, setEditPanoHz] = useState<number | null>(null)
   const [draft, setDraft] = useState<RaceEntryDraft>(createInitialRaceEntryDraft)
-  // 왕복 measured 덮어쓰기 — null이면 initialPano(auto/none) 그대로 표시
+  // 왕복 measured 덮어쓰기(create 전용) — null이면 initialPano(auto/none) 그대로 표시
   const [measuredPanoHz, setMeasuredPanoHz] = useState<number | null>(null)
   const [justMeasured, setJustMeasured] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<RaceEntryFieldErrors>({})
@@ -212,11 +225,19 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
   // state 반영 전 같은 tick의 중복 탭까지 차단하는 동기 가드 (H-4)
   const inFlightRef = useRef(false)
 
+  // edit이면 기존 기록의 panoHz를 읽기전용 인용(auto)으로, create이면 measured 우선·아니면 initialPano
   const pano: RaceEntryPano =
-    measuredPanoHz !== null ? {kind: 'measured', panoHz: measuredPanoHz} : initialPano
+    mode === 'edit' && editPanoHz !== null
+      ? {kind: 'auto', panoHz: editPanoHz}
+      : measuredPanoHz !== null
+        ? {kind: 'measured', panoHz: measuredPanoHz}
+        : initialPano
 
   const resetEntry = (): void => {
     setDraft(createInitialRaceEntryDraft())
+    setMode('create')
+    setEditingId(null)
+    setEditPanoHz(null)
     setMeasuredPanoHz(null)
     setJustMeasured(false)
     setFieldErrors({})
@@ -226,6 +247,24 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
   const openSheet = (): void => {
     if (pending) return
     resetEntry()
+    setSheetOpen(true)
+  }
+
+  // v2.3 — 행 [수정]: 기존 기록 값으로 edit 모드 오픈. panoHz는 읽기전용 인용, 편집은 3필드만.
+  const editRecord = (record: RaceRecord): void => {
+    if (pending) return
+    setMode('edit')
+    setEditingId(record.id)
+    setEditPanoHz(record.panoHz)
+    setMeasuredPanoHz(null)
+    setDraft({
+      result: record.result,
+      voltageRaw: String(record.voltage),
+      lapTimeRaw: record.lapTimeMs !== undefined ? String(record.lapTimeMs / 1000) : '',
+    })
+    setJustMeasured(false)
+    setFieldErrors({})
+    setErrorMessage(null)
     setSheetOpen(true)
   }
 
@@ -263,13 +302,31 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     setFieldErrors({})
     setErrorMessage(null)
 
+    // 제출 시점 모드 고정 — 비동기 중 mode 변경 경합 방지 (create/edit 분기는 진입 시 결정)
+    const editingTarget = mode === 'edit' && editingId !== null ? editingId : null
+    const actionLabel = editingTarget !== null ? '수정' : '저장'
+
     void (async () => {
       try {
-        await createRaceRecord.mutateAsync(validation.commandDraft)
+        if (editingTarget !== null) {
+          // edit — panoHz·구조 필드는 command가 보존, patch는 편집 3필드만(commandDraft에서 추출)
+          await updateRaceRecord.mutateAsync({
+            id: editingTarget,
+            patch: {
+              result: validation.commandDraft.result,
+              voltage: validation.commandDraft.voltage,
+              ...(validation.commandDraft.lapTimeMs !== undefined
+                ? {lapTimeMs: validation.commandDraft.lapTimeMs}
+                : {}),
+            },
+          })
+        } else {
+          await createRaceRecord.mutateAsync(validation.commandDraft)
+        }
         // invalidation(raceKeys.byMotor·motorKeys.summaries)은 mutation 훅 소관 — 완료 후 resolve
         resetEntry()
         setSheetOpen(false)
-        showSuccess('저장됨') // §6.3 저장 성공 토스트 copy 고정
+        showSuccess(editingTarget !== null ? '수정되었습니다' : '저장됨') // §6.3 성공 토스트 copy
       } catch (e) {
         if (isDomainError(e) && e.code === 'validation') {
           // command 재검증 실패 — 필드 인라인 역매핑, 입력 유지 (H-2)
@@ -277,9 +334,9 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
           setFieldErrors(mapped.fieldErrors)
           setErrorMessage(mapped.bannerMessage)
         } else {
-          // not-found(동시 탭 모터 삭제 — 시트 유지+배너, 목록 invalidate는 mutation 훅)·storage 등
+          // not-found(동시 탭 선삭제 — 시트 유지+배너, 목록 invalidate는 mutation 훅)·storage 등
           const reason = isDomainError(e) ? e.message : UNKNOWN_ERROR_REASON
-          setErrorMessage(`저장하지 못했습니다 — ${reason}`)
+          setErrorMessage(`${actionLabel}하지 못했습니다 — ${reason}`)
         }
       } finally {
         setPending(false)
@@ -289,7 +346,11 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
   }
 
   const restoreFromMeasureReturn = (restore: RaceMeasureReturnRestore): void => {
-    // §7.2-2·3·5: 시트 재오픈 + draft 교체 복원 + (스냅샷 있으면) pano measured 설정
+    // §7.2-2·3·5: 시트 재오픈 + draft 교체 복원 + (스냅샷 있으면) pano measured 설정.
+    // 왕복 [측정]은 create 전용(edit은 [측정] 미노출) — 복원 시 create 모드 확정.
+    setMode('create')
+    setEditingId(null)
+    setEditPanoHz(null)
     setDraft(restore.draft)
     setMeasuredPanoHz(restore.measuredPanoHz)
     setJustMeasured(restore.justMeasured)
@@ -300,7 +361,9 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
 
   return {
     sheetOpen,
+    mode,
     openSheet,
+    editRecord,
     closeSheet,
     draft,
     onDraftChange,

@@ -5,7 +5,8 @@ import {DOMAIN_ERROR_MESSAGES, DomainError} from '@shared/lib/errors'
 import {panoHzStoredSchema} from '@shared/lib/schema/pano'
 
 // RaceRecord 엔티티 zod 스키마 단일 정의 (api-schema v2 §2.4 canonical, AD-7).
-// immutable — 생성·개별 삭제만(RV-A3), update command 없음(INV-05 — 오입력 복구는 삭제+재입력).
+// v2.3(INV-05 완화): 생성·개별 삭제(RV-A3)에 더해 **수정 command** 존재 — result·voltage·lapTimeMs만
+// 편집 가능. panoHz(측정값)·motorId·id·createdAt(정렬 키)은 불변(수정 대상 아님, 측정 신뢰성 보호).
 // persisted 데이터는 외부 입력 취급 — type assertion 금지 (INV-16).
 //
 // panoHz가 write에도 stored(완화) 스키마인 이유(AR-2): 출처가 항상 기존 MeasureRecord 인용
@@ -52,6 +53,16 @@ export const createRaceRecordDraftSchema = z.object({
   lapTimeMs: lapTimeMsSchema.optional(),
 })
 export type CreateRaceRecordDraft = z.input<typeof createRaceRecordDraftSchema>
+
+// 수정 patch (v2.3) — 편집 가능한 3필드 전체를 매 수정마다 제공한다(부분 patch 아님).
+// lapTimeMs 생략 = 랩타임 미측정으로 설정(기존 값 제거) — §2.1 null vs 생략 규칙 준수.
+// panoHz·motorId·id·createdAt은 이 스키마에 없다 — command가 기존 값을 보존한다.
+export const updateRaceRecordPatchSchema = z.object({
+  result: raceResultSchema,
+  voltage: voltageSchema,
+  lapTimeMs: lapTimeMsSchema.optional(),
+})
+export type UpdateRaceRecordPatch = z.input<typeof updateRaceRecordPatchSchema>
 
 /**
  * read 경계 rehydrate 검증 (INV-16) — persisted 행을 zod parse하고,
