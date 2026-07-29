@@ -1139,3 +1139,43 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - typecheck·lint·build·test 전부 exit 0, vitest 79건
 - 브라우저(375px, 다크): [레이스 기록 초기화]가 하단 고정(bottom 744/812, 탭바 위)·full-width·48px,
   헤어라인 상단, 기록 목록은 그 위에서 스크롤. 모터 상세 [측정] 푸터와 동일 배치
+
+---
+
+## v2.25 — 게이지: 수치 겹침 해소 + 대비/메인색 + 프레임 제거 + 확대 (req1·2, 실기기 피드백)
+
+### 원인 (실기기 measuring 스크린샷)
+- **req1 파노가 게이지를 덮음**: 파노 수치가 `rpmValue`(clamp 최대 **120px**)라 게이지 아크 위로
+  넘쳐 300·400 라벨·아크를 가렸다. (마이크가 없어 로컬에서 못 보던 measuring 상태 — 사용자
+  실기기 스크린샷으로 확인)
+- **req2 흐릿·가시성 낮음**: 파노·rpm 색이 `valueFg`(smoke200/gray600, 흐린 회색).
+
+### 변경
+- 파노 수치 `rpmValue(≤120px)` → `guideValue(≤56px)`로 축소. 눈금 라벨은 이미 아크 바깥(v2.21)
+  이라 축소한 수치가 아크 **내부 빈 공간**에 들어앉는다(겹침 해소).
+- 파노 색을 **메인 라임**(`visual.fg`)으로(사용자: "메인 색으로"). rpm은 `text.primary`
+  고대비 중립색(파노=라임과 위계 구분).
+- **게이지 주변 프레임(bg·border·radius) 제거**(사용자). 게이지가 페이지 배경 위에 그대로.
+- 게이지 **full-bleed 확대**: `mx:-2`로 페이지 좌우 padding 상쇄 → 화면 폭까지(사용자: "더 크게").
+- 게이지는 여전히 존 전체 오버레이(크게 유지) — de-overlay 시도했다가 사용자 "크게 유지"로 되돌림.
+
+### ALLOWED_PATHS
+- `src/features/measure-session/ui/MeasureFigures.tsx`
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 존 고정 높이·layout-shift 0 · 게이지 aria-hidden 장식 · canonical 수치=BigNumber 텍스트
+- 파노 주지표/rpm 보조 위계(M-4) · 값 없음 "—" + sr "측정값 없음"
+
+### NON_GOALS
+- 게이지 스케일·색(트랙/레드라인) 변경 · 존 높이 토큰 변경
+
+### CHANGE_BUDGET
+- 신규 의존성 0 · 단일 파일
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 79건
+- 브라우저(다크, 대기 상태): 게이지 프레임 없음·full-bleed로 확대됨, 중앙 placeholder "—"가
+  아크 내부에 위치(겹침 없음), 존 내 클리핑 없음
+- **미검증(마이크 필요)**: measuring 실제 라임 수치 "375.2"가 아크를 안 덮는지·rpm 가시성.
+  파노 120→56px 축소 + 라벨 아크 바깥이라 아크 내부에 들어가도록 계산했으나 폭 여유가 크지 않아
+  실기기 확인 필요(넘치면 guide보다 작은 커스텀 사이즈로 한 단계 더 축소 가능)

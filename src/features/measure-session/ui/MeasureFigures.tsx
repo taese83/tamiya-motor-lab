@@ -1,5 +1,5 @@
 import {Box, Typography} from '@mui/material'
-import {darkColor, layoutTokens, measureStatusTokens} from '@shared/config/design-tokens'
+import {layoutTokens, measureStatusTokens} from '@shared/config/design-tokens'
 import {formatPanoValue, formatRpm} from '@shared/lib/format'
 import {BigNumber} from '@shared/ui/big-number'
 import type {ReactNode} from 'react'
@@ -51,10 +51,12 @@ function messageFor(view: MeasureView): string | null {
 }
 
 // 내부 행 슬롯 높이 (rem/clamp — 200% text resize 시 비례 확장, layout-spec §10).
-// v3: rpmValue 상향 동조 재클램프(DS-A16) — 파노 주지표가 rpmValue 토큰을 쓴다(M-4 역전).
+// v2.25: 게이지는 **크게(존 전체 오버레이) 유지**(사용자). 수치가 게이지를 덮던 원인은
+// 파노가 rpmValue(최대 120px)로 **너무 커서** 아크 위로 넘친 것이었다 → guideValue(최대 56px)로
+// 축소하면 눈금 라벨이 이미 아크 바깥(v2.21)이라 비어 있는 아크 내부에 들어앉는다. 색은 메인 라임.
 const ROW_HEIGHTS = {
-  pano: 'clamp(4rem, 22vw, 7.5rem)', // numericTypography.rpmValue fontSize × lineHeight 1
-  unit: '1.5rem',
+  pano: 'clamp(2.6rem, 13vw, 3.6rem)', // numericTypography.guideRange(clamp 40~56px) × lineHeight
+  unit: '1.25rem',
   rpm: 'clamp(1.65rem, 8.45vw, 2.3rem)', // fanoValue fontSize × lineHeight 1.3
   message: '1.5rem',
 } as const
@@ -79,11 +81,10 @@ function Row({height, children}: {height: string; children?: ReactNode}) {
  * 높이 고정 소유: `layoutTokens.measureValueMinHeight`(v3 재클램프), view 8종 전부 동일 —
  * 상태 전환으로 어떤 요소도 이동하지 않는다(layout-spec §4.1). 재계산은 resize/회전 시에만.
  *
- * - 히어로 프레임: 1px hairlineStrong 베젤 링(radius 4, 다크 — 라이트는 divider) + 상태 bg
- *   (`--mml-status-*-bg`) + `--mml-hero-vignette` overlay(absolute·aria-hidden·pointer-events none).
- * - 내부(위→아래 시각 구성): PanoGauge(장식 배경층, aria-hidden) → 파노 대형 수치(BigNumber
- *   size="rpm" — M-4 주/보조 역전, formatPanoValue) → 단위 overline "Hz" → rpm 보조(fanoValue
- *   스케일) → 문구 슬롯 1줄(없으면 빈 줄 유지).
+ * - v2.25(사용자): 프레임 박스(bg·border·radius) 제거 + 게이지 full-bleed 확대. 게이지는
+ *   full-bleed 오버레이(장식·aria-hidden), 그 위 중앙에 파노 주지표(size="guide", 메인 라임색) →
+ *   "Hz" → rpm 보조(fanoValue, 중립색) → 문구 슬롯. 파노를 rpm(120px)→guide(56px)로 축소하고
+ *   눈금 라벨이 아크 바깥(v2.21)이라, 수치가 게이지를 덮지 않는다(req1).
  * - measuring: 연속 갱신 — 잠금·tint 전환 없음(stable UI 소멸, M-3). `isStable`은 렌더에
  *   관여하지 않는다(내부 신호 — view 계약 주석 참조).
  * - 토큰 소비: bg·valueFg만 — measureStatusTokens 소비자는 본 컴포넌트+MeasureStatusLabel 2곳.
@@ -94,36 +95,25 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
   const measuring = view.status === 'measuring'
   const message = messageFor(view)
   return (
+    // v2.25(사용자): 게이지 주변 박스 배경·테두리 제거 + 화면 폭까지 full-bleed로 확대.
+    // mx:-2로 페이지 좌우 padding(px:2)을 상쇄해 게이지를 좌우 끝까지 키운다(더 크게).
+    // 프레임 bg/border/radius 없음 — 게이지가 페이지 배경 위에 그대로 놓인다.
     <Box
-      sx={theme => ({
+      sx={{
         '--s1-figure-h': layoutTokens.measureValueMinHeight,
         height: 'var(--s1-figure-h)',
         minHeight: 'var(--s1-figure-h)',
         maxHeight: 'var(--s1-figure-h)',
-        backgroundColor: visual.bg,
-        // 히어로 베젤 링 — 장식(대비 요건 비대상). 라이트는 divider 헤어라인으로 대체(DS §1.2 주석)
-        border: `1px solid ${(theme.vars ?? theme).palette.divider}`,
-        ...theme.applyStyles('dark', {borderColor: darkColor.hairlineStrong}),
-        borderRadius: '4px',
+        mx: -2,
         position: 'relative',
         overflow: 'hidden',
-      })}>
-      {/* 파노 게이지 배경층 — 장식(aria-hidden), viewBox 고정이라 존 스케일에만 따라간다 */}
+      }}>
+      {/* 파노 게이지 — 장식(aria-hidden). full-bleed 오버레이(존 전체를 채워 크게 — 사용자 req) */}
       <Box aria-hidden="true" sx={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
         <PanoGauge panoHz={measuring ? view.panoHz : null} />
       </Box>
-      {/* 비네트 overlay — 장식(aria-hidden), 라이트 모드는 var가 none (DS §9.4) */}
-      <Box
-        aria-hidden="true"
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          background: 'var(--mml-hero-vignette)',
-          zIndex: 2,
-        }}
-      />
-      {/* 전경 콘텐츠층 — 스크린리더 canonical 수치 경로 (BigNumber 텍스트 노드) */}
+      {/* 수치 오버레이 — 게이지 위 중앙. 눈금 라벨이 아크 바깥(v2.21)이라 내부가 비어 겹치지 않는다.
+          파노는 축소(guide)해 아크를 넘지 않고, canonical 텍스트는 BigNumber(스크린리더 경로). */}
       <Box
         sx={{
           position: 'relative',
@@ -131,18 +121,16 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          // v2.20: 영구 권한 안내가 Dialog로 빠져 상태별 스크롤 분기가 사라졌다 —
-          // 이 존은 어떤 view에서도 중앙 정렬 고정 높이다(§2.2 존 높이 불변).
+          alignItems: 'center',
           justifyContent: 'center',
           overflowY: 'hidden',
-          px: 2,
         }}>
         <Row height={ROW_HEIGHTS.pano}>
-          {/* 파노 주지표 — weak-signal 등 값 없음은 "—"(동일 rpmValue 타이포) + sr "측정값 없음" */}
+          {/* 파노 주지표 — 메인 색(라임 visual.fg, 사용자 req). 값 없음은 "—" + sr "측정값 없음" */}
           <BigNumber
-            size="rpm"
+            size="guide"
             value={measuring ? formatPanoValue(view.panoHz) : null}
-            valueColor={visual.valueFg}
+            valueColor={visual.fg}
           />
         </Row>
         <Row height={ROW_HEIGHTS.unit}>
@@ -154,15 +142,16 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
         </Row>
         <Row height={ROW_HEIGHTS.rpm}>
           {measuring ? (
+            // rpm 보조 — 고대비 중립색(text.primary). 파노=라임과 위계 구분
             <BigNumber
               size="fano"
               value={formatRpm(view.rpm)}
               unit="rpm"
-              valueColor={visual.valueFg}
+              valueColor="text.primary"
             />
           ) : (
             // rpm 보조 행도 "—" (§2.5) — sr 중복 방지: sr-only는 주지표 BigNumber가 1회 담당
-            <Typography aria-hidden="true" sx={{color: visual.valueFg}}>
+            <Typography aria-hidden="true" sx={{color: 'text.secondary'}}>
               {EM_DASH}
             </Typography>
           )}
@@ -172,7 +161,7 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
             <Typography
               variant="body2"
               sx={{
-                color: visual.valueFg,
+                color: 'text.secondary',
                 textAlign: 'center',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
