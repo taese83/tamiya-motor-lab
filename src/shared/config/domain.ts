@@ -42,6 +42,17 @@ export const RACE_RESULT_LABELS: Record<RaceResult, string> = {
   retired: '이탈',
 }
 
+// ── 레이스 목표/우선순위 (v2.31 — 전압 추천 입력). result(완주/이탈=지난 결과)와 별개 개념:
+// 이번 주행에서 무엇을 우선할지의 **목표**다. 저장은 안정 식별자, 표시는 라벨 맵.
+// 'finish'(완주 우선=보수적)·'stability'(안정=중간)·'speed'(속도=공격적)로 전압 기준선이 갈린다.
+export const RACE_GOALS = ['finish', 'stability', 'speed'] as const
+export type RaceGoal = (typeof RACE_GOALS)[number]
+export const RACE_GOAL_LABELS: Record<RaceGoal, string> = {
+  finish: '완주',
+  stability: '안정',
+  speed: '속도',
+}
+
 // ── 측정 기록 rolling 상한 (T-3·INV-20: 모터당 최대 N건, 초과 시 최고령(最古) 자동 삭제)
 // v2.21(사용자): 10 → 20으로 상향. rolling·eviction 로직은 상수만 참조하므로 값 변경으로 족하다
 // (INV-20의 "N건 유지·초과 시 최고령 삭제" 불변식 자체는 불변, 경계값만 20).

@@ -5,11 +5,13 @@ import {LAP_TIME_MAX_MS, VOLTAGE_RANGE} from '@shared/config/domain'
 import {isDomainError} from '@shared/lib/errors'
 import {useToast} from '@shared/ui/toast'
 
-import {useCreateRaceRecord, useUpdateRaceRecord} from '../api'
+import {recommendVoltage, useCreateRaceRecord, useUpdateRaceRecord} from '../api'
 
 import type {RaceEntryDraft, RaceEntryField, RaceEntryFieldErrors, RaceEntryPano} from '../ui'
 import type {CreateRaceRecordDraft, RaceRecord} from '@entities/race-record'
+import type {RaceGoal} from '@shared/config/domain'
 import type {DomainError} from '@shared/lib/errors'
+import type {VoltageAdviceRace} from '@shared/lib/voltage-advisor'
 
 /** 시트 모드 — create(신규 기록) / edit(기존 기록 수정, v2.3) */
 export type RaceEntryMode = 'create' | 'edit'
@@ -40,6 +42,7 @@ export const createInitialRaceEntryDraft = (): RaceEntryDraft => ({
   result: null,
   voltageRaw: '',
   lapTimeRaw: '',
+  goal: null,
 })
 
 // 정수 또는 소수 표기만 — 부호·지수·'.5' 시작 표기는 비수치 취급 (record-entry 규칙 승계)
@@ -138,6 +141,7 @@ function validateRaceEntry(
     result: draft.result,
     voltage,
     ...(lapTimeMs !== undefined ? {lapTimeMs} : {}),
+    ...(draft.goal !== null ? {goal: draft.goal} : {}), // v2.31 — 목표 팝업 선택값
   }
 
   // command와 동일 스키마 최종 게이트 — UI 검증에만 의존 금지 (AD-7 스키마 공유)
@@ -175,8 +179,13 @@ export interface RaceEntryController {
   sheetOpen: boolean
   /** 시트 모드 — RaceEntrySheet에 전달(create/edit로 제목·버튼·[측정] 노출 분기) */
   mode: RaceEntryMode
-  /** [+ 기록] — 새 draft로 시트 오픈 (create, R-4 반복 입력) */
+  /** [+ 기록] — 새 draft로 시트 오픈 (create, R-4 반복 입력). 첫 기록·목표 없이 진입 */
   openSheet: () => void
+  /** v2.31 — 목표 팝업 선택 후 진입(2번째+). 시트 오픈 + 하이브리드 전압 추천 프리필 */
+  openWithGoal: (
+    goal: RaceGoal,
+    adviceInput: {currentPanoHz: number; history: ReadonlyArray<VoltageAdviceRace>},
+  ) => void
   /** 행 [수정] — 기존 기록 값으로 시트를 edit 모드로 오픈 (v2.3). pending 중 no-op */
   editRecord: (record: RaceRecord) => void
   /** 취소·ESC·backdrop — draft 파기(§6.3, 왕복 복원은 slot이 별도 보존). pending 중 no-op */
@@ -192,6 +201,10 @@ export interface RaceEntryController {
   errorMessage: string | null
   /** 왕복 자동 복귀 직후 1회 true — 해제는 이 훅 소유(사용자 조작·제출 시) */
   justMeasured: boolean
+  /** v2.31 추천 전압 근거(한국어) — 없으면 null(첫 기록·수정·미선택) */
+  rationale: string | null
+  /** v2.31 추천 계산 중 — 전압 필드 "추천 계산 중…" 힌트 */
+  recommendPending: boolean
   submit: () => void
   restoreFromMeasureReturn: (restore: RaceMeasureReturnRestore) => void
 }
@@ -222,8 +235,13 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
   const [fieldErrors, setFieldErrors] = useState<RaceEntryFieldErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
+  // v2.31 전압 추천 — 근거 문구 + 계산 중 플래그(하이브리드: 서버리스 LLM 또는 휴리스틱 폴백)
+  const [rationale, setRationale] = useState<string | null>(null)
+  const [recommendPending, setRecommendPending] = useState(false)
   // state 반영 전 같은 tick의 중복 탭까지 차단하는 동기 가드 (H-4)
   const inFlightRef = useRef(false)
+  // 추천 응답 경합 방지 — 최신 요청 seq만 반영(빠른 목표 재선택·닫힘 대비)
+  const recommendSeqRef = useRef(0)
 
   // edit이면 기존 기록의 panoHz를 읽기전용 인용(auto)으로, create이면 measured 우선·아니면 initialPano
   const pano: RaceEntryPano =
@@ -242,12 +260,40 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     setJustMeasured(false)
     setFieldErrors({})
     setErrorMessage(null)
+    setRationale(null)
+    setRecommendPending(false)
+    recommendSeqRef.current += 1 // 진행 중 추천 무효화(닫힘·재오픈 시 stale 반영 금지)
   }
 
   const openSheet = (): void => {
     if (pending) return
     resetEntry()
     setSheetOpen(true)
+  }
+
+  // v2.31 — 목표 팝업에서 목표 선택 후 진입. 시트를 즉시 열고(추천 계산 중 표시), 하이브리드
+  // 추천기(서버리스 LLM → 실패 시 휴리스틱)가 resolve되면 전압을 프리필하고 근거를 노출한다.
+  const openWithGoal = (
+    goal: RaceGoal,
+    adviceInput: {currentPanoHz: number; history: ReadonlyArray<VoltageAdviceRace>},
+  ): void => {
+    if (pending) return
+    resetEntry()
+    setDraft({...createInitialRaceEntryDraft(), goal})
+    setRecommendPending(true)
+    setSheetOpen(true)
+    const seq = ++recommendSeqRef.current
+    void (async () => {
+      const advice = await recommendVoltage({
+        goal,
+        currentPanoHz: adviceInput.currentPanoHz,
+        history: adviceInput.history,
+      })
+      if (recommendSeqRef.current !== seq) return // 최신 요청만 반영(경합·닫힘 방어)
+      setDraft(prev => ({...prev, voltageRaw: advice.voltage.toFixed(1)}))
+      setRationale(advice.rationale)
+      setRecommendPending(false)
+    })()
   }
 
   // v2.3 — 행 [수정]: 기존 기록 값으로 edit 모드 오픈. panoHz는 읽기전용 인용, 편집은 3필드만.
@@ -261,6 +307,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
       result: record.result,
       voltageRaw: String(record.voltage),
       lapTimeRaw: record.lapTimeMs !== undefined ? String(record.lapTimeMs / 1000) : '',
+      goal: record.goal ?? null, // 기존 목표 보존(수정 시 추천은 재실행하지 않음 — 값 그대로)
     })
     setJustMeasured(false)
     setFieldErrors({})
@@ -356,6 +403,10 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     setJustMeasured(restore.justMeasured)
     setFieldErrors({})
     setErrorMessage(restore.saveFailed ? RACE_ENTRY_MESSAGES.measureSaveFailed : null)
+    // 왕복 복귀 — draft.goal은 보존되나 추천 근거는 재계산 대상이 아니라 비운다(파노 갱신 시 stale)
+    setRationale(null)
+    setRecommendPending(false)
+    recommendSeqRef.current += 1
     setSheetOpen(true)
   }
 
@@ -363,6 +414,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     sheetOpen,
     mode,
     openSheet,
+    openWithGoal,
     editRecord,
     closeSheet,
     draft,
@@ -372,6 +424,8 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     pending,
     errorMessage,
     justMeasured,
+    rationale,
+    recommendPending,
     submit,
     restoreFromMeasureReturn,
   }

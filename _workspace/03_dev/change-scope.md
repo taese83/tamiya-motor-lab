@@ -1400,3 +1400,62 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - typecheck·lint·build·test 전부 exit 0, vitest 85건
 - 브라우저(375px, 다크) `/`: 탭 측정=게이지(1 path, 라임 활성)·모터=캔모터(3 path)·레이스=번개(1 path),
   콘솔 오류 0. 게이지 니들·눈금 정상 렌더.
+
+---
+
+## v2.31 — 레이스 전압 추천 (하이브리드: 휴리스틱 + LLM 코치) + 목표 팝업 (AI_MODE, 사용자)
+
+### TARGET_BEHAVIOR
+- 2번째+ 레이스 기록 입력 시 **목표 선택 팝업**(완주/안정/속도, 직전 goal 프리필) → 입력 화면 진입 시
+  **전압 자동 추천**(목표 + 과거 레이스 + 현재 파노 기반) + 근거 표시.
+- 추천기 = **하이브리드**: Vercel 서버리스 `/api/recommend-voltage`(Claude Haiku 4.5)가 주,
+  실패·오프라인·키없음이면 **결정론적 휴리스틱 폴백**. 단독 사용·Vercel 배포·개인 API 키(사용자 결정).
+
+### CHANGE_MODE / 아키텍처 영향
+- 앱 최초의 **네트워크 호출 + 서버리스 백엔드**(기존 순수 client+IndexedDB, HTTP 0). 정적→하이브리드.
+- AI_MODE: LLM 호출. 입력이 숫자+enum이라 인젝션 표면 작음. 서버가 출력 전압을 스키마로 클램프.
+  단독 사용이라 denial-of-wallet 위험 낮음(요청 크기 상한·짧은 타임아웃으로 보수적 방어).
+
+### ALLOWED_PATHS
+- `src/shared/config/domain.ts` (RACE_GOALS·라벨)
+- `src/entities/race-record/model/schema.ts` + `types.ts` (optional goal 필드, read-lenient)
+- `src/entities/race-record/api/repository.ts` (goal 저장·보존)
+- `src/shared/lib/voltage-advisor/*` (신규 — 휴리스틱 순수 함수 + 테스트)
+- `src/features/race-record/api/recommend-voltage.ts` (신규 — 서버리스 호출 + 휴리스틱 폴백)
+- `src/features/race-record/model/use-race-entry.ts` (goal·추천 전압·근거 배선)
+- `src/features/race-record/ui/RaceEntrySheet.tsx` (근거·추천 배지 표시)
+- `src/features/race-record/ui/RaceGoalSheet.tsx` (신규 — 목표 선택 팝업)
+- `src/pages/race-detail/ui/RaceDetailPage.tsx` (팝업 오케스트레이션 + history 주입)
+- `api/recommend-voltage.ts` (신규 — Vercel 서버리스, Anthropic REST fetch, Haiku 4.5)
+- `vercel.json` (SPA rewrite에서 /api 제외)
+- `.env.*`·`vite-env.d.ts` (VITE 공개 변수 불필요 — 키는 서버 전용 env, 클라 번들 미포함)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 레이스 스키마 기존 필드·검증(voltage 0.1~9.9·result·panoHz 불변) · read-lenient rehydrate(INV-16)
+  — goal은 optional이라 기존 데이터 무손상 · 전압 최종 검증은 여전히 voltageSchema 소관
+- 오프라인 동작(추천 실패 시 휴리스틱 폴백으로 기능 유지, 무음 실패 금지) · single-flight 제출
+
+### NON_GOALS
+- 키를 클라이언트 번들에 노출 · result(완주/이탈)를 goal로 대체 · 기존 측정/모터 기능 변경
+- 다중 사용자·레이트리밋 인프라(단독 사용 전제)
+
+### CHANGE_BUDGET
+- 신규 의존성 0 (Anthropic은 REST fetch로 호출 — SDK 미설치) · 서버리스 1함수
+- goal은 optional 필드라 마이그레이션 스크립트 불필요(read-lenient)
+
+### TEST_EVIDENCE (계획)
+- 휴리스틱 순수 함수 단위테스트(목표별 기준선·과거 보정·파노 보정·범위 클램프)
+- goal optional 스키마 rehydrate(구 데이터 goal 없음 통과) 테스트
+- 브라우저: 2번째 입력 팝업 노출·목표 선택→전압 프리필+근거(로컬은 휴리스틱 경로), 콘솔 오류 0
+- 실제 AI 경로는 Vercel 키 설정 후 활성(로컬 정적 서버는 서버리스 미실행 → 폴백 검증)
+
+### v2.31 Stage 1 실측 결과 (휴리스틱 하이브리드 — 키 불필요분)
+- typecheck·lint·build·test 전부 exit 0, vitest 85→**93건**(voltage-advisor 8건 추가).
+- 브라우저(375px, 다크) `/race/:motorId`:
+  - 첫 기록(과거 0건): [+ 기록] → 목표 팝업 없이 시트 직접(파노 자동 415.0), 정상.
+  - 1건 저장 후 [+ 기록]: **목표 팝업 노출**(완주/안정/속도 + 설명), 선택 시 팝업 닫힘.
+  - 속도 선택 → 시트 "전압 · 속도 추천", 전압 **2.7 프리필**, 근거 "직전 2.5V 완주 · 속도 목표 → 2.7V"
+    (로컬은 서버리스 부재 → **휴리스틱 폴백** 경로 검증). 콘솔 오류 0.
+- **Stage 2 (미구현 — 다음)**: `api/recommend-voltage`(Vercel 서버리스, Anthropic REST fetch, Haiku 4.5)
+  + `vercel.json` /api 제외 + ESLint/tsconfig api 스코프. 활성화: Vercel에 `ANTHROPIC_API_KEY` 설정.
+  Stage 1의 client 서비스가 이미 `/api/recommend-voltage`를 호출하므로 Stage 2 배포+키만으로 AI 전환.

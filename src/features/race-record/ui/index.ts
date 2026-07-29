@@ -17,3 +17,6 @@ export type {
 } from './RaceEntrySheet'
 export {ResetRecordsBlock} from './ResetRecordsBlock'
 export type {ResetRecordsBlockProps} from './ResetRecordsBlock'
+// v2.31 — 목표 선택 팝업(2번째+ 입력 진입점)
+export {RaceGoalSheet} from './RaceGoalSheet'
+export type {RaceGoalSheetProps} from './RaceGoalSheet'

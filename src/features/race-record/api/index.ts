@@ -8,3 +8,5 @@ export {
   useUpdateRaceRecord,
 } from './mutations'
 export type {ResetRaceRecordsResult, UpdateRaceRecordVariables} from './mutations'
+// v2.31 — 하이브리드 전압 추천(서버리스 LLM + 휴리스틱 폴백)
+export {recommendVoltage} from './recommend-voltage'

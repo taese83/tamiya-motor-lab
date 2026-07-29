@@ -47,6 +47,7 @@ export async function createRaceRecord(draft: CreateRaceRecordDraft): Promise<Re
     voltage: parsed.data.voltage,
     // undefined 필드는 IndexedDB에 저장하지 않는다 (§2.1 null vs 생략 규칙)
     ...(parsed.data.lapTimeMs !== undefined ? {lapTimeMs: parsed.data.lapTimeMs} : {}),
+    ...(parsed.data.goal !== undefined ? {goal: parsed.data.goal} : {}), // v2.31 목표
     createdAt: new Date().toISOString(),
   }
 
@@ -95,6 +96,8 @@ export async function updateRaceRecord(
       voltage: patchParsed.data.voltage,
       // 생략은 저장하지 않음 = 랩타임 제거 (§2.1 null vs 생략 규칙)
       ...(patchParsed.data.lapTimeMs !== undefined ? {lapTimeMs: patchParsed.data.lapTimeMs} : {}),
+      // v2.31 goal은 수정 patch 대상 아님 — 기존 값 보존(생성 시 선택된 목표 유지)
+      ...(current.goal !== undefined ? {goal: current.goal} : {}),
     }
     await store.put(next) // put — 기존 키 갱신
     return next

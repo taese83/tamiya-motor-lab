@@ -1,4 +1,4 @@
-import {useEffect, useRef} from 'react'
+import {useEffect, useRef, useState} from 'react'
 
 import {Alert, Box, Button, Stack, Typography} from '@mui/material'
 import {useQuery} from '@tanstack/react-query'
@@ -9,7 +9,7 @@ import {motorQueries} from '@entities/motor'
 import {raceQueries} from '@entities/race-record'
 import {beginRaceMeasure, consumeRaceMeasureReturn} from '@features/race-measure-handoff'
 import {useRaceDeleteFlow, useRaceEntry, useResetRecordsFlow} from '@features/race-record/model'
-import {RaceEntrySheet, RaceRecordRow, ResetRecordsBlock} from '@features/race-record/ui'
+import {RaceEntrySheet, RaceGoalSheet, RaceRecordRow, ResetRecordsBlock} from '@features/race-record/ui'
 import {layoutTokens} from '@shared/config/design-tokens'
 import {formatDateTimeShort} from '@shared/lib/format'
 import {ConfirmDialog} from '@shared/ui/confirm-dialog'
@@ -21,6 +21,8 @@ import {useToast} from '@shared/ui/toast'
 
 import type {RaceMeasureDraft} from '@features/race-measure-handoff'
 import type {RaceEntryDraft, RaceEntryPano} from '@features/race-record/ui'
+import type {RaceGoal} from '@shared/config/domain'
+import type {VoltageAdviceRace} from '@shared/lib/voltage-advisor'
 import type {PersistenceStatus} from '@shared/lib/persistence'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,6 +86,7 @@ function toHandoffDraft(draft: RaceEntryDraft): RaceMeasureDraft {
     ...(draft.result !== null ? {result: draft.result} : {}),
     ...(voltageRaw !== '' && Number.isFinite(voltage) ? {voltage} : {}),
     ...(lapTimeRaw !== '' && Number.isFinite(lapTimeSec) ? {lapTimeSec} : {}),
+    ...(draft.goal !== null ? {goal: draft.goal} : {}), // v2.31 목표 보존
   }
 }
 
@@ -93,6 +96,7 @@ function fromHandoffDraft(draft: RaceMeasureDraft): RaceEntryDraft {
     result: draft.result ?? null,
     voltageRaw: draft.voltage !== undefined ? String(draft.voltage) : '',
     lapTimeRaw: draft.lapTimeSec !== undefined ? String(draft.lapTimeSec) : '',
+    goal: draft.goal ?? null, // v2.31 — 왕복 복귀 시 목표 복원
   }
 }
 
@@ -119,6 +123,30 @@ export function RaceDetailPage() {
   const deleteFlow = useRaceDeleteFlow()
   // v2.16 스와이프 트레이 — "한 번에 한 행만"을 페이지가 소유한다
   const swipe = useSingleOpenRow()
+
+  // v2.31 — 목표 팝업 오케스트레이션. 2번째+ 입력이면 [+ 기록]이 목표 팝업을 먼저 띄우고,
+  // 목표 선택 시 과거 레이스(최신순)+현재 파노로 하이브리드 전압 추천을 걸어 시트를 연다.
+  // 첫 기록(과거 0건)은 근거로 삼을 정보가 없어 목표 없이 바로 시트를 연다.
+  const races = racesQuery.data ?? []
+  const [goalSheetOpen, setGoalSheetOpen] = useState(false)
+  const lastGoal: RaceGoal | null = races[0]?.goal ?? null
+  const adviceHistory: VoltageAdviceRace[] = races.map(r => ({
+    voltage: r.voltage,
+    result: r.result,
+    panoHz: r.panoHz,
+    goal: r.goal,
+  }))
+  // 현재 파노 — auto 인용값 우선, 없으면 직전 레이스 파노로 대체(휴리스틱은 0이면 파노 보정 생략)
+  const currentPanoHz = initialPano.kind !== 'none' ? initialPano.panoHz : (races[0]?.panoHz ?? 0)
+
+  const handleAddRecord = (): void => {
+    if (races.length >= 1) setGoalSheetOpen(true)
+    else entry.openSheet() // 첫 기록 — 목표 팝업 없이 바로
+  }
+  const handleGoalSelect = (goal: RaceGoal): void => {
+    setGoalSheetOpen(false)
+    entry.openWithGoal(goal, {currentPanoHz, history: adviceHistory})
+  }
 
   // 왕복 복귀 소비(§7.2) — mount 시 1회. consume은 read-and-clear라 StrictMode 이중
   // 실행에도 두 번째 호출은 null(no-op). restore 함수는 매 렌더 재생성이라 ref로 최신만 참조
@@ -158,7 +186,6 @@ export function RaceDetailPage() {
   }
 
   const notFound = !corrupted && motorQuery.isSuccess && motor === null
-  const races = racesQuery.data
 
   return (
     <>
@@ -171,7 +198,7 @@ export function RaceDetailPage() {
           actions={
             motor !== null ? (
               // v2.6: 화면의 주 행동 — 라임 contained(컷코너)로 위계를 명확히 한다
-              <Button variant="contained" onClick={entry.openSheet} sx={{minHeight: '2.75rem'}}>
+              <Button variant="contained" onClick={handleAddRecord} sx={{minHeight: '2.75rem'}}>
                 + 기록
               </Button>
             ) : undefined
@@ -298,9 +325,19 @@ export function RaceDetailPage() {
           errorMessage={entry.errorMessage}
           fieldErrors={entry.fieldErrors}
           justMeasured={entry.justMeasured}
+          recommendation={entry.rationale}
+          recommendPending={entry.recommendPending}
           onClose={entry.closeSheet}
         />
       )}
+
+      {/* v2.31 목표 선택 팝업 — 2번째+ [+ 기록] 진입점. 선택 시 전압 추천 걸고 입력 시트로 */}
+      <RaceGoalSheet
+        open={goalSheetOpen}
+        lastGoal={lastGoal}
+        onSelect={handleGoalSelect}
+        onClose={() => setGoalSheetOpen(false)}
+      />
 
       {/* 단건 삭제 confirm (RV-A3) — copy·pending·오류는 flow가 소유 (§3.1 스프레드 계약) */}
       <ConfirmDialog {...deleteFlow.dialogProps} />

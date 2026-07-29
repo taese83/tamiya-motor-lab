@@ -1,7 +1,7 @@
 import {Alert, Box, Button, Chip, InputAdornment, OutlinedInput, Typography} from '@mui/material'
 import {useId, useRef} from 'react'
 
-import {RACE_RESULT_LABELS, RACE_RESULTS} from '@shared/config/domain'
+import {RACE_GOAL_LABELS, RACE_RESULT_LABELS, RACE_RESULTS} from '@shared/config/domain'
 import {layoutTokens, numericTypography, srOnlySx} from '@shared/config/design-tokens'
 import {formatFanoHz} from '@shared/lib/format'
 import {BottomSheet} from '@shared/ui/bottom-sheet'
@@ -9,7 +9,7 @@ import {FormField} from '@shared/ui/form-field'
 import {SegmentControl} from '@shared/ui/segment-control'
 import {VoltageStepper} from '@shared/ui/voltage-stepper'
 
-import type {RaceResult} from '@shared/config/domain'
+import type {RaceGoal, RaceResult} from '@shared/config/domain'
 import type {FormEvent, KeyboardEvent} from 'react'
 
 // ── 공개 폼 타입 (component-spec §6.3 — 이 파일이 canonical 정의처) ──────────────
@@ -32,6 +32,8 @@ export interface RaceEntryDraft {
   voltageRaw: string
   /** 초 단위 원시 문자열("32.45") — 제출 시 Math.round(초×1000) ms 변환 */
   lapTimeRaw: string
+  /** v2.31 목표(완주/안정/속도) — 2번째+ 입력 시 팝업에서 선택. 미선택(첫 기록·수정)이면 null */
+  goal: RaceGoal | null
 }
 
 export type RaceEntryField = 'result' | 'voltage' | 'lapTime'
@@ -59,6 +61,10 @@ export interface RaceEntrySheetProps {
   fieldErrors: RaceEntryFieldErrors
   /** 왕복 자동 복귀 직후 1회 true — sr 고지 후 해제는 상위 소유 */
   justMeasured: boolean
+  /** v2.31 전압 추천 근거(한국어) — 목표 팝업 후 계산된 프리필 전압의 설명. 없으면 미표시 */
+  recommendation: string | null
+  /** v2.31 추천 계산 중 — 전압 필드에 "추천 계산 중…" 힌트 */
+  recommendPending: boolean
   onClose: () => void
 }
 
@@ -97,6 +103,8 @@ export function RaceEntrySheet({
   errorMessage,
   fieldErrors,
   justMeasured,
+  recommendation,
+  recommendPending,
   onClose,
 }: RaceEntrySheetProps) {
   const resultErrorId = useId()
@@ -209,12 +217,27 @@ export function RaceEntrySheet({
           </FormField>
         </Box>
 
-        {/* ③ 전압 (필수) — 오류 슬롯은 FormField가 소유(스테퍼 내장 슬롯은 끈다) */}
+        {/*
+          ③ 전압 (필수) — 오류 슬롯은 FormField가 소유(스테퍼 내장 슬롯은 끈다).
+          v2.31: 목표 팝업 후 추천 전압이 프리필되고, 근거를 helperText로 노출한다(AI/휴리스틱 공통).
+          추천은 시작값일 뿐 — 사용자가 스테퍼로 자유롭게 조정 가능(최종 검증은 voltageSchema).
+        */}
         <Box sx={fieldRowSx}>
           <FormField
-            label="전압 · 필수"
+            label={
+              draft.goal !== null
+                ? `전압 · ${RACE_GOAL_LABELS[draft.goal]} 추천`
+                : '전압 · 필수'
+            }
             error={fieldErrors.voltage ?? null}
-            errorId={voltageErrorId}>
+            errorId={voltageErrorId}
+            helperText={
+              recommendPending
+                ? '추천 전압 계산 중…'
+                : recommendation !== null
+                  ? recommendation
+                  : undefined
+            }>
             <VoltageStepper
               value={draft.voltageRaw}
               onChange={raw => onDraftChange({voltageRaw: raw})}

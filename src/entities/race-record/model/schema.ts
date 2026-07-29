@@ -1,6 +1,6 @@
 import {z} from 'zod'
 
-import {LAP_TIME_MAX_MS, RACE_RESULTS, VOLTAGE_RANGE} from '@shared/config/domain'
+import {LAP_TIME_MAX_MS, RACE_GOALS, RACE_RESULTS, VOLTAGE_RANGE} from '@shared/config/domain'
 import {DOMAIN_ERROR_MESSAGES, DomainError} from '@shared/lib/errors'
 import {panoHzStoredSchema} from '@shared/lib/schema/pano'
 
@@ -15,6 +15,10 @@ import {panoHzStoredSchema} from '@shared/lib/schema/pano'
 // rpm은 저장하지 않는다 — 필요 시 표시 계층이 round(panoHz×60) 파생.
 
 export const raceResultSchema = z.enum(RACE_RESULTS) // R-3 — 상수 1곳 참조 (완주/이탈 2택)
+
+// v2.31 — 이번 주행 목표(완주/안정/속도). optional: 기존 데이터·목표 미선택 입력은 goal 없음.
+// read-lenient(SC-A8 동일 원칙): optional이라 구 행이 goal 부재로 corrupt 판정되지 않는다.
+export const raceGoalSchema = z.enum(RACE_GOALS)
 
 // A5: 0.1~9.9 V, 소수 최대 2자리 — float 안전 검사(×100 후 정수 근접 비교, `% 1` 직접 비교 금지)
 export const voltageSchema = z
@@ -40,6 +44,7 @@ export const raceRecordSchema = z.object({
   result: raceResultSchema, // 완주/이탈 2택
   voltage: voltageSchema,
   lapTimeMs: lapTimeMsSchema.optional(), // 옵션 — undefined는 저장하지 않음
+  goal: raceGoalSchema.optional(), // v2.31 목표(완주/안정/속도) — 옵션(구 데이터·미선택 시 부재)
   createdAt: z.iso.datetime(), // 구조 필드 — 최신순 정렬 키
 })
 export type RaceRecord = z.infer<typeof raceRecordSchema>
@@ -51,6 +56,7 @@ export const createRaceRecordDraftSchema = z.object({
   result: raceResultSchema,
   voltage: voltageSchema,
   lapTimeMs: lapTimeMsSchema.optional(),
+  goal: raceGoalSchema.optional(), // v2.31 — 목표 팝업 선택값(미선택 시 생략)
 })
 export type CreateRaceRecordDraft = z.input<typeof createRaceRecordDraftSchema>
 

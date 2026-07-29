@@ -1,6 +1,6 @@
 import {create} from 'zustand'
 
-import type {RaceResult} from '@shared/config/domain'
+import type {RaceGoal, RaceResult} from '@shared/config/domain'
 
 // R-5·RV-1 측정 왕복 handoff slot (zustand 5 — 메모리 전용, persist 금지:
 // 새로고침 시 자연 소실이 계약이다. INV-21: slot 존재 = 왕복 모드).
@@ -20,6 +20,8 @@ export interface RaceMeasureDraft {
   result?: RaceResult | undefined
   voltage?: number | undefined
   lapTimeSec?: number | undefined
+  /** v2.31 목표(완주/안정/속도) — 왕복 중 보존해 복귀 시 라벨·근거 문맥을 유지 */
+  goal?: RaceGoal | undefined
 }
 
 export interface RaceMeasureMeasured {
