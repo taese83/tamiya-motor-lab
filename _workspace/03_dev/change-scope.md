@@ -179,3 +179,49 @@
 ### TEST_EVIDENCE
 - Node 22 typecheck·lint·build·vitest 클린
 - 브라우저: 10종 뱃지 색·다크/라이트 양쪽 · 흰색·검정 뱃지 면 분리 · 헤더 위계 · 종류 선택 10택 · 필터 칩
+
+## v2.7 라운드 (2026-07-29 — 측정 기록 3종: 즉시·10초 후·1분 후)
+
+### TARGET_BEHAVIOR
+측정 탭('/')의 단일 [기록]을 3종으로 나눈다: 즉시 / 10초 후 / 1분 후.
+지연은 [기록] 탭 시점부터 센다([기록]은 measuring일 때만 활성이므로 탭 시점 = 기록 가능 시점).
+대기 중 Z3에 남은 초와 [취소]를 표시하고, 만료 시점의 수치를 기록한다(탭 시점 값이 아니다).
+
+### 설계 판단
+- **기존 수집 경로를 그대로 재사용**하고 앞에 카운트다운 게이트만 끼운다. 지연 타입은
+  "스냅샷을 언제 고정할지"만 바꾸며 모터 선택·저장·rolling(INV-20)·invalidation 계약은 무변경
+  (스냅샷 고정 계약 SC2-A3·MR-2 계승, 재반올림 없음 = 표시-기록 일치).
+- 만료 시각에 불안정하면 **실패로 끝내지 않고 다음 안정 시점까지 대기**한다. 값 없이 기록하거나
+  낡은 값을 기록하는 것보다 안전하고, 오류 표면이 불필요해 Z1/Z2/Z3 고정 높이도 흔들리지 않는다.
+  무한 대기는 [취소]가 해소한다.
+- `capture-pending`은 view.status보다 **먼저** 판정한다: 카운트다운 중 신호가 흔들려 measuring을
+  벗어나도 대기 표시와 [취소]가 사라지면 사용자가 진행 상황과 취소 수단을 잃는다.
+- 기록 3버튼은 §2.7 "단일 Button 노드" 포커스 연속성 계약을 record 상태에서 의도적으로 벗어난다.
+  존 높이 h56과 폭은 유지해 레이아웃은 불변이고 각 버튼은 44px 이상 타깃을 확보한다.
+
+### ALLOWED_PATHS
+- `src/shared/config/domain.ts` (RECORD_DELAY_OPTIONS)
+- `src/features/collect-measure/model/use-delayed-capture.ts` (신규) + 배럴
+- `src/features/measure-session/ui/MeasureActionDock.tsx` (3버튼·capture-pending)
+- `src/pages/measure/ui/MeasurePage.tsx` (배선)
+- 신규 테스트 2파일
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- useCollectFlow 계약 전체(스냅샷 고정 → 선택 → 저장, single-flight, 실패 인라인 배너)
+- INV-20 rolling 10 · INV-22 수집 경로 단일(collectMeasureRecord) · 오류 Toast 금지
+- INV-21 왕복 중 기록 진입점 0개 — 왕복이 지연 대기보다 우선
+- Z3 존 높이 h56 고정 · 44px 타깃 · 소프트 비활성(자리 이동 없음, M-5)
+
+### NON_GOALS
+- 지연 타입을 레이스·모터 상세 왕복에도 적용(측정 탭 한정 — 사용자 지정 범위)
+- 즉시·10초·1분 동시 3건 저장(1회 탭 = 1건)
+- 지연 값 커스터마이즈, 반복 자동 기록
+
+### CHANGE_BUDGET
+- 신규 의존성 0
+
+### TEST_EVIDENCE
+- Node 22 typecheck·lint·build 클린, vitest 40건(신규 18건)
+- **브라우저 한계 명시**: headless preview는 실제 오디오 입력이 없어 measuring에 도달하지 못한다
+  (status='starting' → 기록 비활성). 따라서 카운트다운·안정대기·취소·최신값 캡처는 unit으로 검증하고,
+  브라우저에서는 3버튼 렌더·라벨·비활성 시 탭 무시만 확인했다. 실기기 확인 필요 항목으로 남긴다.

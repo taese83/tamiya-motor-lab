@@ -5,7 +5,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext} from 'react-router'
 
 import {motorQueries} from '@entities/motor'
-import {MotorPickSheet, useCollectFlow} from '@features/collect-measure'
+import {MotorPickSheet, useCollectFlow, useDelayedCapture} from '@features/collect-measure'
 import {
   restartCaptureOnVisible,
   resumeAudio,
@@ -141,17 +141,20 @@ export function MeasurePage() {
     lastPanoHz: summary.lastMeasure?.panoHz ?? null,
   }))
 
+  // v2.7 기록 3종 — 즉시는 탭 시점 스냅샷 고정, 지연은 만료 시점 스냅샷 고정(SC2-A3·MR-2 계승).
+  // readSnapshot이 measuring 밖에서 null을 반환하므로 훅이 안정 시점까지 대기한다.
+  const delayedCapture = useDelayedCapture({
+    readSnapshot: () =>
+      view.status === 'measuring' ? {panoHz: view.panoHz, rpm: view.rpm} : null,
+    onCapture: snapshot => flow.open(snapshot),
+  })
+
   const action = deriveMeasureAction(
     view,
     slot === null ? null : {motorName: slot.motorName, origin: slot.origin},
     persistenceReady,
+    delayedCapture.pending,
   )
-
-  // [기록] 탭 시점 스냅샷 고정(SC2-A3·MR-2) — measuring 밖에서는 액션이 이미 disabled/치환
-  const handleRecord = () => {
-    if (view.status !== 'measuring') return
-    flow.open({panoHz: view.panoHz, rpm: view.rpm})
-  }
 
   // 행 이벤트는 id 기준 — 이름은 summaries에서 역참조해 flow에 전달 (토스트 문구 소유)
   const handlePickSelect = (motorId: string) => {
@@ -219,7 +222,8 @@ export function MeasurePage() {
         <Box sx={{pb: 2}}>
           <MeasureActionDock
             action={action}
-            onRecord={handleRecord}
+            onRecord={delayedCapture.start}
+            onCancelCapture={delayedCapture.cancel}
             onActivate={() => void startCapture()}
             onRetryPermission={() => void retryPermission()}
             onToggleSettingsHelp={toggleSettingsHelp}

@@ -45,6 +45,18 @@ export const RACE_RESULT_LABELS: Record<RaceResult, string> = {
 // ── 측정 기록 rolling 상한 (T-3 확정: 모터당 최대 10건, 초과 시 최고(最古) 자동 삭제 — INV-20)
 export const MEASURE_RECORD_LIMIT = 10
 
+// ── 기록 타입 3종 (v2.7 — 즉시/10초 후/1분 후)
+// 모터를 돌린 뒤 시간에 따른 파노 변화를 보기 위한 지연 수집. delayMs는 [기록] 탭 시점부터
+// 센다([기록]은 measuring일 때만 활성이므로 탭 시점 = 기록이 가능해진 시점).
+// 지연 만료 시각에 수치가 불안정하면 다음 안정 시점까지 대기한다 — 값 없이 기록하거나
+// 오래된 값을 기록하지 않는다. 상수 1곳 원칙: 지연·라벨을 UI에서 재정의하지 않는다.
+export const RECORD_DELAY_OPTIONS = [
+  {key: 'immediate', shortLabel: '즉시', label: '즉시 기록', delayMs: 0},
+  {key: 'sec10', shortLabel: '10초', label: '10초 후 기록', delayMs: 10_000},
+  {key: 'min1', shortLabel: '1분', label: '1분 후 기록', delayMs: 60_000},
+] as const
+export type RecordDelayKey = (typeof RECORD_DELAY_OPTIONS)[number]['key']
+
 // ── 레이스 랩타임 상한 (SC2-A2: ≤1시간 — 미니카 랩타임 sanity 상한, 상수 1곳)
 export const LAP_TIME_MAX_MS = 3_600_000
 
