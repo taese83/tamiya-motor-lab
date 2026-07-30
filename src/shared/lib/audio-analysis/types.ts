@@ -199,7 +199,10 @@ export const DEFAULT_TUNING: EngineTuning = {
   subHarmonicPenaltyWeight: 0.2,
   consistencyTolRatio: 0.005,
   gateSnrDb: 8,
-  gateStrongSnrDb: 15,
+  // v2.x(사용자: 측정이 깜빡이며 끊김) — 지배 피치 모드에서는 승자가 최강 피크에 앉으므로
+  // "고조파 2개 이상"이 과하게 엄격하다(2·3배가 약한 모터에서 간헐 게이트 실패 → 깜빡임).
+  // 단일 고조파 통과 임계를 15→10 dB로 낮춰, 강한 지배음 하나만으로도 측정이 이어지게 한다.
+  gateStrongSnrDb: 10,
   gateMinHarmonics: 2,
   gateVoicingThreshold: 0.15,
   silenceRms: 1e-5,
@@ -214,7 +217,8 @@ export const DEFAULT_TUNING: EngineTuning = {
   jumpCostThresholdOctaves: 0.35,
   jumpPenalty: 2.5,
   harmonicJumpExtraPenalty: 1.5,
-  missTolerance: 4,
+  // v2.x(사용자: 깜빡임) — 게이트 결손 coast 허용을 4→8 프레임(≈200ms)으로 늘려 표시 깜빡임을 줄인다
+  missTolerance: 8,
   stabilitySeconds: 1.5,
   stabilityCv: 0.015,
 }

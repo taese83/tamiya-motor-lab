@@ -46,10 +46,18 @@ let acquiring = false
 /** 세션 내 누적 거부 횟수 (F-2 fallback ≥2회 승격) — INV-17 비영속. awaiting-gesture 판정은 미계상 */
 let denialCount = 0
 /**
- * v2.18 — **연속** measuring 시작 시각(ms). 측정 프레임이 끊기거나 phase가 running을 벗어나면
- * null로 리셋된다. 누적 합산이 아니다: 신호가 오갔다면 모터 회전도 안정되지 않았다고 본다.
+ * v2.18 — **연속** measuring 시작 시각(ms). phase가 running을 벗어나면 null로 리셋된다.
+ *
+ * v2.x(사용자: 깜빡이며 측정이 끊겨 타이머가 리셋되고 무한 측정) — 짧은 게이트 실패에는
+ * 리셋하지 않는다. 신뢰 게이트는 실기기 소음·마이크 AGC로 수백 ms 단위로 깜빡일 수 있는데,
+ * 그때마다 0으로 되돌리면 하한(3s/5s)에 영영 도달하지 못한다. MEASURING_GAP_TOLERANCE_MS
+ * 이내의 끊김은 같은 연속 측정으로 간주하고, 그보다 길면 회전이 실제로 바뀐 것으로 보고 리셋한다.
  */
 let measuringSinceMs: number | null = null
+/** 마지막 measuring 프레임 시각 — 끊김 길이 판정 기준 */
+let lastMeasuringAtMs: number | null = null
+/** 이 시간 이내의 신호 끊김은 연속 측정으로 간주한다 (v2.x) */
+const MEASURING_GAP_TOLERANCE_MS = 800
 /** no-permission 중 granted 전환 감지 구독 (Permissions API 가용 시 — F-2 ①) */
 let permissionWatcher: PermissionStatus | null = null
 
@@ -380,16 +388,22 @@ function handleEstimate(estimate: DisplayEstimate): void {
   // teardown 이후 큐에 남은 잔여 메시지 방어 — running에서만 소비
   if (machine.phase !== 'running') return
 
-  // v2.18 연속 측정 지속시간 — **모터 소리 입력(첫 measuring 프레임) 순간부터** 잰다. 측정
-  // 프레임이 아니면(무신호) 시각을 버려 다음 측정이 0부터 시작한다 — 화면 진입 시각이 아니라
-  // 소리 입력 시각 기준. 끊긴 구간을 이어 붙이면 "연속" 하한의 의미가 사라진다(MIN/MAX_MEASURE_DURATION_MS).
+  // v2.18 연속 측정 지속시간 — **모터 소리 입력(첫 measuring 프레임) 순간부터** 잰다.
+  // v2.x(사용자: 깜빡임으로 타이머가 리셋돼 무한 측정): 게이트가 잠깐 실패해도 즉시 0으로
+  // 되돌리지 않는다. MEASURING_GAP_TOLERANCE_MS를 넘게 끊겼을 때만 연속이 깨진 것으로 본다.
+  const now = Date.now()
   if (!isMeasuringEstimate(estimate)) {
-    measuringSinceMs = null
+    const gapMs = lastMeasuringAtMs === null ? Infinity : now - lastMeasuringAtMs
+    if (gapMs > MEASURING_GAP_TOLERANCE_MS) {
+      measuringSinceMs = null
+      lastMeasuringAtMs = null
+    }
+    // 끊김 중에도 view는 weak-signal(수치 미표시) — 누적 시간만 유예 구간 동안 보존한다
     commit({...machine, frame: toEngineFrame(estimate, 0)})
     return
   }
-  const now = Date.now()
   measuringSinceMs ??= now
+  lastMeasuringAtMs = now
   commit({...machine, frame: toEngineFrame(estimate, now - measuringSinceMs)})
 }
 
@@ -411,6 +425,7 @@ function teardownResources(): void {
   // 즉시 5초를 넘겨 **즉시 확정**되는 버그가 있었다. 파이프라인 파기 = 측정 종료이므로 여기서
   // 타이머를 초기화해, 다음 세션 첫 measuring 프레임이 시작 시각을 새로 잡게 한다.
   measuringSinceMs = null
+  lastMeasuringAtMs = null
   const resources = active
   if (resources === null) return
   active = null
