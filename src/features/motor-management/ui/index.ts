@@ -1,5 +1,9 @@
 // motor-management ui segment public API (v2 — component-spec v2 §5).
 // GradeChip·MotorListItem(v1)은 제거 대상 — export하지 않는다(물리 삭제는 오케스트레이터 소관).
+export {ConditionHelpDialog} from './ConditionHelpDialog'
+export type {ConditionHelpDialogProps} from './ConditionHelpDialog'
+export {ConditionSummary} from './ConditionSummary'
+export type {ConditionSummaryProps} from './ConditionSummary'
 export {MotorFormSheet} from './MotorFormSheet'
 export type {MotorFormSheetProps, MotorFormValues} from './MotorFormSheet'
 export {MotorKindFilter} from './MotorKindFilter'

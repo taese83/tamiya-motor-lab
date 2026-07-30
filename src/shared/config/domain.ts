@@ -95,22 +95,28 @@ export const MOTOR_NAME_MAX_LENGTH = 30
 export const F0_RANGE = {min: 170, max: 620} as const
 export const F0_REHYDRATE_MAX = 2_000
 
-// ── 회전 안정도(컨디션 지표, v2.x — 사용자 승인 방향) ─────────────────────────
-// 엔진 1.5s 창 변동계수(CV) 기준 3등급. good 상한은 정상 공회전의 통상 요동(<0.5%),
-// fair 상한은 엔진 안정 판정 임계(1.5% — DEFAULT_TUNING.stabilityCv)와 정렬한다.
-// 절대 진단이 아니라 같은 모터의 시간에 따른 상대 비교 지표다. 상수 1곳 — 라벨 맵과 함께 교체.
-export const STABILITY_GRADES = ['good', 'fair', 'poor'] as const
-export type StabilityGrade = (typeof STABILITY_GRADES)[number]
-export const STABILITY_GRADE_LABELS: Record<StabilityGrade, string> = {
-  good: '안정',
-  fair: '보통',
-  poor: '불안정',
+// ── 회전 안정도 · 컨디션 (v2.x 개정 — 절대 등급 폐기, 자기 기준선 비교) ─────────
+// 사용자 결정: 임의 절대 임계(안정/보통/불안정) 대신 Portescap 신뢰성 백서의 실무 방식
+// (baseline 대비 모수 변화 지속 모니터링, 마모=β>1 점진 악화 → 추세 관찰)을 따른다.
+// - 기준선: 그 모터의 **초기 측정 STABILITY_BASELINE_COUNT건**의 CV 중앙값 (새 모터 상태가 그 개체의 규격)
+// - 컨디션: 현재 CV ÷ 기준선 CV 비율로 판정 — ok(<1.5×) / watch(1.5~2×) / inspect(≥2×)
+// 측정 화면은 판단 없는 원값(변동률 %·±rpm)만 표시한다. 파생값(기준선)은 영속 금지 — 읽기 시 계산.
+export const STABILITY_BASELINE_COUNT = 3 // 기준선 표본 수 — 백서 권고(최소 3개 표본)와 정렬
+export const CONDITION_LEVELS = ['ok', 'watch', 'inspect'] as const
+export type ConditionLevel = (typeof CONDITION_LEVELS)[number]
+export const CONDITION_LEVEL_LABELS: Record<ConditionLevel, string> = {
+  ok: '양호',
+  watch: '주의',
+  inspect: '점검 권장',
 }
-export const STABILITY_CV_GOOD_MAX = 0.005 // CV < 0.5% → 안정
-export const STABILITY_CV_FAIR_MAX = 0.015 // CV < 1.5% → 보통 (이상 = 불안정)
+export const CONDITION_WATCH_RATIO = 1.5 // 기준선 대비 1.5배 이상 → 주의
+export const CONDITION_INSPECT_RATIO = 2.0 // 기준선 대비 2배 이상 → 점검 권장
 
-export function stabilityGradeOf(cv: number): StabilityGrade {
-  if (cv < STABILITY_CV_GOOD_MAX) return 'good'
-  if (cv < STABILITY_CV_FAIR_MAX) return 'fair'
-  return 'poor'
+/** 기준선 대비 컨디션 판정 — baseline이 아직 없으면(초기 측정 수집 중) null */
+export function conditionLevelOf(currentCv: number, baselineCv: number | null): ConditionLevel | null {
+  if (baselineCv === null || baselineCv <= 0) return null
+  const ratio = currentCv / baselineCv
+  if (ratio >= CONDITION_INSPECT_RATIO) return 'inspect'
+  if (ratio >= CONDITION_WATCH_RATIO) return 'watch'
+  return 'ok'
 }

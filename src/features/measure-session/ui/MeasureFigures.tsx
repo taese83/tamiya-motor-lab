@@ -1,5 +1,4 @@
 import {Box, Typography} from '@mui/material'
-import {STABILITY_GRADE_LABELS, stabilityGradeOf} from '@shared/config/domain'
 import {layoutTokens, measureStatusTokens} from '@shared/config/design-tokens'
 import {formatPanoValue, formatRpm} from '@shared/lib/format'
 import {BigNumber} from '@shared/ui/big-number'
@@ -182,8 +181,9 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
               {message}
             </Typography>
           ) : (
-            // 안정도(컨디션 지표, v2.x) — measuring 중 비어 있던 문구 슬롯 재사용(레이아웃 불변).
-            // ±rpm = CV × 현재 rpm 환산. 등급 라벨 병행(색 단독 구분 금지 — REQ-NFR-003).
+            // 안정도(v2.x 개정) — **판단 없는 원값만**: 변동률 %·±rpm. 절대 등급(안정/보통/불안정)은
+            // 임의 임계라 폐기(사용자 결정). 컨디션 판정은 모터별 기준선이 있는 모터 상세 소관 —
+            // 측정 화면은 어느 모터인지 모른다. measuring 중 비어 있던 문구 슬롯 재사용(레이아웃 불변).
             measuring &&
             view.stabilityCv !== null && (
               <Typography
@@ -194,20 +194,8 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
                   whiteSpace: 'nowrap',
                   fontVariantNumeric: 'tabular-nums lining-nums',
                 }}>
-                안정도 ±{formatRpm(Math.max(1, Math.round(view.stabilityCv * view.rpm)))} rpm
-                {' · '}
-                <Box
-                  component="span"
-                  sx={{
-                    color:
-                      stabilityGradeOf(view.stabilityCv) === 'poor'
-                        ? 'error.main'
-                        : stabilityGradeOf(view.stabilityCv) === 'fair'
-                          ? 'warning.main'
-                          : 'success.main',
-                  }}>
-                  {STABILITY_GRADE_LABELS[stabilityGradeOf(view.stabilityCv)]}
-                </Box>
+                변동률 {(view.stabilityCv * 100).toFixed(2)}% · ±
+                {formatRpm(Math.max(1, Math.round(view.stabilityCv * view.rpm)))} rpm
               </Typography>
             )
           )}

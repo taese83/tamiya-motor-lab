@@ -1,21 +1,21 @@
-import {useEffect} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 
 import {Alert, Box, Button, Typography} from '@mui/material'
 import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext, useParams} from 'react-router'
 
-import {measureQueries} from '@entities/measure-record'
+import {computeStabilityBaseline, measureQueries} from '@entities/measure-record'
 import {MotorKindChip, motorQueries} from '@entities/motor'
 import {AuthMenu} from '@features/auth'
 import {useDeleteMeasureRecord} from '@features/measure-management'
-import {PanoLineChart} from '@features/motor-management/ui'
+import {ConditionHelpDialog, ConditionSummary, PanoLineChart} from '@features/motor-management/ui'
 import {
   beginMotorMeasure,
   cancelRaceMeasure,
   peekRaceMeasure,
   useRaceMeasureSlot,
 } from '@features/race-measure-handoff'
-import {stabilityGradeOf} from '@shared/config/domain'
+import {conditionLevelOf} from '@shared/config/domain'
 import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
 import {formatDateTimeShort, formatFanoHz, formatRpm} from '@shared/lib/format'
 import {EmptyState} from '@shared/ui/empty-state'
@@ -192,6 +192,13 @@ export function MotorDetailPage() {
   const notFound = !corrupted && motorQuery.isSuccess && motor === null
   const records = recordsQuery.data
 
+  // 컨디션 기준선 (v2.x — 자기 기준선): 초기 안정도 기록 3건 중앙값. 파생값 — 렌더 시 계산(INV-09)
+  const stabilityBaseline = useMemo(
+    () => (records !== undefined ? computeStabilityBaseline(records) : null),
+    [records],
+  )
+  const [helpOpen, setHelpOpen] = useState(false)
+
   return (
     <>
       {/* v2.8 고정 셸 — 헤더·차트·[측정]은 고정, 기록 목록만 스크롤한다 */}
@@ -268,6 +275,17 @@ export function MotorDetailPage() {
               <Box>
                 <MotorKindChip kind={motor.kind} />
               </Box>
+
+              {/* 컨디션 요약 (v2.x 개정 — 자기 기준선 비교, Portescap baseline 모니터링 방식).
+                  기준선 = 초기 안정도 기록 3건 중앙값(entities computeStabilityBaseline).
+                  판정은 절대 임계가 아니라 기준선 대비 비율(ok/watch/inspect). */}
+              {records !== undefined && records.length > 0 && (
+                <ConditionSummary
+                  records={records}
+                  baseline={stabilityBaseline}
+                  onOpenHelp={() => setHelpOpen(true)}
+                />
+              )}
 
               {/* v2.14 섹션 구분 — 차트와 기록 목록이 서로 다른 덩어리임을 명시한다.
                 차트는 추세 보조(aria-hidden)라 헤딩은 장식(span) — 스크린리더 목차를 오염시키지 않고
@@ -409,12 +427,14 @@ export function MotorDetailPage() {
                                     component="span"
                                     sx={{
                                       ml: 0.75,
-                                      color:
-                                        stabilityGradeOf(record.stabilityCv) === 'poor'
-                                          ? 'error.main'
-                                          : stabilityGradeOf(record.stabilityCv) === 'fair'
-                                            ? 'warning.main'
-                                            : 'success.main',
+                                      // v2.x 개정: 절대 등급 폐기 — 기준선 대비 컨디션 색(기준선 미완성이면 중립)
+                                      color: (() => {
+                                        const level = conditionLevelOf(record.stabilityCv, stabilityBaseline)
+                                        if (level === 'inspect') return 'error.main'
+                                        if (level === 'watch') return 'warning.main'
+                                        if (level === 'ok') return 'success.main'
+                                        return 'text.secondary'
+                                      })(),
                                     }}>
                                     ±{formatRpm(Math.max(1, Math.round(record.stabilityCv * record.rpm)))}
                                   </Box>
@@ -442,6 +462,9 @@ export function MotorDetailPage() {
           </>
         )}
       </Box>
+
+      {/* 컨디션 판단 가이드 (v2.x — 쉬운 언어 3규칙: 양호/주의/점검 권장) */}
+      <ConditionHelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   )
 }
