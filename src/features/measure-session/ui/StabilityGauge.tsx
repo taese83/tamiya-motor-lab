@@ -34,7 +34,7 @@ const TICK_OUTER_R = R - STROKE_W / 2 - 2
 const TICK_INNER_R = TICK_OUTER_R - 3.5
 const LABEL_R = R + STROKE_W / 2 + 7
 const NEEDLE_TIP_R = R - 9
-const DIM_OPACITY = 0.4
+const DIM_OPACITY = 0.6 // v2.x(사용자): 대기 상태도 또렷하게 (0.4 → 0.6)
 const STAB_NEEDLE_MS = 60 // 순간 편차 떨림용 — 파노(100ms)보다 짧게(프레임 갱신이 뭉개지지 않게)
 
 const round2 = (n: number): number => Math.round(n * 100) / 100
@@ -53,15 +53,23 @@ const bandArc = (fromCv: number, toCv: number): string => {
   return `M ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2}`
 }
 
-// 4구간 = 등급 4단계와 1:1 (STABILITY_LEVELS). 매우 좋음·좋음은 진초록/연초록으로 분리해
-// 4밴드가 눈에 보이게 한다(사용자 지적: 구간은 4개).
+// 4구간 = 등급 4단계와 1:1 (STABILITY_LEVELS).
+// v2.x(사용자: 흐릿해서 촌스러움) — 반투명·저채도 제거, **불투명 쨍한 원색**으로 렌더한다.
 type BandKey = 'excellent' | 'good' | 'fair' | 'high'
 const BANDS: ReadonlyArray<{from: number; to: number; key: BandKey}> = [
-  {from: 0, to: STABILITY_EXCELLENT_MAX_CV, key: 'excellent'}, // 매우 좋음 → 진초록
-  {from: STABILITY_EXCELLENT_MAX_CV, to: STABILITY_GOOD_MAX_CV, key: 'good'}, // 좋음 → 연초록
-  {from: STABILITY_GOOD_MAX_CV, to: STABILITY_HIGH_MIN_CV, key: 'fair'}, // 보통 → 앰버
-  {from: STABILITY_HIGH_MIN_CV, to: MAX_CV, key: 'high'}, // 흔들림 큼 → 빨강
+  {from: 0, to: STABILITY_EXCELLENT_MAX_CV, key: 'excellent'},
+  {from: STABILITY_EXCELLENT_MAX_CV, to: STABILITY_GOOD_MAX_CV, key: 'good'},
+  {from: STABILITY_GOOD_MAX_CV, to: STABILITY_HIGH_MIN_CV, key: 'fair'},
+  {from: STABILITY_HIGH_MIN_CV, to: MAX_CV, key: 'high'},
 ]
+
+/** 쨍한 고채도 등급색 (사용자 req) — 테마 팔레트의 흐린 톤 대신 원색 고정 */
+const VIVID_BAND_COLOR: Record<BandKey, string> = {
+  excellent: '#00E5A0', // 선명한 민트그린 — 최상
+  good: '#3DDC46', // 쨍한 그린
+  fair: '#FFB300', // 쨍한 앰버
+  high: '#FF3B30', // 쨍한 레드
+}
 
 // 눈금·라벨 — 파노와 같은 룩(주 눈금 라벨 + 보조 눈금). 라벨은 % 정수(0·1·2).
 const NEEDLE_POINTS = [`${CX},${CY - NEEDLE_TIP_R}`, `${CX + 2},${CY + 1.5}`, `${CX - 2},${CY + 1.5}`].join(' ')
@@ -86,12 +94,6 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
   const cv = measuring ? view.stabilityCv : null
   const rpm = measuring ? view.rpm : 0
   const dim = !measuring
-  const bandColor: Record<BandKey, string> = {
-    excellent: palette.success.dark, // 진초록
-    good: palette.success.main, // 연초록
-    fair: palette.warning.main,
-    high: palette.error.main,
-  }
 
   const level = cv !== null ? stabilityLevelOf(cv) : null
 
@@ -106,7 +108,7 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
       <Box aria-hidden="true" sx={{width: 'clamp(148px, 46vw, 208px)'}}>
         <svg viewBox={VIEW_BOX} style={{display: 'block', width: '100%', height: '100%'}}>
           <g style={{opacity: dim ? DIM_OPACITY : 1}}>
-            {/* 등급 밴드 3구간 — 트랙 전체가 등급색 (사용자 req) */}
+            {/* 등급 밴드 4구간 — 불투명 쨍한 원색(사용자 req: 흐린 색감 제거) */}
             {BANDS.map(band => (
               <path
                 key={band.key}
@@ -114,7 +116,7 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
                 fill="none"
                 strokeWidth={STROKE_W}
                 strokeLinecap="butt"
-                style={{stroke: bandColor[band.key]}}
+                style={{stroke: VIVID_BAND_COLOR[band.key], opacity: 1}}
               />
             ))}
             {/* 눈금 + % 라벨 (0·1·2) — 파노와 같은 룩 */}
@@ -131,7 +133,7 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
                     x2={x2}
                     y2={y2}
                     strokeWidth={1}
-                    style={{stroke: palette.text.primary, opacity: 0.7}}
+                    style={{stroke: palette.text.primary}}
                   />
                   {LABELED_CVS.has(t) && (
                     <text

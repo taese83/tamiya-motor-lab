@@ -185,11 +185,18 @@ export const DEFAULT_TUNING: EngineTuning = {
   fMin: 100,
   fMax: 700,
   pitchDivisors: [1], // v2.x(사용자): 하위-복원 끔 — 지배 피치 그대로 (÷3·÷6 과대 하향 제거)
-  scoredHarmonics: [1, 3, 6],
-  harmonicWeights: [1, 1, 0.7],
+  // v2.x(사용자 실측: 파노튜너 570 vs 앱 283 = 정확히 ÷2 옥타브 에러) — 지배 피치 채점으로 전환.
+  // 이전 [1,3,6]·가중 [1,1,0.7]은 "3·6배가 기본파보다 큰 정류 고조파" 가정이라, 후보의 3·6배가
+  // 강하면 낮은 후보가 이겼다. 이제 **후보 자기 주파수(k=1)의 에너지**를 지배적으로 보고 2·3배는
+  // 보조 증거로만 쓴다 → 스펙트럼 최강 피크에 앉은 후보가 승리(= 튜너가 보는 음).
+  scoredHarmonics: [1, 2, 3],
+  harmonicWeights: [1, 0.3, 0.15],
   maxCandidates: 5,
-  nonHarmonicPenaltyWeight: 0.5,
-  subHarmonicPenaltyWeight: 2.5,
+  nonHarmonicPenaltyWeight: 0.3,
+  // v2.x(사용자 실측): 2.5 → 0.2. 이 페널티가 옥타브 에러(283=570/2)의 직접 원인이었다 —
+  // 브러시 모터는 회전 1회당 성분이 실제로 존재해서, 지배음(570) 후보가 그 아래 피크 때문에
+  // 2.5배 감점되어 탈락하고 절반(283)이 살아남았다. 지배 피치 모드에서는 veto를 거의 끈다.
+  subHarmonicPenaltyWeight: 0.2,
   consistencyTolRatio: 0.005,
   gateSnrDb: 8,
   gateStrongSnrDb: 15,

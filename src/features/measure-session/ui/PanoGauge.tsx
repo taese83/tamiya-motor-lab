@@ -1,6 +1,5 @@
 import {Box} from '@mui/material'
 import {useTheme} from '@mui/material/styles'
-import {useId} from 'react'
 
 import {measureStatusTokens, motionTokens} from '@shared/config/design-tokens'
 
@@ -48,10 +47,11 @@ const MINOR_STEP = 50
 /** 레드라인 = 상단 고위험 구간(600~700). 트랙 구간을 error 색으로 덮는다(DS-A15 장식) */
 const REDLINE_START = 600
 
-// 트랙·눈금 밝기 (v2.29 사용자). dim(대기)은 DIM_OPACITY.
-const TRACK_OPACITY = 0.8
-const MINOR_TICK_OPACITY = 0.7
-const DIM_OPACITY = 0.45
+// 트랙·눈금 밝기. v2.x(사용자: 흐린 색감 제거 — 쨍하게): 반투명 걷어내고 전부 불투명(1).
+// dim(비측정 대기)만 낮춰 상태를 구분하되, 이전(0.45)보다 또렷하게 0.6.
+const TRACK_OPACITY = 1
+const MINOR_TICK_OPACITY = 1
+const DIM_OPACITY = 0.6
 
 const round2 = (n: number): number => Math.round(n * 100) / 100
 
@@ -125,31 +125,14 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
   const palette = (theme.vars ?? theme).palette
   const limeFg = measureStatusTokens.measuring.fg
   const dim = panoHz === null
-  const gradientId = useId()
 
   return (
     <svg
       viewBox={VIEW_BOX}
       aria-hidden="true"
       style={{display: 'block', width: '100%', height: '100%'}}>
-      <defs>
-        {/*
-          진행 채움 그라디언트 (amCharts gradient-fill 데모 룩). 좌(저 RPM)→우(고 RPM)로
-          어두운 라임 → 밝은 라임. userSpaceOnUse로 viewBox 좌표에 고정해 dashoffset이
-          바뀌어도 색 위치가 흔들리지 않는다.
-        */}
-        <linearGradient
-          id={gradientId}
-          gradientUnits="userSpaceOnUse"
-          x1={CX - TRACK_R}
-          y1={CY}
-          x2={CX + TRACK_R}
-          y2={CY}>
-          <stop offset="0" stopColor={limeFg} stopOpacity={0.55} />
-          <stop offset="1" stopColor={limeFg} stopOpacity={1} />
-        </linearGradient>
-      </defs>
-
+      {/* v2.x(사용자: 흐릿한 색감 촌스러움) — 진행 채움 그라디언트 제거, **단색 라임**.
+          이전 amCharts 룩(0.55→1 투명도 그라디언트)은 저 RPM 구간이 흐려 보였다. */}
       <g style={{opacity: dim ? DIM_OPACITY : 1}}>
         {/* 트랙 — 두꺼운 라운드 캡 계기 링 */}
         <path
@@ -209,7 +192,7 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
             strokeLinecap="butt"
             strokeDasharray={TRACK_ARC_LENGTH}
             sx={{
-              stroke: `url(#${gradientId})`,
+              stroke: limeFg, // v2.x(사용자): 단색 라임 — 그라디언트 폐기
               strokeDashoffset: round2(TRACK_ARC_LENGTH * (1 - valueToFraction(panoHz))),
               transition: `stroke-dashoffset ${motionTokens.needleMs}ms linear`,
               '@media (prefers-reduced-motion: reduce)': {transition: 'none'},

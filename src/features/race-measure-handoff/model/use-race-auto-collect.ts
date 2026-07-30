@@ -3,6 +3,7 @@ import {useQueryClient} from '@tanstack/react-query'
 
 import {collectMeasureRecord, measureKeys} from '@entities/measure-record'
 import {motorKeys} from '@entities/motor'
+import {requestServerSync} from '@shared/lib/sync-signal'
 
 import {
   _markMeasuredPending,
@@ -68,6 +69,8 @@ export function useRaceAutoCollect(input: UseRaceAutoCollectInput): void {
         void queryClient.invalidateQueries({queryKey: motorKeys.summaries()})
         // collect가 모터 행의 기준선(stabilityBestCvs)을 병합 갱신 — 상세 캐시도 무효화(v2.x)
         void queryClient.invalidateQueries({queryKey: motorKeys.detail(motorId)})
+        // 서버 push 트리거 (v2.x 버그 수정) — 왕복 수집도 mutationCache를 거치지 않는다
+        requestServerSync()
         deliver({kind: 'collected', motorId})
         return
       }

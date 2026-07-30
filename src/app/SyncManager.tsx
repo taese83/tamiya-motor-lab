@@ -5,6 +5,7 @@ import {useQueryClient} from '@tanstack/react-query'
 import {useSession} from '@features/auth'
 import {pullServerData, pushServerData} from '@features/sync'
 import {readDomainSnapshot, replaceDomainSnapshot} from '@shared/lib/persistence'
+import {subscribeServerSync} from '@shared/lib/sync-signal'
 
 // 서버 동기화 오케스트레이션 (v2.40 Phase B → v2.x: 서버 DB 정본 통일).
 // v2.x(사용자): **데이터는 서버 DB가 정본.** 로그인 시 서버에서 로드해 로컬(IndexedDB 캐시)을 채운다.
@@ -48,11 +49,12 @@ export function SyncManager() {
     })()
   }, [userId, queryClient])
 
-  // 도메인 mutation 성공 → 디바운스 mirror push(로그인 상태만)
+  // 로컬 쓰기 → 디바운스 mirror push(로그인 상태만). 두 채널을 모두 구독한다:
+  //  ① TanStack mutation 성공(모터 생성·수정·삭제 등 useMutation 경로)
+  //  ② requestServerSync 신호 — **측정 수집**은 command 직접 호출이라 ①이 발화하지 않았다.
+  //     이 누락으로 측정 기록이 서버에 저장되지 않던 버그를 수정한다(v2.x 사용자 제보).
   useEffect(() => {
-    const cache = queryClient.getMutationCache()
-    const unsubscribe = cache.subscribe(event => {
-      if (event.type !== 'updated' || event.mutation.state.status !== 'success') return
+    const schedulePush = (): void => {
       if (userId === null) return
       if (pushTimerRef.current !== null) clearTimeout(pushTimerRef.current)
       pushTimerRef.current = setTimeout(() => {
@@ -60,9 +62,15 @@ export function SyncManager() {
           await pushServerData(await readDomainSnapshot())
         })()
       }, PUSH_DEBOUNCE_MS)
+    }
+    const unsubscribeMutations = queryClient.getMutationCache().subscribe(event => {
+      if (event.type !== 'updated' || event.mutation.state.status !== 'success') return
+      schedulePush()
     })
+    const unsubscribeSignal = subscribeServerSync(schedulePush)
     return () => {
-      unsubscribe()
+      unsubscribeMutations()
+      unsubscribeSignal()
       if (pushTimerRef.current !== null) clearTimeout(pushTimerRef.current)
     }
   }, [queryClient, userId])

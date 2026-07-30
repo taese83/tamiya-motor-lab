@@ -4,6 +4,7 @@ import {useQueryClient} from '@tanstack/react-query'
 import {collectMeasureRecord, measureKeys} from '@entities/measure-record'
 import {motorKeys} from '@entities/motor'
 import {isDomainError} from '@shared/lib/errors'
+import {requestServerSync} from '@shared/lib/sync-signal'
 import {useToast} from '@shared/ui/toast'
 
 // M-6 [기록] 수집 플로우 오케스트레이션 (component-spec §4.2 — MotorPickSheet 소비 훅).
@@ -88,6 +89,9 @@ export function useCollectFlow(): CollectFlowApi {
           void queryClient.invalidateQueries({queryKey: measureKeys.byMotor(motorId)})
           void queryClient.invalidateQueries({queryKey: motorKeys.summaries()})
           void queryClient.invalidateQueries({queryKey: motorKeys.detail(motorId)})
+          // 서버 push 트리거 (v2.x 버그 수정): 수집은 useMutation이 아니라 command 직접 호출이라
+          // SyncManager의 mutationCache 구독이 발화하지 않았다 → 측정 기록이 서버에 저장되지 않음.
+          requestServerSync()
           toast.showSuccess(`'${motorName}'에 기록됨`)
           setState({step: 'idle'})
         } else if (result.error.code === 'not-found') {

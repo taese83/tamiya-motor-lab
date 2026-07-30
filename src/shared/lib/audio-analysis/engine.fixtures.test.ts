@@ -306,8 +306,26 @@ describe('fixture ⑧ 옥타브 유혹(300↔600 진폭 반전 교차) — 추�
   // "신뢰 게이트 미달 시 수치 미표시"(v2 §1) 원칙 그대로이며 오값 표시보다 안전하다.
   // 따라서 검증 대상은 ① 보고된 수치는 반드시 300 Hz 근방 ② 600 Hz 보고 0건
   // ③ 거부는 반드시 null(오값·0 RPM 금지) ④ 기본파가 지배적인 구간에서는 수치가 나온다.
-  test('보고된 수치는 전부 300 Hz 근방 — 600 Hz로 점프하지 않는다', () => {
-    const estimates = runEngine(fixtureOctaveTemptation(), FIXTURE_SAMPLE_RATE)
+  // v2.x(사용자 실측): 기본 모드는 **지배 피치**(파노튜너와 일치)라, 600이 더 커지는 구간에서
+  // 600을 따라가는 것이 이제 올바른 동작이다. 이 fixture가 검증하는 "하위 옥타브 고정"은
+  // 레거시 능력(하위 고조파 veto)이므로 원래 파라미터로 명시해 그 능력이 살아있음을 검증한다.
+  const LEGACY_OCTAVE_LOCK = {
+    fMin: 170,
+    fMax: 620,
+    pitchDivisors: [1, 3, 6],
+    scoredHarmonics: [1, 3, 6],
+    harmonicWeights: [1, 1, 0.7],
+    nonHarmonicPenaltyWeight: 0.5,
+    subHarmonicPenaltyWeight: 2.5,
+  } as const
+
+  test('보고된 수치는 전부 300 Hz 근방 — 600 Hz로 점프하지 않는다 (레거시 옥타브 veto 모드)', () => {
+    const estimates = runEngine(
+      fixtureOctaveTemptation(),
+      FIXTURE_SAMPLE_RATE,
+      1024,
+      LEGACY_OCTAVE_LOCK,
+    )
     const settled = estimatesAfter(estimates, WARMUP_SEC)
     expect(settled.length).toBeGreaterThan(100)
 

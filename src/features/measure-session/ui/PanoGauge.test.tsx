@@ -70,9 +70,13 @@ describe('PanoGauge (0~700 스케일)', () => {
     for (const v of ['100', '300', '700']) expect(labels).not.toContain(v)
   })
 
-  it('진행 채움은 그라디언트 스트로크를 쓴다 (amCharts gradient-fill 룩)', () => {
+  it('진행 채움은 불투명 단색 라임 (v2.x 사용자: 흐린 그라디언트 제거)', () => {
     const {container} = render(<PanoGauge panoHz={350} />)
-    const stroke = getComputedStyle(progressPath(container) as SVGPathElement).stroke
-    expect(stroke).toContain('url(')
+    const fill = progressPath(container) as SVGPathElement
+    const {stroke, strokeOpacity} = getComputedStyle(fill)
+    // 그라디언트(url(#…)) 참조가 아니라 실제 색이어야 한다 — 반투명 스톱으로 흐려지지 않는다
+    expect(stroke).not.toContain('url(')
+    expect(stroke).not.toBe('')
+    if (strokeOpacity !== '') expect(Number(strokeOpacity)).toBe(1)
   })
 })
