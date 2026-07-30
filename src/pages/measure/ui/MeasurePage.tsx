@@ -5,6 +5,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext} from 'react-router'
 
 import {motorQueries} from '@entities/motor'
+import {AuthMenu} from '@features/auth'
 import {MotorPickSheet, useCollectFlow} from '@features/collect-measure'
 import {
   restartCaptureOnVisible,
@@ -199,6 +200,17 @@ export function MeasurePage() {
 
       {/* 왕복 모드 스트립 (component-spec §7.1) — slot 존재와 렌더가 동치(INV-21), 최상단 */}
       {slot !== null && <RaceMeasureStrip motorName={slot.motorName} origin={slot.origin} />}
+
+      {/* v2.39 로그인 — S1 좌상단(테마 토글 대칭). 미로그인=구글 로그인, 로그인=이름·로그아웃 */}
+      <Box
+        sx={{
+          position: 'absolute',
+          top: 'calc(8px + var(--mml-safe-top, 0px))',
+          left: 8,
+          zIndex: 1,
+        }}>
+        <AuthMenu />
+      </Box>
 
       {/* 테마 토글 — S1 우상단 고정, 수치 영역 밖 (design-system §7.3 — 기존 패턴 승계) */}
       <Box

@@ -1664,3 +1664,41 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - typecheck·lint·build·test 전부 exit 0, vitest 98건.
 - 브라우저: favicon `/favicon.svg` 로드(image/svg+xml)·robots index·description·og 확인. 시드 모터에서
   측정 2건 → 트레이 [삭제] 탭 → **다이얼로그 없이** 1건 삭제·토스트·목록 갱신 확인(시드 정리 완료).
+
+---
+
+## v2.39 — 로그인 Phase A: 구글 OAuth + 세션 (tamiya-race-app 미러링, 사용자 승인)
+
+### TARGET_BEHAVIOR
+- 구글 로그인/로그아웃 + 세션. 서버 DB 데이터 계층 분기는 Phase B(다음).
+- 스택은 `tamiya-race-app`와 동일: 커스텀 구글 OAuth(서버리스) + `jose` JWT 세션 + Neon(users).
+
+### 변경 (서버리스 JS — 기존 api/recommend-voltage.js 선례와 일관)
+- `api/_lib/session.js`(jose HS256·`mml_session` 30일 쿠키·SessionPayload sub/email/name/picture),
+  `oauth.js`(state+HMAC `mml_oauth_state`), `db.js`(neon sql()+upsertUser).
+- `api/auth/google/start.js`(구글 동의화면 리다이렉트), `callback.js`(code→token·id_token JWKS 검증·
+  best-effort upsertUser·세션 발급·`/` 복귀), `auth/session.js`(현재 세션), `auth/logout.js`.
+- `migrations/001_users.sql`(users 테이블 — 구글 sub PK).
+- 클라이언트 `features/auth`: `useSession`(GET /api/auth/session, 로컬은 null 수렴), `AuthMenu`
+  (미로그인=[구글 로그인]→/api/auth/google/start, 로그인=아바타·이름·[로그아웃]). MeasurePage 좌상단 배선.
+- deps: `jose`·`@neondatabase/serverless`(런타임, 클라 번들 미포함). vercel.json rewrite는 이미 /api 제외.
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 비로그인 동작 = 기존과 동일(IndexedDB) · 로컬 정적 서버는 세션 null(미로그인)로 안전 수렴
+- upsertUser는 best-effort — DB(Phase B) 전에도 로그인 성공 · 키는 서버 env 전용(번들 미포함)
+
+### NON_GOALS (Phase A)
+- 서버 DB 도메인 테이블·데이터 계층 분기(로그인 시 서버 정본·로컬 대체) — **Phase B**
+- 다중 프로필(참조 앱의 profiles) — 이 앱 불필요로 제외
+
+### TEST_EVIDENCE
+- typecheck·lint(api/*.js 포함)·build·test 전부 exit 0, vitest 98건.
+- 브라우저(로컬) `/`: 좌상단 [구글 로그인] 렌더·href `/api/auth/google/start`, 세션 null(정적 서버). 게이지 등 기존 정상.
+- **미검증(자격증명·배포 필요)**: 실제 구글 로그인 왕복·세션 발급은 Vercel 환경변수 설정 후.
+
+### 배포 활성화 (사용자 — Vercel 환경변수 + Google/Neon)
+1. Google Cloud → OAuth 2.0 클라이언트(Web): 승인 리디렉션 URI `https://<도메인>/api/auth/google/callback`
+   (+ 필요시 localhost). → `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
+2. `GOOGLE_REDIRECT_URI` = 위 콜백 URL. `SESSION_SECRET` = 32자+ 랜덤.
+3. (Phase B 대비) Neon 프로젝트 → `DATABASE_URL`, migrations/001_users.sql 1회 실행.
+4. Vercel 환경변수 등록 후 재배포 → [구글 로그인] 동작.
