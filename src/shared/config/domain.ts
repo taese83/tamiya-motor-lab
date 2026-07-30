@@ -126,7 +126,9 @@ export function stabilityLevelOf(cv: number): StabilityLevel {
 }
 
 // [2축 — 자기 기준선 추세] Portescap 백서의 baseline 모니터링 방식(마모=β>1 점진 악화).
-// 기준선: 그 모터의 초기 측정 STABILITY_BASELINE_COUNT건의 CV 중앙값. 파생값 — 영속 금지.
+// 기준선(v2.x 개정 2 — 사용자 확정): 보관 기록 중 **가장 좋은(낮은) CV STABILITY_BASELINE_COUNT건의
+// 중앙값** = 그 모터의 최상 컨디션. 초기 3건 방식의 오염(서툰 초기 측정)·rolling 삭제 드리프트를
+// 해소한다. 파생값 — 영속 금지. 표시(사용자 확정: 조용한 추세): ok는 침묵, watch/inspect만 발화.
 export const STABILITY_BASELINE_COUNT = 3 // 기준선 표본 수 — 백서 권고(최소 3개 표본)와 정렬
 export const CONDITION_LEVELS = ['ok', 'watch', 'inspect'] as const
 export type ConditionLevel = (typeof CONDITION_LEVELS)[number]
@@ -135,10 +137,10 @@ export const CONDITION_LEVEL_LABELS: Record<ConditionLevel, string> = {
   watch: '주의',
   inspect: '점검 권장',
 }
-export const CONDITION_WATCH_RATIO = 1.5 // 기준선 대비 1.5배 이상 → 주의
-export const CONDITION_INSPECT_RATIO = 2.0 // 기준선 대비 2배 이상 → 점검 권장
+export const CONDITION_WATCH_RATIO = 1.5 // 최상 기준선 대비 1.5배 이상 → 주의
+export const CONDITION_INSPECT_RATIO = 2.0 // 최상 기준선 대비 2배 이상 → 점검 권장
 
-/** 기준선 대비 컨디션 판정 — baseline이 아직 없으면(초기 측정 수집 중) null */
+/** 기준선 대비 컨디션 판정 — baseline이 아직 없으면(표본 수집 중) null */
 export function conditionLevelOf(currentCv: number, baselineCv: number | null): ConditionLevel | null {
   if (baselineCv === null || baselineCv <= 0) return null
   const ratio = currentCv / baselineCv

@@ -64,6 +64,8 @@ export function useRaceAutoCollect(input: UseRaceAutoCollectInput): void {
         _resolveMeasuredSave(startedAt, 'saved')
         void queryClient.invalidateQueries({queryKey: measureKeys.byMotor(motorId)})
         void queryClient.invalidateQueries({queryKey: motorKeys.summaries()})
+        // collect가 모터 행의 기준선(stabilityBestCvs)을 병합 갱신 — 상세 캐시도 무효화(v2.x)
+        void queryClient.invalidateQueries({queryKey: motorKeys.detail(motorId)})
         deliver({kind: 'collected', motorId})
         return
       }

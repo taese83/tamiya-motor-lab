@@ -6,6 +6,7 @@ import {mapStorageError, requireDb, withTransaction} from '@shared/lib/persisten
 import {err} from '@shared/lib/result'
 
 import {collectMeasureInputSchema, parseMeasureRecordRow} from '../model/schema'
+import {mergeBestCvs} from '../model/stability-baseline'
 
 import type {CollectMeasureInput, MeasureRecord} from '../model/schema'
 import type {Result} from '@shared/lib/result'
@@ -17,6 +18,10 @@ import type {Result} from '@shared/lib/result'
 // (state-contract 위임 계약 5). store·index 이름은 state-contract v2 표기(measureRecords·by-motorId).
 
 const BY_MOTOR_INDEX = 'by-motorId'
+
+// motors 행의 기준선 필드만 완화 검증 — motor 엔티티 import 없이(위임 계약 5) 필드 단위로 읽는다.
+// 파손된 값(비배열 등)은 빈 표본으로 간주 — collect를 막지 않고 이번 병합으로 자연 복구된다.
+const bestCvsFieldSchema = z.array(z.number().min(0).finite()).catch([])
 
 /**
  * INV-08 (v2): measuredAt 오름차순, 동률 시 id 오름차순 — 목록 query·rolling eviction 동일 비교자.
@@ -74,6 +79,20 @@ export async function collectMeasureRecord(
     }
 
     await store.add(record) // add — id 중복 시 실패 (INV-02)
+
+    // 안정도 기준선 영속 (v2.x — 사용자 확정: 역대 최상 CV 3건, rolling eviction과 무관).
+    // 기존 영속 표본 + 보관 기록 CV(구버전 모터 첫 수집 시 백필) + 새 CV를 병합해
+    // 가장 좋은(낮은) 3건만 유지 — 기존 기준이 현재 20건보다 좋으면 그대로 생존한다.
+    // 같은 tx라 abort 시 기록 삽입과 함께 롤백. updatedAt은 갱신하지 않는다(사용자 편집 아님).
+    if (record.stabilityCv !== undefined) {
+      const currentBest = bestCvsFieldSchema.parse(motor['stabilityBestCvs'] ?? [])
+      const storedCvs = existing
+        .map(row => row.stabilityCv)
+        .filter((cv): cv is number => cv !== undefined)
+      const nextBest = mergeBestCvs(currentBest, [...storedCvs, record.stabilityCv])
+      await tx.objectStore('motors').put({...motor, stabilityBestCvs: nextBest})
+    }
+
     return record
   })
 }

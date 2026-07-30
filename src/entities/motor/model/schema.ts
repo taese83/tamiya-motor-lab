@@ -1,6 +1,6 @@
 import {z} from 'zod'
 
-import {MOTOR_KINDS, MOTOR_NAME_MAX_LENGTH} from '@shared/config/domain'
+import {MOTOR_KINDS, MOTOR_NAME_MAX_LENGTH, STABILITY_BASELINE_COUNT} from '@shared/config/domain'
 import {DOMAIN_ERROR_MESSAGES, DomainError} from '@shared/lib/errors'
 
 // Motor 엔티티 zod 스키마 단일 정의 (api-schema v2 §2.2 canonical, AD-7) —
@@ -17,6 +17,10 @@ export const motorSchema = z.object({
   sortOrder: z.number().int().min(0), // T-6 — 리스트 순서 영속, reorderMotors 전용 변경 (INV-19)
   createdAt: z.iso.datetime(), // 구조 필드 — 불변, ISO 8601 UTC Z 고정
   updatedAt: z.iso.datetime(), // updateMotor 성공 시에만 갱신 — reorderMotors는 미갱신 (AR-3/SC2-A4)
+  // 안정도 기준선 영속 (v2.x — 사용자 확정): 역대 최상(낮은) CV 3건. rolling 20건 eviction과
+  // 무관하게 유지 — collectMeasureRecord가 병합 갱신, resetAllRecords만 제거. additive-optional이라
+  // 구버전 행 rehydrate는 그대로 통과(SC-A8). updatedAt은 갱신하지 않는다(사용자 편집이 아님).
+  stabilityBestCvs: z.array(z.number().min(0).finite()).max(STABILITY_BASELINE_COUNT).optional(),
 })
 export type Motor = z.infer<typeof motorSchema>
 

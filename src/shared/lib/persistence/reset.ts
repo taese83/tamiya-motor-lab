@@ -47,23 +47,33 @@ export async function resetAllData(): Promise<Result<void>> {
  * confirm(명시 확인 + 삭제 범위 고지 "모든 측정 기록과 레이스 기록이 삭제됩니다.
  * 등록된 모터는 유지됩니다.")은 호출 feature 책임.
  *
- * 원자성(INV-12): measureRecords + raceRecords **두 store 단일 트랜잭션** clear —
- * abort 시 두 store 모두 잔존(한쪽만 빈 상태 관찰 불가). motors·meta는 접근하지 않는다.
+ * 원자성(INV-12): motors + measureRecords + raceRecords **단일 트랜잭션** — abort 시 전부 잔존
+ * (한쪽만 빈 상태 관찰 불가). meta는 접근하지 않는다. motors는 행 삭제가 아니라
+ * **안정도 기준선(stabilityBestCvs) 필드 제거만** 수행한다 — 기준선은 기록에서 파생·영속된
+ * 값이라 기록 초기화와 함께 지워져야 "조용한 곳에서 기준 다시 잡기" 흐름(사용자)이 성립한다.
  * 반환 건수는 clear 직전 같은 tx의 실측치 — confirm 고지·성공 토스트 등 표시용.
  * 오류: storage-unavailable(연결 부재) · quota-exceeded/transaction-failed(withTransaction 매핑).
- * invalidation(measureKeys.root + raceKeys.root + motorKeys.summaries() — motors 캐시 유지)은
- * 호출 command/feature 책임.
+ * invalidation(measureKeys.root + raceKeys.root + motorKeys — 기준선 필드 변경으로 motors 캐시도
+ * 무효화)은 호출 command/feature 책임.
  */
 export async function resetAllRecords(): Promise<
   Result<{deletedMeasureCount: number; deletedRaceCount: number}>
 > {
-  return withTransaction(['measureRecords', 'raceRecords'], 'readwrite', async tx => {
+  return withTransaction(['motors', 'measureRecords', 'raceRecords'], 'readwrite', async tx => {
     const measureStore = tx.objectStore('measureRecords')
     const raceStore = tx.objectStore('raceRecords')
     const deletedMeasureCount = await measureStore.count()
     const deletedRaceCount = await raceStore.count()
     await measureStore.clear()
     await raceStore.clear()
+    const motorStore = tx.objectStore('motors')
+    for (const row of await motorStore.getAll()) {
+      if ('stabilityBestCvs' in row) {
+        const stripped = {...row}
+        delete stripped['stabilityBestCvs']
+        await motorStore.put(stripped)
+      }
+    }
     return {deletedMeasureCount, deletedRaceCount}
   })
 }

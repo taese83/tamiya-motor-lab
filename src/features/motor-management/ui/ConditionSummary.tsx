@@ -2,7 +2,6 @@ import {Box, Button, Typography} from '@mui/material'
 
 import {
   CONDITION_LEVEL_LABELS,
-  STABILITY_BASELINE_COUNT,
   STABILITY_HIGH_MIN_CV,
   STABILITY_LEVEL_LABELS,
   conditionLevelOf,
@@ -20,8 +19,6 @@ export interface ConditionSummaryProps {
   onOpenHelp: () => void
 }
 
-// 추세(기준선 대비) 등급색
-const TREND_COLOR = {ok: 'success.main', watch: 'warning.main', inspect: 'error.main'} as const
 // 절대(변동률 자체) 등급색 — MeasureFigures·PanoGauge 부채꼴과 동일 체계(기능 간 import 금지로 각자 보유)
 const ABS_COLOR: Record<StabilityLevel, string> = {
   excellent: 'success.main',
@@ -31,15 +28,13 @@ const ABS_COLOR: Record<StabilityLevel, string> = {
 }
 
 /**
- * 모터 컨디션 요약 1줄 (v2.x 2축 — 사용자 확정).
- * [1축 절대] 최신 변동률 자체의 4구간(stabilityLevelOf) — "지금 상태가 괜찮은가"
- * [2축 추세] 기준선 대비 비율(conditionLevelOf) — "나빠지고 있는가"
- * 표시 우선순위:
- * 1) 기준선 자체가 high(≥1.5%) 구간 → **신뢰 경고 우선**(추세 비교 보류) — 기준이 이미 흔들린
- *    상태에서 추세 '양호'가 상태 양호로 위장하는 맹점(사용자 지적) 차단.
- * 2) 기준선 완성 + 신뢰 가능 → "변동 {절대} · 추세 {컨디션} (기준 대비 ±N%)"
- * 3) 기준선 수집 중인데 안정도 보유 기록 있음 → 절대 축만 + 수집 진행
- * 4) 안정도 보유 기록 없음 → 수집 안내(판단 없음 — 오류 톤 금지)
+ * 모터 컨디션 요약 1줄 (v2.x — 절대 등급 + **조용한 추세**, 사용자 확정).
+ * 평소엔 절대 등급(stabilityLevelOf)과 최신 변동률만 표시한다 — 추세 '양호'는 정보가 없어
+ * 말하지 않는다. 추세(최상 컨디션 기준선 대비, conditionLevelOf)는 **할 말이 있을 때만** 끼어든다:
+ * 1) 기준선(최상 3건 중앙값) 자체가 high(≥1.5%) 구간 → 좋았던 기록이 아예 없다는 뜻 —
+ *    비교가 무의미하므로 추세 대신 재측정 안내(맹점 차단, 사용자 지적).
+ * 2) 최상 대비 watch(1.5배)/inspect(2배) 이상 악화 → "가장 좋을 때보다 N배 나빠짐" 경고.
+ * 3) 그 외 → 절대 등급만(조용).
  * [보는 법] 버튼으로 ConditionHelpDialog(판단 가이드)를 연다 — 열림 상태는 페이지 소유.
  */
 export function ConditionSummary({records, baseline, onOpenHelp}: ConditionSummaryProps) {
@@ -53,19 +48,11 @@ export function ConditionSummary({records, baseline, onOpenHelp}: ConditionSumma
     }
   }
 
-  const withCvCount = records.reduce(
-    (count, record) => (record.stabilityCv !== undefined ? count + 1 : count),
-    0,
-  )
-
   const absLevel = latestCv !== null ? stabilityLevelOf(latestCv) : null
   const baselineUntrusted = baseline !== null && baseline >= STABILITY_HIGH_MIN_CV
   const trendLevel =
     latestCv !== null && !baselineUntrusted ? conditionLevelOf(latestCv, baseline) : null
-  const changePct =
-    latestCv !== null && baseline !== null && baseline > 0
-      ? Math.round((latestCv / baseline - 1) * 100)
-      : null
+  const ratio = latestCv !== null && baseline !== null && baseline > 0 ? latestCv / baseline : null
 
   return (
     <Box sx={{display: 'flex', alignItems: 'center', gap: 1, minHeight: 32}}>
@@ -75,46 +62,53 @@ export function ConditionSummary({records, baseline, onOpenHelp}: ConditionSumma
           <Box component="span" sx={{color: ABS_COLOR[absLevel], fontWeight: 700}}>
             {STABILITY_LEVEL_LABELS[absLevel]}
           </Box>
+          <Box component="span" sx={{color: 'text.secondary'}}>
+            {' · '}
+            {(latestCv * 100).toFixed(2)}%
+          </Box>
           {baselineUntrusted ? (
-            // 1) 기준선 신뢰 경고 — 추세 판정 대신 우선 표시
+            // 1) 기준선 신뢰 경고 — 최상 3건조차 high 구간 = 좋았던 기록이 없다
             <>
               <Box component="span" sx={{color: 'text.secondary'}}>
                 {' · '}
               </Box>
               <Box component="span" sx={{color: 'warning.main', fontWeight: 700}}>
-                기준값 자체가 커요
+                좋았던 기록이 없어요
               </Box>
               <Box component="span" sx={{color: 'text.secondary'}}>
-                {' — 추세 비교 보류. 조용한 곳에서 기록을 초기화하고 다시 재보세요'}
-              </Box>
-            </>
-          ) : trendLevel !== null && changePct !== null ? (
-            // 2) 정상 2축 표시
-            <>
-              <Box component="span" sx={{color: 'text.secondary'}}>
-                {' · 추세 '}
-              </Box>
-              <Box component="span" sx={{color: TREND_COLOR[trendLevel], fontWeight: 700}}>
-                {CONDITION_LEVEL_LABELS[trendLevel]}
-              </Box>
-              <Box component="span" sx={{color: 'text.secondary'}}>
-                {' (기준 대비 '}
-                {changePct >= 0 ? `+${changePct}` : changePct}%)
+                {' — 조용한 곳에서 다시 재보세요'}
               </Box>
             </>
           ) : (
-            // 3) 기준선 수집 중 — 절대 축만 판단, 추세는 수집 진행 안내
-            <Box component="span" sx={{color: 'text.secondary'}}>
-              {' · 추세 기준 만드는 중 ('}
-              {Math.min(withCvCount, STABILITY_BASELINE_COUNT)}/{STABILITY_BASELINE_COUNT}회)
-            </Box>
+            // 2) 조용한 추세 — watch/inspect일 때만 발화(ok·수집 중엔 침묵)
+            (trendLevel === 'watch' || trendLevel === 'inspect') &&
+            ratio !== null && (
+              <>
+                <Box component="span" sx={{color: 'text.secondary'}}>
+                  {' · '}
+                </Box>
+                <Box
+                  component="span"
+                  sx={{
+                    color: trendLevel === 'inspect' ? 'error.main' : 'warning.main',
+                    fontWeight: 700,
+                  }}>
+                  가장 좋을 때보다 {ratio.toFixed(1)}배 나빠짐
+                </Box>
+                {trendLevel === 'inspect' && (
+                  <Box component="span" sx={{color: 'text.secondary'}}>
+                    {' — '}
+                    {CONDITION_LEVEL_LABELS.inspect}
+                  </Box>
+                )}
+              </>
+            )
           )}
         </Typography>
       ) : (
-        // 4) 안정도 보유 기록 없음 — 판단하지 않는다
+        // 안정도 보유 기록 없음 — 판단하지 않는다
         <Typography variant="body2" sx={{color: 'text.secondary'}}>
-          컨디션 기준 만드는 중 ({Math.min(withCvCount, STABILITY_BASELINE_COUNT)}/
-          {STABILITY_BASELINE_COUNT}회) — 측정을 기록하면 비교가 시작돼요
+          측정을 기록하면 컨디션이 표시돼요
         </Typography>
       )}
       <Button size="small" variant="text" onClick={onOpenHelp} sx={{ml: 'auto', flexShrink: 0}}>

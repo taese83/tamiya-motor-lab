@@ -4,7 +4,7 @@ import {Alert, Box, Button, Typography} from '@mui/material'
 import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext, useParams} from 'react-router'
 
-import {computeStabilityBaseline, measureQueries} from '@entities/measure-record'
+import {baselineFromBestCvs, computeStabilityBaseline, measureQueries} from '@entities/measure-record'
 import {MotorKindChip, motorQueries} from '@entities/motor'
 import {AuthMenu} from '@features/auth'
 import {useDeleteMeasureRecord} from '@features/measure-management'
@@ -192,10 +192,14 @@ export function MotorDetailPage() {
   const notFound = !corrupted && motorQuery.isSuccess && motor === null
   const records = recordsQuery.data
 
-  // 컨디션 기준선 (v2.x — 자기 기준선): 초기 안정도 기록 3건 중앙값. 파생값 — 렌더 시 계산(INV-09)
+  // 컨디션 기준선 (v2.x 개정 3 — 최상 컨디션 영속): 모터 행의 역대 최상 CV 3건 중앙값이 정본
+  // (rolling eviction과 무관 — 사용자 확정). 아직 영속 표본이 없는 모터(지표 도입 직후)만
+  // 보관 기록에서 파생 계산으로 fallback.
   const stabilityBaseline = useMemo(
-    () => (records !== undefined ? computeStabilityBaseline(records) : null),
-    [records],
+    () =>
+      baselineFromBestCvs(motor?.stabilityBestCvs) ??
+      (records !== undefined ? computeStabilityBaseline(records) : null),
+    [motor, records],
   )
   const [helpOpen, setHelpOpen] = useState(false)
 
@@ -276,9 +280,9 @@ export function MotorDetailPage() {
                 <MotorKindChip kind={motor.kind} />
               </Box>
 
-              {/* 컨디션 요약 (v2.x 개정 — 자기 기준선 비교, Portescap baseline 모니터링 방식).
-                  기준선 = 초기 안정도 기록 3건 중앙값(entities computeStabilityBaseline).
-                  판정은 절대 임계가 아니라 기준선 대비 비율(ok/watch/inspect). */}
+              {/* 컨디션 요약 (v2.x — 절대 등급 + 조용한 추세, Portescap baseline 모니터링 방식).
+                  기준선 = 역대 최상 CV 3건 중앙값(모터 행 영속 — rolling 삭제와 무관).
+                  추세는 최상 대비 비율(watch/inspect)일 때만 발화한다. */}
               {records !== undefined && records.length > 0 && (
                 <ConditionSummary
                   records={records}

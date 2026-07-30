@@ -6,7 +6,7 @@ export {
   parseMeasureRecordRow,
 } from './model/schema'
 export type {CollectMeasureInput, MeasureRecord} from './model/types'
-export {computeStabilityBaseline} from './model/stability-baseline'
+export {baselineFromBestCvs, computeStabilityBaseline, mergeBestCvs} from './model/stability-baseline'
 export {collectMeasureRecord, deleteMeasureRecord, listMeasureRecordsByMotor} from './api/repository'
 export {measureKeys} from './api/keys'
 export {measureQueries} from './api/queries'

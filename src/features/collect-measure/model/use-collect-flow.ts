@@ -59,7 +59,9 @@ type FlowState =
 
 /**
  * 수집 플로우 훅. invalidation은 api-schema §6.4 매트릭스대로 성공 시
- * measureKeys.byMotor(motorId) + motorKeys.summaries(), not-found 시 motorKeys.root.
+ * measureKeys.byMotor(motorId) + motorKeys.summaries() + motorKeys.detail(motorId)
+ * (collect가 모터 행의 기준선 stabilityBestCvs를 병합 갱신하므로 상세 캐시도 무효화 — v2.x),
+ * not-found 시 motorKeys.root.
  * select/completeRegister는 동기 재진입 가드(inFlightRef)로 수집 1건을 보장한다.
  */
 export function useCollectFlow(): CollectFlowApi {
@@ -85,6 +87,7 @@ export function useCollectFlow(): CollectFlowApi {
         if (result.ok) {
           void queryClient.invalidateQueries({queryKey: measureKeys.byMotor(motorId)})
           void queryClient.invalidateQueries({queryKey: motorKeys.summaries()})
+          void queryClient.invalidateQueries({queryKey: motorKeys.detail(motorId)})
           toast.showSuccess(`'${motorName}'에 기록됨`)
           setState({step: 'idle'})
         } else if (result.error.code === 'not-found') {

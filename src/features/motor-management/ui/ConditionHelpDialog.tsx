@@ -72,40 +72,37 @@ export function ConditionHelpDialog({open, onClose}: ConditionHelpDialogProps) {
         </Box>
 
         <Typography variant="body2" sx={{mb: 0.5}}>
-          <strong>② 추세 — 나빠지고 있는가</strong> (자기 기준과 비교)
+          <strong>② 추세 — 나빠지고 있는가</strong> (가장 좋았을 때와 비교)
         </Typography>
         <Typography variant="body2" sx={{mb: 1, color: 'text.secondary'}}>
-          처음 {STABILITY_BASELINE_COUNT}번 측정한 값이 이 모터의 기준이 돼요. 새 모터마다 타고난
-          값이 달라서, 남의 기준이 아니라 자기 기준과 비교합니다.
+          기록 중 <strong>가장 좋았던 {STABILITY_BASELINE_COUNT}회</strong>가 이 모터의 기준이 돼요.
+          새 모터마다 타고난 값이 달라서, 남의 기준이 아니라 자기 최상 컨디션과 비교합니다. 평소엔
+          아무 말도 하지 않다가, 나빠졌을 때만 경고가 나타나요:
         </Typography>
         <Box component="ul" sx={{m: 0, mb: 1.5, pl: 2.5, '& li': {mb: 0.5}}}>
-          <Typography component="li" variant="body2">
-            <Box component="span" sx={{color: 'success.main', fontWeight: 700}}>
-              {CONDITION_LEVEL_LABELS.ok}
-            </Box>{' '}
-            — 기준과 비슷해요. 그대로 즐기면 됩니다.
-          </Typography>
           <Typography component="li" variant="body2">
             <Box component="span" sx={{color: 'warning.main', fontWeight: 700}}>
               {CONDITION_LEVEL_LABELS.watch}
             </Box>{' '}
-            — 기준의 {CONDITION_WATCH_RATIO}배를 넘었어요. 추세를 지켜보세요.
+            — 가장 좋을 때의 {CONDITION_WATCH_RATIO}배를 넘었어요. 추세를 지켜보세요.
           </Typography>
           <Typography component="li" variant="body2">
             <Box component="span" sx={{color: 'error.main', fontWeight: 700}}>
               {CONDITION_LEVEL_LABELS.inspect}
             </Box>{' '}
-            — 기준의 {CONDITION_INSPECT_RATIO}배 이상이에요. 점검해볼 때입니다.
+            — 가장 좋을 때의 {CONDITION_INSPECT_RATIO}배 이상이에요. 브러시·정류자 청소나 베어링
+            점검을 해볼 때입니다.
           </Typography>
         </Box>
 
         <Typography variant="body2" sx={{mb: 1.5}}>
-          단, 기준 {STABILITY_BASELINE_COUNT}회 자체가 <strong>{STABILITY_LEVEL_LABELS.high}</strong>{' '}
-          구간이면 그 기준과의 비교는 믿기 어려워요. 이때는 추세 대신{' '}
+          단, 가장 좋았던 기록조차 <strong>{STABILITY_LEVEL_LABELS.high}</strong> 구간이면 비교할
+          기준이 없어요. 이때는{' '}
           <Box component="span" sx={{color: 'warning.main', fontWeight: 700}}>
-            기준값 자체가 커요
+            좋았던 기록이 없어요
           </Box>
-          라고 알려드려요 — 조용한 곳에서 기록을 초기화하고 기준을 다시 잡아보세요.
+          라고 알려드려요 — 모터 문제일 수도, 시끄러운 환경 탓일 수도 있으니 조용한 곳에서 다시
+          재보세요.
         </Typography>
 
         <Typography variant="body2" sx={{color: 'text.secondary'}}>
