@@ -1602,3 +1602,33 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - typecheck·lint·build·test 전부 exit 0.
 - 브라우저: 결과 없이 저장 후 [+ 기록] → "직전 기록 확인" 팝업(네/아니오). 네 → 수정 폼(전압 2.9 유지·결과 옵션),
   결과 완주 저장해 완성 후 [+ 기록] → 팝업 없이 목표 팝업. 테스트 기록 생성 후 삭제 복구.
+
+---
+
+## v2.37 — AI 프롬프트 고도화 + 지수 가중 분석 (사용자 승인)
+
+### TARGET_BEHAVIOR
+- 레이스 분석에 **지수 가중치** 부여: 가장 오래된 기록 weight 1, 최근일수록 GROWTH^rank(GROWTH=1.5).
+  weight를 payload에 실어 LLM이 분석 중요도로 쓰고, 휴리스틱도 **가중 최소제곱**으로 일치시킨다.
+- AI 프롬프트를 역할·도메인지식·입력스키마·분석절차·제약·출력계약으로 **세밀·정교화**. temperature 0.
+
+### 변경
+- `domain`: `RACE_WEIGHT_GROWTH = 1.5`.
+- `voltage-advisor`: `VoltageAdviceRace`에 `weight?`·`lapTimeMs?` 추가. `assignExponentialWeights(newest-first)`
+  신설(오래된=1, 최근=GROWTH^rank, 원본 불변). fitVoltageForPano를 **가중 최소제곱**으로(weight 없으면 1=등가중).
+  근거 문구 "가중 파노-전압 추세선/가중 평균".
+- `RaceDetailPage`: adviceHistory(최근 구간)에 assignExponentialWeights 적용 + lapTimeMs 포함.
+- `api/recommend-voltage.js`: 프롬프트 전면 재작성(가중치·랩타임·절차·제약·출력 JSON 계약), `temperature: 0`.
+- 클라이언트 payload가 weight를 포함하므로 서버리스·휴리스틱 동일 근거 사용.
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- weight 없으면 등가중(기존 동작 불변) · 2.6~3.2·0.02·속도 다운그레이드·이탈 회피 규칙 유지
+- 클라이언트 폴백(서버리스 실패 시 휴리스틱)·voltage 최종 검증 불변
+
+### CHANGE_BUDGET
+- 신규 의존성 0 · 순수 함수 확장(가중 최소제곱) + 프롬프트/상수
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest **98건**(assignExponentialWeights 2·가중 추세 1 추가).
+- 브라우저: 서로 다른 파노 2건 시드가 유효 저장·조회 확인(스키마 통과). 가중 추세·프리필 근거는 단위테스트로 커버.
+- **미검증(장비/키 필요)**: 실제 LLM 프롬프트 응답 품질은 Vercel `ANTHROPIC_API_KEY` 설정 후 확인.

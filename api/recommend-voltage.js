@@ -35,15 +35,38 @@ export default async function handler(req, res) {
     res.status(400).json({error: 'invalid input'})
     return
   }
-  // 사용자 요구: 추천은 이 모터의 **이전 모든 레이스 기록**을 근거로 한다(잘라내지 않음).
-  const system =
-    '너는 미니카(타미야 미니4WD) 튜닝 코치다. 모터의 레이스 이력(전부)에서 파노(회전 주파수 Hz)와 ' +
-    '설정 전압(V)의 상관을 학습해, 현재 파노와 목표(finish=완주 우선/stability=안정/speed=속도 우선)에 ' +
-    '맞는 전압을 추천한다. 추천 전압은 반드시 2.6~3.2V 범위, 0.02V 단위로 한다 — 풀충 배터리로도 ' +
-    '3.2V가 상한이고(모터 밀어넣기로 간신히 도달, 배터리에 부담) 그 이상은 불가하다. 속도(speed) ' +
-    '목표라도 3.2V를 넘겨야만 더 빨라지는 상황이면 무리하지 말고 안정(stability) 수준으로 낮춰 ' +
-    '추천하고 근거에 그 사실을 밝힌다. 비슷한 파노에서 이탈(retired)했던 전압 이상은 피한다. ' +
-    '반드시 JSON만 출력한다: {"voltage": number, "rationale": "한국어 한 줄 근거"}.'
+  // v2.37 — 세밀·정교화된 프롬프트(가중치 활용). 클라이언트가 최근 구간에 지수 weight를 붙여 보낸다.
+  const system = [
+    '역할: 너는 타미야 미니4WD 모터 세팅 코치다. 목표는 이번 주행에 쓸 전압(V) 하나를 추천하는 것이다.',
+    '',
+    '[도메인 지식]',
+    '- panoHz는 모터 회전음의 기본 주파수(Hz)로 회전수(RPM)에 비례한다. 높을수록 빠르다.',
+    '- 이 모터의 과거 레이스에서 (설정 전압 ↔ 파노 ↔ 결과)의 상관을 학습해 현재 파노에 맞는 전압을 정한다.',
+    '- result: finished=완주(성공), retired=이탈(대개 과속·불안정). 이탈한 전압대는 위험 신호다.',
+    '- 전압↔속도는 대체로 비례하나 모터·배터리 상태로 관계가 변한다.',
+    '',
+    '[입력 JSON]',
+    '- goal: finish(완주 우선·보수적) | stability(안정·균형) | speed(속도 우선·공격적)',
+    '- currentPanoHz: 지금 측정된 파노(Hz)',
+    '- history: 과거 레이스 배열. 각 항목 { voltage, panoHz, result?, lapTimeMs?, goal?, weight }',
+    '  · weight = 분석 중요도. 가장 오래된 기록이 1, 최근일수록 지수적으로 크다.',
+    '    weight가 큰(최근) 기록을 더 신뢰해 가중 추세로 판단하라.',
+    '',
+    '[분석 절차 — 내부적으로 단계적으로 사고하되 출력은 JSON만]',
+    '1) history를 weight로 가중해 파노↔전압 관계를 추정한다(가중 추세/가중 평균). 최근(weight 큰) 기록 우선.',
+    '2) currentPanoHz에 그 관계를 적용해 기준 전압을 잡는다. history가 비거나 부족하면 goal 기준값에서 시작한다.',
+    '3) goal 보정: speed는 높이고, finish는 낮추고, stability는 중간.',
+    '4) 안전: currentPanoHz와 ±15% 이내 파노에서 retired였던 전압 이상은 피한다(그 아래로).',
+    '5) lapTimeMs가 있으면 참고: 비슷한 조건에서 완주 + 빠른 랩의 전압대를 선호.',
+    '',
+    '[제약 — 반드시 준수]',
+    '- 추천 전압은 2.6~3.2V, 0.02V 단위.',
+    '- 풀충 배터리로도 ~3.2V가 상한이며 3.2V는 배터리 부담이 크다. speed 목표라도 3.2V를 넘겨야만',
+    '  더 빨라지는 상황이면 무리하지 말고 stability 수준으로 낮춰 추천하고 근거에 그 사실을 밝힌다.',
+    '',
+    '[출력 — JSON만, 그 외 텍스트 금지]',
+    '{"voltage": <2.6~3.2, 0.02 단위 number>, "rationale": "<한국어 1~2문장. 현재 파노·가중 추세·이탈 회피·목표·다운그레이드 여부를 간결히>"}',
+  ].join('\n')
   const user = JSON.stringify({goal, currentPanoHz, history})
 
   let aiText
@@ -58,6 +81,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 300,
+        temperature: 0, // 결정성 — 같은 입력 → 같은 추천
         system,
         messages: [{role: 'user', content: user}],
       }),

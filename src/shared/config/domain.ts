@@ -69,6 +69,11 @@ export const VOLTAGE_RANGE = {min: 0.1, max: 9.9, step: 0.1, maxDecimals: 2} as 
 // 이 대역으로만 제안하고, 속도 목표라도 3.2V를 넘겨야 더 빨라지는 상황이면 안정으로 낮춘다.
 export const VOLTAGE_ADVICE_RANGE = {min: 2.6, max: 3.2, step: 0.02} as const
 
+// ── 레이스 분석 가중치 (v2.37) — 가장 오래된 기록=1, 최근일수록 지수적으로 큰 중요도.
+// weight(rank) = GROWTH^rank (rank: 오래된 0 → 최근 n-1). 추천기(휴리스틱 가중 최소제곱·LLM 프롬프트)가
+// 이 weight를 분석 중요도로 사용한다.
+export const RACE_WEIGHT_GROWTH = 1.5
+
 // ── 표시 라벨 (CP-2 확정 — v1 유지. M-4: 파노가 주지표로 승격, 라벨 자체는 무변경)
 export const PANO_LABEL = '파노'
 

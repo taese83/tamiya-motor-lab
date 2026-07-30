@@ -1,4 +1,9 @@
-import {RACE_GOAL_LABELS, RACE_RESULT_LABELS, VOLTAGE_ADVICE_RANGE} from '@shared/config/domain'
+import {
+  RACE_GOAL_LABELS,
+  RACE_RESULT_LABELS,
+  RACE_WEIGHT_GROWTH,
+  VOLTAGE_ADVICE_RANGE,
+} from '@shared/config/domain'
 
 import type {RaceGoal} from '@shared/config/domain'
 
@@ -20,6 +25,27 @@ export interface VoltageAdviceRace {
   result?: 'finished' | 'retired' | undefined
   panoHz: number
   goal?: RaceGoal | undefined
+  /** v2.37 랩타임(ms) — LLM 프롬프트 참고 신호(완주+빠른 랩 전압대 선호). 휴리스틱은 미사용 */
+  lapTimeMs?: number | undefined
+  /** v2.37 분석 중요도 — 가장 오래된=1, 최근일수록 지수적으로 큼. 없으면 1(등가중)로 취급 */
+  weight?: number | undefined
+}
+
+/**
+ * v2.37 — 지수 가중치 부여. history는 **최신순(newest-first)** 입력을 가정하고, 가장 오래된 항목이
+ * weight 1, 최근일수록 GROWTH^rank로 커진다(rank: 오래된 0 → 최근 n-1). 원본 불변(새 배열 반환).
+ * 추천 payload(LLM·휴리스틱 공통)에 붙여 최근 기록을 더 크게 반영한다.
+ */
+export function assignExponentialWeights(
+  historyNewestFirst: ReadonlyArray<VoltageAdviceRace>,
+  growth: number = RACE_WEIGHT_GROWTH,
+): VoltageAdviceRace[] {
+  const n = historyNewestFirst.length
+  return historyNewestFirst.map((race, j) => {
+    const rankFromOldest = n - 1 - j // 최신순 배열의 index j → 오래된 기준 rank
+    const weight = Math.round(growth ** rankFromOldest * 100) / 100
+    return {...race, weight}
+  })
 }
 
 export interface VoltageAdviceInput {
@@ -54,7 +80,10 @@ export function clampVoltage(v: number): number {
   return Math.min(VOLTAGE_ADVICE_RANGE.max, Math.max(VOLTAGE_ADVICE_RANGE.min, stepped))
 }
 
-/** 파노 P에서의 전압을 이력으로 학습해 추정 — 1건=비례, 2건+=선형적합(퇴화 시 평균) */
+/**
+ * 파노 P에서의 전압을 이력으로 학습해 추정 — 1건=비례, 2건+=**가중** 최소제곱 선형적합.
+ * weight(v2.37, 최근일수록 큼)를 표본 가중치로 써 최근 기록을 더 크게 반영한다(없으면 1=등가중).
+ */
 function fitVoltageForPano(
   pts: ReadonlyArray<VoltageAdviceRace>,
   panoHz: number,
@@ -63,25 +92,28 @@ function fitVoltageForPano(
     const {voltage, panoHz: p0} = pts[0]!
     return {voltage: (voltage / p0) * panoHz, reason: '파노 비례 추정'}
   }
-  const n = pts.length
+  // 가중 최소제곱: Σw(V − (aP+b))² 최소화
+  let sW = 0
   let sP = 0
   let sV = 0
   let sPP = 0
   let sPV = 0
-  for (const {voltage, panoHz: p} of pts) {
-    sP += p
-    sV += voltage
-    sPP += p * p
-    sPV += p * voltage
+  for (const {voltage, panoHz: p, weight} of pts) {
+    const w = weight ?? 1
+    sW += w
+    sP += w * p
+    sV += w * voltage
+    sPP += w * p * p
+    sPV += w * p * voltage
   }
-  const mean = sV / n
-  const denom = n * sPP - sP * sP
-  if (Math.abs(denom) < 1e-6) return {voltage: mean, reason: '이력 평균(파노 동일)'}
-  const a = (n * sPV - sP * sV) / denom
-  const b = (sV - a * sP) / n
+  const mean = sV / sW // 가중 평균
+  const denom = sW * sPP - sP * sP
+  if (Math.abs(denom) < 1e-6) return {voltage: mean, reason: '가중 평균(파노 동일)'}
+  const a = (sW * sPV - sP * sV) / denom
+  const b = (sV - a * sP) / sW
   const est = a * panoHz + b
-  if (!Number.isFinite(est) || est <= 0) return {voltage: mean, reason: '이력 평균'}
-  return {voltage: est, reason: '파노-전압 추세선'}
+  if (!Number.isFinite(est) || est <= 0) return {voltage: mean, reason: '가중 평균'}
+  return {voltage: est, reason: '가중 파노-전압 추세선'}
 }
 
 /** 현재 파노와 비슷한 조건에서 이탈했던 최소 전압 — 그 이상은 회피(과속 재현 방지) */

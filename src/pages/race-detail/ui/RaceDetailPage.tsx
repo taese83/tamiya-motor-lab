@@ -23,6 +23,7 @@ import {useRaceDeleteFlow, useRaceEntry, useResetRecordsFlow} from '@features/ra
 import {RaceEntrySheet, RaceGoalSheet, RaceRecordRow, ResetRecordsBlock} from '@features/race-record/ui'
 import {layoutTokens} from '@shared/config/design-tokens'
 import {formatDateTimeShort} from '@shared/lib/format'
+import {assignExponentialWeights} from '@shared/lib/voltage-advisor'
 import {ConfirmDialog} from '@shared/ui/confirm-dialog'
 import {useSingleOpenRow} from '@shared/ui/swipe-actions'
 import {EmptyState} from '@shared/ui/empty-state'
@@ -151,12 +152,16 @@ export function RaceDetailPage() {
   const lastFinishedIdx = races.findIndex(r => r.result === 'finished')
   const windowRaces =
     lastFinishedIdx >= 0 ? races.slice(0, lastFinishedIdx + 1) : races.slice(0, RECENT_FALLBACK)
-  const adviceHistory: VoltageAdviceRace[] = windowRaces.map(r => ({
-    voltage: r.voltage,
-    result: r.result,
-    panoHz: r.panoHz,
-    goal: r.goal,
-  }))
+  // v2.37 — 최근 구간에 지수 가중치 부여(가장 오래된=1, 최근일수록 큼). windowRaces는 최신순.
+  const adviceHistory: VoltageAdviceRace[] = assignExponentialWeights(
+    windowRaces.map(r => ({
+      voltage: r.voltage,
+      result: r.result,
+      panoHz: r.panoHz,
+      goal: r.goal,
+      ...(r.lapTimeMs !== undefined ? {lapTimeMs: r.lapTimeMs} : {}),
+    })),
+  )
   // 현재 파노 — auto 인용값 우선, 없으면 직전 레이스 파노로 대체(휴리스틱은 0이면 파노 보정 생략)
   const currentPanoHz = initialPano.kind !== 'none' ? initialPano.panoHz : (races[0]?.panoHz ?? 0)
 

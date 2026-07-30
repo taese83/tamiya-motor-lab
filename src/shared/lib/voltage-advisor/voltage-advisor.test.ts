@@ -1,6 +1,10 @@
 import {describe, expect, it} from 'vitest'
 
-import {clampVoltage, recommendVoltageHeuristic} from './voltage-advisor'
+import {
+  assignExponentialWeights,
+  clampVoltage,
+  recommendVoltageHeuristic,
+} from './voltage-advisor'
 
 import type {VoltageAdviceRace} from './voltage-advisor'
 
@@ -78,6 +82,32 @@ describe('recommendVoltageHeuristic — 속도 상한 다운그레이드', () =>
     const finish = recommendVoltageHeuristic({goal: 'finish', currentPanoHz: 400, history}).voltage
     const speed = recommendVoltageHeuristic({goal: 'speed', currentPanoHz: 400, history}).voltage
     expect(speed).toBeGreaterThan(finish)
+  })
+})
+
+describe('assignExponentialWeights — 지수 가중치(v2.37)', () => {
+  it('최신순 입력에 오래된=1, 최근일수록 GROWTH^rank', () => {
+    const h = [race({voltage: 3.0}), race({voltage: 2.9}), race({voltage: 2.8})] // 최신→오래됨
+    const w = assignExponentialWeights(h, 1.5).map(r => r.weight)
+    expect(w).toEqual([2.25, 1.5, 1]) // 최신 1.5² / 1.5¹ / 오래된 1.5⁰
+  })
+  it('원본 배열을 변형하지 않는다', () => {
+    const h = [race(), race()]
+    const before = JSON.stringify(h)
+    assignExponentialWeights(h)
+    expect(JSON.stringify(h)).toBe(before)
+  })
+})
+
+describe('recommendVoltageHeuristic — 가중 추세(v2.37)', () => {
+  it('가중치가 큰(최근) 기록 쪽으로 기운다', () => {
+    // 같은 파노(400)에서 오래된 2.7(w=1) vs 최근 3.0(w=5) → 가중 평균은 3.0쪽(단순평균 2.85 초과)
+    const history = [
+      race({voltage: 3.0, panoHz: 400, weight: 5}),
+      race({voltage: 2.7, panoHz: 400, weight: 1}),
+    ]
+    const advice = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 400, history})
+    expect(advice.voltage).toBeGreaterThan(2.85)
   })
 })
 
