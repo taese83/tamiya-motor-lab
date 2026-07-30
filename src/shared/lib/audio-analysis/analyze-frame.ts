@@ -36,6 +36,7 @@ function emptyAnalysis(rms: number): FrameAnalysis {
     usedHarmonics: [],
     rms,
     topPeaks: [],
+    candidateF0: null,
   }
 }
 
@@ -179,6 +180,7 @@ export function createFrameAnalyzer(
           usedHarmonics,
           rms,
           topPeaks,
+          candidateF0: final.f0,
         }
       }
 
@@ -197,6 +199,7 @@ export function createFrameAnalyzer(
         usedHarmonics,
         rms,
         topPeaks,
+        candidateF0: final.f0,
       }
     },
   }

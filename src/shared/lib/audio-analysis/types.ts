@@ -43,6 +43,12 @@ export interface EngineDiagnostics {
   /** 게이트 통과 여부 — false면 수치 미표시(weak-signal) */
   gatePassed: boolean
   /**
+   * 게이트가 평가한 후보 f₀ — 차단된 프레임에서도 채운다.
+   * 후보가 진짜 기본파(예: 591)인지 그 1/3(197)인지 구분하는 결정적 값이다:
+   * 후보가 옳은데 차단되면 임계 문제, 후보가 틀렸으면 채점 문제.
+   */
+  candidateF0: number | null
+  /**
    * 스펙트럼 상위 피크 (주파수 오름차순, 최대 5개) — 실제 배음 구조를 눈으로 확인하기 위한 값.
    * 특정 모터에서만 절반으로 잠기는 원인(진짜 기본파가 어디인지)을 이걸로 판별한다.
    */
@@ -125,6 +131,8 @@ export interface FrameAnalysis {
   rms: number
   /** 스펙트럼 상위 피크 (진단 전용 — 판정 비관여). 무음·근접 미달 프레임은 빈 배열 */
   topPeaks: readonly {readonly freq: number; readonly snrDb: number}[]
+  /** 게이트가 평가한 후보 f₀ (차단돼도 채움) — 후보 선정 오류 vs 임계 문제 구분용 */
+  candidateF0: number | null
 }
 
 /** 엔진 파라미터 — 전부 주입 가능 (REQ-F-010/011 hook: 캘리브레이션·10ms hop은 이 객체로 흡수) */
@@ -237,6 +245,14 @@ export const DEFAULT_TUNING: EngineTuning = {
    */
   subHarmonicPenaltyWeight: 0.5,
   consistencyTolRatio: 0.005,
+  /**
+   * 신뢰 게이트 SNR 임계 (dB) — 8 유지.
+   * v2.x 실험: 실패 모터의 게이트 SNR이 5.6이라 4로 낮춰봤으나, engine.real-motors 회귀
+   * 테스트에서 **틀린 후보(÷3)까지 통과해 엉뚱한 값이 표시**되는 것이 드러나 되돌렸다.
+   * 이 SNR이 낮다는 것은 임계가 빡빡한 게 아니라 **평가 중인 후보가 틀렸다**는 신호다 —
+   * 올바른 f₀라면 고조파 대역이 상위 피크를 모두 담아 SNR이 높게 나온다.
+   * 따라서 해결은 임계 완화가 아니라 후보 선정 교정이다(진단의 `후보 f0`로 확인).
+   */
   gateSnrDb: 8,
   gateStrongSnrDb: 15,
   gateMinHarmonics: 2,

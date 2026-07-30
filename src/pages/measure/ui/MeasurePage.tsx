@@ -110,6 +110,7 @@ function GateDiagnostics() {
       {item(`주기성 ${d.voicedProb.toFixed(2)}/${DEFAULT_TUNING.gateVoicingThreshold}`, voicedFail)}
       {item(`고조파 ${d.detectedHarmonics}/${DEFAULT_TUNING.gateMinHarmonics}`, harmFail)}
       {item(d.gatePassed ? '통과' : '차단', !d.gatePassed)}
+      {d.candidateF0 !== null && item(`후보 ${d.candidateF0.toFixed(0)}Hz`, false)}
       {/* 실제 배음 구조 — 진짜 기본파가 어디인지 판별하는 결정적 단서.
           예: 287·574·861…이면 기본파 287, 570·1140…이면 기본파 570 */}
       {d.topPeaks.length > 0 && (

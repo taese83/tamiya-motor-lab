@@ -49,6 +49,7 @@ function diagnosticsOf(analysis: FrameAnalysis): EngineDiagnostics {
     detectedHarmonics: analysis.detectedHarmonics.length,
     gatePassed: analysis.gatePassed,
     topPeaks: analysis.topPeaks,
+    candidateF0: analysis.candidateF0,
   }
 }
 
