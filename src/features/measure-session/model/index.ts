@@ -4,9 +4,6 @@
 // 셀렉터 훅 (component-spec §2.1 — store 직접 구독은 pages/measure만)
 export {useMeasureAnnouncement, useMeasureView} from './store'
 
-// 게이트 진단 계측 (v2.x 임시 — 측정 끊김 원인 파악용. 원인 확정 후 제거)
-export {useEngineDiagnostics} from './diagnostics-store'
-
 // 세션 command (api-schema §4.5 v2 — 전부 비영속·상태는 store 단일 채널, 반환값 없음)
 // stopCaptureForHidden/restartCaptureOnVisible: visibilitychange 배선은 페이지 소유 (UX-A2)
 export {

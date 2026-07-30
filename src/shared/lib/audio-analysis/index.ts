@@ -24,7 +24,6 @@ export type {CombOptions, GateMetrics} from './harmonics'
 export {DEFAULT_TUNING, resolveEngineOptions} from './types'
 export type {
   DisplayEstimate,
-  EngineDiagnostics,
   EngineOptions,
   EngineStatus,
   EngineTuning,

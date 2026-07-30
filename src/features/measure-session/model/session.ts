@@ -20,7 +20,6 @@ import {
   resolveStartFailure,
   toEngineFrame,
 } from './machine'
-import {clearEngineDiagnostics, setEngineDiagnostics} from './diagnostics-store'
 import {publishSnapshot} from './store'
 
 import type {
@@ -389,9 +388,6 @@ function handleEstimate(estimate: DisplayEstimate): void {
   // teardown 이후 큐에 남은 잔여 메시지 방어 — running에서만 소비
   if (machine.phase !== 'running') return
 
-  // 진단 계측 기록 (v2.x 임시) — 게이트 실패 프레임 포함 매 프레임. 판정 비관여.
-  setEngineDiagnostics(estimate.diagnostics)
-
   // v2.18 연속 측정 지속시간 — **모터 소리 입력(첫 measuring 프레임) 순간부터** 잰다.
   // v2.x(사용자: 깜빡임으로 타이머가 리셋돼 무한 측정): 게이트가 잠깐 실패해도 즉시 0으로
   // 되돌리지 않는다. MEASURING_GAP_TOLERANCE_MS를 넘게 끊겼을 때만 연속이 깨진 것으로 본다.
@@ -430,7 +426,6 @@ function teardownResources(): void {
   // 타이머를 초기화해, 다음 세션 첫 measuring 프레임이 시작 시각을 새로 잡게 한다.
   measuringSinceMs = null
   lastMeasuringAtMs = null
-  clearEngineDiagnostics()
   const resources = active
   if (resources === null) return
   active = null

@@ -26,34 +26,6 @@ export interface FrameCandidate {
  * 출력 계약 (v2 §7). weak-signal이면 f0/rpm은 반드시 null — 수치 미표시를 타입으로 강제(REQ-ST-003).
  * 필드명은 v2 canonical `f0` 유지 — Measurement.panoHz 매핑은 F2가 stable 확정 시 수행 (api-schema NR-1).
  */
-/**
- * 게이트 진단 계측 (v2.x — 사용자: "측정됐다 안 됐다 반복, 원인 확인 필요").
- * 게이트가 **어느 조건에서** 떨어지는지 화면에서 바로 보기 위한 값. 판정에 관여하지 않는다.
- * 프레임마다 항상 채워진다(게이트 실패·무음 포함) — 실패 원인을 보려는 목적이므로.
- */
-export interface EngineDiagnostics {
-  /** 입력 음량 — proximityRms(근접 게이트) 미만이면 분석 자체를 생략한다 */
-  rms: number
-  /** 고조파 대역 SNR(dB) — gateSnrDb(8) 미만이면 게이트 실패 */
-  snrDb: number
-  /** pYIN voicing 확률 — gateVoicingThreshold(0.15) 미만이면 게이트 실패 */
-  voicedProb: number
-  /** 검출된 고조파 개수 — gateMinHarmonics 미만이면 게이트 실패 */
-  detectedHarmonics: number
-  /** 게이트 통과 여부 — false면 수치 미표시(weak-signal) */
-  gatePassed: boolean
-  /**
-   * 게이트가 평가한 후보 f₀ — 차단된 프레임에서도 채운다.
-   * 후보가 진짜 기본파(예: 591)인지 그 1/3(197)인지 구분하는 결정적 값이다:
-   * 후보가 옳은데 차단되면 임계 문제, 후보가 틀렸으면 채점 문제.
-   */
-  candidateF0: number | null
-  /**
-   * 스펙트럼 상위 피크 (주파수 오름차순, 최대 5개) — 실제 배음 구조를 눈으로 확인하기 위한 값.
-   * 특정 모터에서만 절반으로 잠기는 원인(진짜 기본파가 어디인지)을 이걸로 판별한다.
-   */
-  topPeaks: readonly {readonly freq: number; readonly snrDb: number}[]
-}
 
 export interface DisplayEstimate {
   f0: number | null
@@ -73,8 +45,6 @@ export interface DisplayEstimate {
    * 않는다(바늘 시각 효과 전용 — 기록값에 딜레이·잡음을 더하지 않기 위함).
    */
   microVariation: number | null
-  /** 게이트 진단 (v2.x 임시 계측) — 표시 전용, 판정 비관여 */
-  diagnostics: EngineDiagnostics
 }
 
 /** 고조파별 스펙트럼 계측 (comb 점수·일치도 검사 입력) */
@@ -129,10 +99,6 @@ export interface FrameAnalysis {
   /** 일치도 검사 후 VP에 실제 사용된 고조파 차수 */
   usedHarmonics: number[]
   rms: number
-  /** 스펙트럼 상위 피크 (진단 전용 — 판정 비관여). 무음·근접 미달 프레임은 빈 배열 */
-  topPeaks: readonly {readonly freq: number; readonly snrDb: number}[]
-  /** 게이트가 평가한 후보 f₀ (차단돼도 채움) — 후보 선정 오류 vs 임계 문제 구분용 */
-  candidateF0: number | null
 }
 
 /** 엔진 파라미터 — 전부 주입 가능 (REQ-F-010/011 hook: 캘리브레이션·10ms hop은 이 객체로 흡수) */
@@ -143,14 +109,12 @@ export interface EngineTuning {
   hopSeconds: number
   /** 데시메이션 목표 샘플레이트 (Hz) — v2 §1: 12 kHz */
   targetDecimatedRate: number
-  /** f0 탐색 대역 (Hz) — v2.x(사용자): 지배 피치 기준 100~700 (60Hz 험 회피 하한, 42k rpm 상한) */
+  /** f0 탐색 대역 (Hz) — 기본파 기준 170~620 (표시 대역 F0_RANGE와 별개) */
   fMin: number
   fMax: number
   /**
-   * pYIN 후보 하위-복원 제수 (v2.x 신설). 검출 dip을 이 값들로 나눠 후보를 확장한다.
-   * v2 초기 설계는 [1,3,6](정류 고조파가 기본파보다 클 때 하위 f0 복원)이었으나, 실측 결과
-   * 지배 피치(파노튜너 기준)를 하위로 과하게 끌어내리는 부작용이 있어 **기본을 [1]로**
-   * (하위-복원 끔 = 검출된 지배 피치를 그대로 보고). 옵션이라 [1,3,6]로 되돌릴 수 있다.
+   * pYIN 후보 제수 — 검출 dip을 이 값들로 나눠 후보를 확장한다(정류 고조파가 기본파보다 클 때
+   * 하위 f0를 후보에 넣기 위함). 기본 [1,3,6].
    */
   pitchDivisors: readonly number[]
   /**
@@ -223,11 +187,6 @@ export const DEFAULT_TUNING: EngineTuning = {
   frameSeconds: 0.2,
   hopSeconds: 0.025,
   targetDecimatedRate: 12000,
-  // v2.x(진단 확정): 실기기 계측 결과 이 모터의 **기본주파수는 287Hz**이고 파노튜너의 570은
-  // 그 2배(2차 고조파)였다. 후보를 570으로 잡으면 실제로 강한 287이 게이트 대역 밖이라 통째로
-  // 잡음으로 계산돼 SNR·고조파가 미달(사용자 스크린샷: 570에서 둘 다 빨강, 287에서 전부 통과).
-  // 즉 엔진이 287을 잡는 것이 정상이며, 지배 피치 채점으로의 전환은 게이트와 구조적으로 충돌한다.
-  // → 287을 안정적으로 잡던 원래 설정으로 복귀한다. 튜너 표시값(570)은 표시 계층의 배수로 맞춘다.
   fMin: 170,
   fMax: 620,
   pitchDivisors: [1, 3, 6],
@@ -253,12 +212,11 @@ export const DEFAULT_TUNING: EngineTuning = {
   subHarmonicPenaltyWeight: 0.5,
   consistencyTolRatio: 0.005,
   /**
-   * 신뢰 게이트 SNR 임계 (dB) — 8 유지.
-   * v2.x 실험: 실패 모터의 게이트 SNR이 5.6이라 4로 낮춰봤으나, engine.real-motors 회귀
-   * 테스트에서 **틀린 후보(÷3)까지 통과해 엉뚱한 값이 표시**되는 것이 드러나 되돌렸다.
-   * 이 SNR이 낮다는 것은 임계가 빡빡한 게 아니라 **평가 중인 후보가 틀렸다**는 신호다 —
-   * 올바른 f₀라면 고조파 대역이 상위 피크를 모두 담아 SNR이 높게 나온다.
-   * 따라서 해결은 임계 완화가 아니라 후보 선정 교정이다(진단의 `후보 f0`로 확인).
+   * 신뢰 게이트 SNR 임계 (dB) — 8. 낮추지 말 것.
+   * v2.x 실험에서 4로 낮췄더니 **틀린 후보(÷3)까지 통과해 엉뚱한 값이 표시**됐다
+   * (engine.real-motors 회귀 테스트가 포착). 이 SNR이 낮다는 건 임계가 빡빡한 게 아니라
+   * **평가 중인 후보가 틀렸다**는 신호다 — 올바른 f₀라면 고조파 대역이 상위 피크를 모두
+   * 담아 SNR이 높다. 따라서 해결은 임계 완화가 아니라 후보 교정(octaveCorrection)이다.
    */
   gateSnrDb: 8,
   gateStrongSnrDb: 15,

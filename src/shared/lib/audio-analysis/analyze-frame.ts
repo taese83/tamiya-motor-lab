@@ -11,7 +11,7 @@ import {
 } from './harmonics'
 import {estimateFrame} from './pyin'
 import {refine} from './refine'
-import {createSpectrumAnalyzer, findTopPeaks, medianNoiseFloor} from './spectrum'
+import {createSpectrumAnalyzer} from './spectrum'
 import type {
   FrameAnalysis,
   HarmonicMeasurement,
@@ -35,35 +35,9 @@ function emptyAnalysis(rms: number): FrameAnalysis {
     detectedHarmonics: [],
     usedHarmonics: [],
     rms,
-    topPeaks: [],
-    candidateF0: null,
   }
 }
 
-/** 진단용 상위 피크 추출 (판정 비관여) — 실제 배음 구조 확인 목적. 주파수 오름차순 */
-const DIAGNOSTIC_PEAK_COUNT = 5
-function collectTopPeaks(
-  power: Float64Array,
-  binHz: number,
-  sampleRate: number,
-  options: CombOptions,
-): FrameAnalysis['topPeaks'] {
-  const lo = 0.8 * options.fMin
-  const hi = Math.min(6.5 * options.fMax, 0.47 * sampleRate)
-  return findTopPeaks(power, binHz, lo, hi, DIAGNOSTIC_PEAK_COUNT)
-    .map(p => ({
-      freq: Math.round(p.freq),
-      snrDb:
-        Math.round(
-          10 *
-            Math.log10(
-              p.power / medianNoiseFloor(power, binHz, p.freq, Math.max(4 * binHz, 0.03 * p.freq)),
-            ) *
-            10,
-        ) / 10,
-    }))
-    .sort((a, b) => a.freq - b.freq)
-}
 
 /* ── 옥타브 하향 오판 교정 (v2.x — 실기기 확정) ──────────────────────────────── *
  * 증상: 같은 모터인데 폰을 밀착하면 후보 583Hz(정답), 떼면 후보 291Hz(=583/2)로 미끄러진다.
@@ -141,8 +115,6 @@ export function createFrameAnalyzer(
       if (pyinCandidates.length === 0) return emptyAnalysis(rms)
 
       spectrum.compute(frame)
-      // 진단 전용(판정 비관여) — 실제 배음 구조를 그대로 실어 보낸다
-      const topPeaks = collectTopPeaks(spectrum.power, spectrum.binHz, decimatedRate, combOptions)
       const scored = scoreCandidates(
         spectrum.power,
         spectrum.binHz,
@@ -215,8 +187,6 @@ export function createFrameAnalyzer(
           detectedHarmonics: gate.detectedHarmonics,
           usedHarmonics,
           rms,
-          topPeaks,
-          candidateF0: final.f0,
         }
       }
 
@@ -234,8 +204,6 @@ export function createFrameAnalyzer(
         detectedHarmonics: gate.detectedHarmonics,
         usedHarmonics,
         rms,
-        topPeaks,
-        candidateF0: final.f0,
       }
     },
   }
