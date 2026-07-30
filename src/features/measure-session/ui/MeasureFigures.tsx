@@ -1,5 +1,7 @@
 import {Box, Typography} from '@mui/material'
 import {layoutTokens, measureStatusTokens} from '@shared/config/design-tokens'
+import {STABILITY_LEVEL_LABELS, stabilityLevelOf} from '@shared/config/domain'
+import type {StabilityLevel} from '@shared/config/domain'
 import {formatPanoValue, formatRpm} from '@shared/lib/format'
 import {BigNumber} from '@shared/ui/big-number'
 import type {ReactNode} from 'react'
@@ -12,6 +14,15 @@ export interface MeasureFiguresProps {
 
 /** 값 없음 placeholder — BigNumber(null)는 sr-only를 동반하므로 보조 행은 aria-hidden dash만 */
 const EM_DASH = '—'
+
+// 절대 등급 라벨 색 — 판단 축이므로 등급색을 쓴다(원값 %·±rpm은 중립 유지).
+// 게이지 부채꼴 색과 동일 체계: excellent·good=초록, fair=앰버, high=빨강 (사용자 색 추가 req).
+const STABILITY_LEVEL_COLOR: Record<StabilityLevel, string> = {
+  excellent: 'success.main',
+  good: 'success.main',
+  fair: 'warning.main',
+  high: 'error.main',
+}
 
 /**
  * view 8종 → measureStatusTokens 6키 매핑 (component-spec v2 §2.3과 동일 규칙):
@@ -184,8 +195,8 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
               {message}
             </Typography>
           ) : (
-            // 안정도(v2.x 개정) — **판단 없는 원값만**: 변동률 %·±rpm. 절대 등급(안정/보통/불안정)은
-            // 임의 임계라 폐기(사용자 결정). 컨디션 판정은 모터별 기준선이 있는 모터 상세 소관 —
+            // 안정도(v2.x 2축) — 원값(변동률 %·±rpm) + **절대 등급 병기**(사용자 확정: 변동률
+            // 자체의 4구간 기준). 추세(기준선 대비) 판정은 모터별 기준선이 있는 모터 상세 소관 —
             // 측정 화면은 어느 모터인지 모른다. measuring 중 비어 있던 문구 슬롯 재사용(레이아웃 불변).
             measuring &&
             view.stabilityCv !== null && (
@@ -198,7 +209,12 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
                   fontVariantNumeric: 'tabular-nums lining-nums',
                 }}>
                 변동률 {(view.stabilityCv * 100).toFixed(2)}% · ±
-                {formatRpm(Math.max(1, Math.round(view.stabilityCv * view.rpm)))} rpm
+                {formatRpm(Math.max(1, Math.round(view.stabilityCv * view.rpm)))} rpm ·{' '}
+                <Box
+                  component="span"
+                  sx={{color: STABILITY_LEVEL_COLOR[stabilityLevelOf(view.stabilityCv)]}}>
+                  {STABILITY_LEVEL_LABELS[stabilityLevelOf(view.stabilityCv)]}
+                </Box>
               </Typography>
             )
           )}

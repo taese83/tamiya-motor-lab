@@ -95,12 +95,38 @@ export const MOTOR_NAME_MAX_LENGTH = 30
 export const F0_RANGE = {min: 170, max: 620} as const
 export const F0_REHYDRATE_MAX = 2_000
 
-// ── 회전 안정도 · 컨디션 (v2.x 개정 — 절대 등급 폐기, 자기 기준선 비교) ─────────
-// 사용자 결정: 임의 절대 임계(안정/보통/불안정) 대신 Portescap 신뢰성 백서의 실무 방식
-// (baseline 대비 모수 변화 지속 모니터링, 마모=β>1 점진 악화 → 추세 관찰)을 따른다.
-// - 기준선: 그 모터의 **초기 측정 STABILITY_BASELINE_COUNT건**의 CV 중앙값 (새 모터 상태가 그 개체의 규격)
-// - 컨디션: 현재 CV ÷ 기준선 CV 비율로 판정 — ok(<1.5×) / watch(1.5~2×) / inspect(≥2×)
-// 측정 화면은 판단 없는 원값(변동률 %·±rpm)만 표시한다. 파생값(기준선)은 영속 금지 — 읽기 시 계산.
+// ── 회전 안정도 · 컨디션 (v2.x 2축 판정 — 사용자 확정) ─────────────────────────
+// 절대 스케일("지금 상태가 괜찮은가")과 자기 기준선 추세("나빠지고 있는가")를 함께 쓴다.
+// 기준선 3건이 이미 흔들리는 상태면 추세 비교가 '양호'로 위장하는 맹점(사용자 지적)을
+// 절대 스케일이 막는다: 기준선 자체가 high 구간이면 추세 판정보다 신뢰도 경고를 우선한다.
+//
+// [1축 — 절대 스케일] 변동률(CV) 자체의 4구간 (사용자 확정, 2026-07-30). 앵커의 근거 강도:
+//   high 하한 1.5% = 엔진 안정 판정 임계(DEFAULT_TUNING.stabilityCv)와 동일 — **확실한 내부 근거**
+//   (이 수준이면 엔진이 안정 선언조차 못 하는 흔들림).
+//   excellent 상한 0.2% = 회전 오디오 기기 규격(W&F) 상급 경계에서 차용 — 길들이기 완료 확인 용도.
+//   good 상한 0.5% = 설계 추정. excellent·good 경계는 **실측 캘리브레이션 대상**(ASSUMPTION:
+//   실기기 좋은/나쁜 모터 통상값 확인 후 조정, 상수 1곳).
+export const STABILITY_LEVELS = ['excellent', 'good', 'fair', 'high'] as const
+export type StabilityLevel = (typeof STABILITY_LEVELS)[number]
+export const STABILITY_LEVEL_LABELS: Record<StabilityLevel, string> = {
+  excellent: '매우 좋음',
+  good: '좋음',
+  fair: '보통',
+  high: '흔들림 큼',
+}
+export const STABILITY_EXCELLENT_MAX_CV = 0.002 // < 0.2% → 매우 좋음 (W&F 상급 차용 — 캘리브레이션 대상)
+export const STABILITY_GOOD_MAX_CV = 0.005 // < 0.5% → 좋음 (설계 추정 — 캘리브레이션 대상)
+export const STABILITY_HIGH_MIN_CV = 0.015 // ≥ 1.5% → 흔들림 큼 (엔진 안정 임계 정렬 — 확정 근거)
+
+export function stabilityLevelOf(cv: number): StabilityLevel {
+  if (cv < STABILITY_EXCELLENT_MAX_CV) return 'excellent'
+  if (cv < STABILITY_GOOD_MAX_CV) return 'good'
+  if (cv < STABILITY_HIGH_MIN_CV) return 'fair'
+  return 'high'
+}
+
+// [2축 — 자기 기준선 추세] Portescap 백서의 baseline 모니터링 방식(마모=β>1 점진 악화).
+// 기준선: 그 모터의 초기 측정 STABILITY_BASELINE_COUNT건의 CV 중앙값. 파생값 — 영속 금지.
 export const STABILITY_BASELINE_COUNT = 3 // 기준선 표본 수 — 백서 권고(최소 3개 표본)와 정렬
 export const CONDITION_LEVELS = ['ok', 'watch', 'inspect'] as const
 export type ConditionLevel = (typeof CONDITION_LEVELS)[number]

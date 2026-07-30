@@ -3,6 +3,7 @@ import {useTheme} from '@mui/material/styles'
 import {useId} from 'react'
 
 import {measureStatusTokens, motionTokens} from '@shared/config/design-tokens'
+import {stabilityLevelOf} from '@shared/config/domain'
 
 export interface PanoGaugeProps {
   /** null → dim(바늘 최소 위치, 채움 없음). 값 있음 = measuring (component-spec v2 §2.4) */
@@ -10,7 +11,9 @@ export interface PanoGaugeProps {
   /**
    * 회전 안정도 CV (v2.x — 사용자 A안 채택: 흔들림 부채꼴).
    * 바늘 주위 ±(cv×panoHz) Hz 범위를 반투명 부채꼴로 그린다 — 폭 = 흔들리는 범위.
-   * null(창 미충족·비측정)이면 미렌더. 판단 없는 원값 표현 — 색 변화 없음(중립 라임).
+   * null(창 미충족·비측정)이면 미렌더.
+   * v2.x 2축(사용자): 색 = 절대 등급(stabilityLevelOf) — 좋음 계열 초록·보통 앰버·흔들림 큼 빨강.
+   * 반투명이라 아래 트랙·채움이 비쳐 보인다(게이지 가독 유지 — 사용자 req).
    */
   stabilityCv: number | null
 }
@@ -105,7 +108,8 @@ const NEEDLE_POINTS = [
 
 /** 흔들림 부채꼴 최대 반각(°) — CV 폭주 시 시각 폭 클램프 (전체 스윕의 ~27%) */
 const WEDGE_MAX_HALF_DEG = 30
-const WEDGE_OPACITY = 0.18
+/** 살짝 반투명(사용자: 게이지가 잘 보이는 정도) — 색 추가에 맞춰 0.18→0.22로 소폭 상향 */
+const WEDGE_OPACITY = 0.22
 
 /**
  * 흔들림 부채꼴 path — pivot → ±범위 호(바늘 길이 반경) → 닫기.
@@ -166,6 +170,17 @@ export function PanoGauge({panoHz, stabilityCv}: PanoGaugeProps) {
   const gradientId = useId()
   // 흔들림 부채꼴 (A안) — 측정 중 + CV 보유 시에만. null이면 미렌더(안정 = 또렷한 바늘)
   const wedge = panoHz !== null && stabilityCv !== null ? wedgePath(panoHz, stabilityCv) : null
+  // 부채꼴 색 = 절대 등급(v2.x 2축, 사용자) — MeasureFigures 라벨 색과 동일 체계.
+  // excellent·good은 success(초록)로 라임 채움과 구분, fair는 warning, high는 error.
+  const wedgeFill =
+    stabilityCv !== null
+      ? {
+          excellent: palette.success.main,
+          good: palette.success.main,
+          fair: palette.warning.main,
+          high: palette.error.main,
+        }[stabilityLevelOf(stabilityCv)]
+      : limeFg
 
   return (
     <svg
@@ -258,9 +273,9 @@ export function PanoGauge({panoHz, stabilityCv}: PanoGaugeProps) {
           />
         )}
 
-        {/* 흔들림 부채꼴 (v2.x A안) — 바늘 아래 반투명 층: 폭 = ±(cv×pano) 범위.
-            판단 없는 원값 표현 — 색 고정(라임), 넓어질수록 '흔들린다'가 그대로 보인다 */}
-        {wedge !== null && <path d={wedge} style={{fill: limeFg, opacity: WEDGE_OPACITY}} />}
+        {/* 흔들림 부채꼴 (v2.x A안+색) — 바늘 아래 반투명 층: 폭 = ±(cv×pano) 범위,
+            색 = 절대 등급(초록/앰버/빨강). 반투명이라 트랙·채움이 비쳐 게이지 가독 유지 */}
+        {wedge !== null && <path d={wedge} style={{fill: wedgeFill, opacity: WEDGE_OPACITY}} />}
 
         {/* 바늘 — dim에서도 최소 위치(0)에 렌더(빈 계기판 금지). 중성색(라임 채움과 겹쳐도 보임) */}
         <Box
