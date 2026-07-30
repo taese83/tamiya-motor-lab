@@ -1702,3 +1702,28 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 2. `GOOGLE_REDIRECT_URI` = 위 콜백 URL. `SESSION_SECRET` = 32자+ 랜덤.
 3. (Phase B 대비) Neon 프로젝트 → `DATABASE_URL`, migrations/001_users.sql 1회 실행.
 4. Vercel 환경변수 등록 후 재배포 → [구글 로그인] 동작.
+
+---
+
+## v2.40 — 로그인 UX: 아바타 중심 메뉴 (사용자)
+
+### TARGET_BEHAVIOR
+- 비로그인: **기본 아바타(빈 사람 실루엣)**. 로그인: **설정된 아바타(user.picture)**.
+- 아바타 클릭 → 메뉴: 로그인 시 **기본 정보(이름·이메일) + 로그아웃**, 비로그인 시 **구글 로그인**.
+
+### 변경
+- `features/auth/ui/AuthMenu.tsx` 재작성: 인라인 버튼/이름 → **IconButton(Avatar) + MUI Menu**.
+  src 없으면 MUI Avatar 기본 사람 실루엣(비로그인·사진없음 공통). aria-label(로그인/계정 메뉴)·
+  aria-haspopup·aria-expanded. 로그인 메뉴 = 이름·이메일 헤더 + Divider + [로그아웃], 비로그인 = [구글 로그인].
+- API·세션 로직·서버리스 무변경(UI만).
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- useSession·로그아웃·로그인 진입(/api/auth/*) 계약 불변 · 로컬 정적 서버 미로그인 수렴
+
+### CHANGE_BUDGET
+- 신규 의존성 0 · 단일 파일(UI)
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 98건.
+- 브라우저(로컬·비로그인): 좌상단 기본 아바타(사람 실루엣, aria-label "로그인"), 클릭→메뉴 [구글 로그인].
+  로그인 메뉴(이름·이메일·로그아웃)는 Vercel 로그인 후 확인 대상.
