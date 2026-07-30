@@ -187,8 +187,15 @@ export const DEFAULT_TUNING: EngineTuning = {
   frameSeconds: 0.2,
   hopSeconds: 0.025,
   targetDecimatedRate: 12000,
+  // f₀ 탐색 대역 = **측정 가능한 RPM 범위**다 (rpm = f₀ × 60).
+  // v2.x(사용자 실측): 울트라대시(최고 RPM)의 기본파가 628Hz(37,680rpm)인데 상한 620Hz 밖이라
+  // 후보가 되지 못하고 ÷3인 214Hz가 선택됐다. 그 기준으로는 1884·2514·3140·3770이 전부 잡음이
+  // 되어 SNR −16.4까지 무너지며 측정 불가. → 상한을 800Hz(48,000rpm)로 올려 고RPM 모터를 덮는다.
+  // 상한 800의 안전성: 6배 배음 4,800Hz < 나이키스트 여유(0.47×12kHz = 5,640Hz)라 배음 계측·
+  // 게이트 대역이 그대로 유효하다. 옥타브 상향 오판은 여전히 이 상한이 막는다
+  // (예: 기본파 514 모터의 2배 1028은 대역 밖).
   fMin: 170,
-  fMax: 620,
+  fMax: 800,
   pitchDivisors: [1, 3, 6],
   octaveCorrection: true,
   scoredHarmonics: [1, 3, 6],

@@ -85,6 +85,30 @@ describe('실측 재현 ② 실패 모터 (기본파 584 + 하위 성분 292) �
   })
 })
 
+describe('실측 재현 ④ 울트라대시 (최고 RPM — 기본파 628Hz = 37,680rpm)', () => {
+  // 사용자 화면: 피크 628(34dB)·1884(29)·2514(17)·3140(23)·3770(35) = 628의 1·3·4·5·6배.
+  // 후보 214Hz(=628/3)·SNR −16.4·고조파 0/2 → 차단. 원인은 탐색 대역 상한(620Hz)이었다 —
+  // 628이 대역 밖이라 후보가 될 수 없어 ÷3로 내려갔다. fMax 800으로 올려 고RPM을 덮는다.
+  const pcm = toneSet(
+    [
+      {freqHz: 628, amplitude: 1.0},
+      {freqHz: 1884, amplitude: 0.72, phase: 0.5},
+      {freqHz: 2514, amplitude: 0.2, phase: 1.3},
+      {freqHz: 3140, amplitude: 0.35, phase: 2.1},
+      {freqHz: 3770, amplitude: 0.85, phase: 0.9},
+    ],
+    SECONDS,
+  )
+  const f0s = settledF0s(runToSettled(pcm))
+
+  test('628 Hz를 채택한다 — 209(÷3)로 내려가지 않는다', () => {
+    expect(f0s.length).toBeGreaterThan(20)
+    for (const f0 of f0s) {
+      expect(Math.abs(f0 - 628), `f0=${f0.toFixed(1)}`).toBeLessThan(8)
+    }
+  })
+})
+
 describe('실측 재현 ③ 폰을 떼었을 때 (기본파 583인데 후보가 291로 미끄러지던 케이스)', () => {
   // 사용자 화면(밀착): 후보 583Hz·SNR 14.1 → 통과, 582.6 표시.
   //           (떼었을 때): 후보 291Hz·SNR 2.7 → 차단. 같은 모터·같은 피크인데 후보만 절반.
