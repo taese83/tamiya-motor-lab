@@ -268,11 +268,12 @@ export const theme = createTheme({
       },
     },
     MuiSnackbar: {
-      defaultProps: { anchorOrigin: { vertical: 'bottom', horizontal: 'center' } },
+      // v2.x(사용자): 하단 → **상단**. 하단은 [기록]·탭 바와 동선이 겹쳤다.
+      defaultProps: { anchorOrigin: { vertical: 'top', horizontal: 'center' } },
       styleOverrides: {
-        // 하단 탭 위에 뜬다 (탭 바 가림 금지)
-        anchorOriginBottomCenter: {
-          bottom: 'calc(56px + var(--mml-safe-bottom) + 8px)',
+        // 상단 헤더(상태 라벨) 아래에 뜬다 — 노치/status bar 가림 금지(safe-top 오프셋)
+        anchorOriginTopCenter: {
+          top: 'calc(var(--mml-safe-top, 0px) + 56px)',
         },
       },
     },

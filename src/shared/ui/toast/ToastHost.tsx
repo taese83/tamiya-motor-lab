@@ -26,8 +26,10 @@ interface ToastState {
 }
 
 /**
- * 성공 토스트 호스트 — Snackbar bottom-center(탭 바 위 offset은 theme 오버라이드), autoHide 3s.
+ * 성공 토스트 호스트 — Snackbar top-center(헤더 아래 offset은 theme 오버라이드), autoHide 3s.
  * 연속 호출은 교체(큐 없음) — key 교체로 타이머 재시작.
+ * v2.x(사용자): **토스트 자체를 탭하면 즉시 닫힌다** — 이전에는 Alert에 핸들러가 없어
+ * 바깥 탭(clickaway)·3초 자동 닫힘만 동작했고 토스트 탭은 무반응이었다.
  */
 export function ToastHost({children}: {children?: ReactNode}) {
   const [toast, setToast] = useState<ToastState | null>(null)
@@ -50,7 +52,12 @@ export function ToastHost({children}: {children?: ReactNode}) {
           open={open}
           autoHideDuration={AUTO_HIDE_MS}
           onClose={() => setOpen(false)}>
-          <Alert severity="success" role="status" variant="standard">
+          <Alert
+            severity="success"
+            role="status"
+            variant="standard"
+            onClick={() => setOpen(false)}
+            sx={{cursor: 'pointer'}}>
             {toast.message}
           </Alert>
         </Snackbar>
