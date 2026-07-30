@@ -380,8 +380,9 @@ function handleEstimate(estimate: DisplayEstimate): void {
   // teardown 이후 큐에 남은 잔여 메시지 방어 — running에서만 소비
   if (machine.phase !== 'running') return
 
-  // v2.18 연속 측정 지속시간 — 측정 프레임이 아니면 시각을 버려 다음 측정이 0부터 시작한다.
-  // 끊긴 구간을 이어 붙이면 "연속 5초"라는 하한의 의미가 사라진다(MIN_MEASURE_DURATION_MS).
+  // v2.18 연속 측정 지속시간 — **모터 소리 입력(첫 measuring 프레임) 순간부터** 잰다. 측정
+  // 프레임이 아니면(무신호) 시각을 버려 다음 측정이 0부터 시작한다 — 화면 진입 시각이 아니라
+  // 소리 입력 시각 기준. 끊긴 구간을 이어 붙이면 "연속" 하한의 의미가 사라진다(MIN/MAX_MEASURE_DURATION_MS).
   if (!isMeasuringEstimate(estimate)) {
     measuringSinceMs = null
     commit({...machine, frame: toEngineFrame(estimate, 0)})

@@ -77,19 +77,19 @@ export const RACE_WEIGHT_GROWTH = 1.5
 // ── 표시 라벨 (CP-2 확정 — v1 유지. M-4: 파노가 주지표로 승격, 라벨 자체는 무변경)
 export const PANO_LABEL = '파노'
 
-// ── 왕복 자동 확정 지속시간 (v2.18 → v2.x 개정: 안정-우선 + 타임아웃)
+// ── 왕복 자동 확정 지속시간 (v2.18 → v2.x 개정: 3초 grace 안정-우선 + 5초 타임아웃)
 // 왕복(모터 상세·레이스 진입) 자동 확정의 **연속 측정 시간**. 누적이 아니라 연속이다 —
 // 신호가 끊기면 0부터 다시 센다(끊긴 구간을 합치면 의미가 없다).
 //
 // v2.x(사용자): 두 임계로 나눈다.
-//  ① MIN(5초): 이만큼 측정해서 **안정(isStable)**이면 즉시 확정하고 멈춘다 — 좋은 모터는 8초를
-//     다 기다리지 않는다. (엔진 stable은 1.5초 CV라 빨리 뜰 수 있어, 초기 회전 안정화 여유로 5초 하한.)
-//  ② MAX(8초): 8초까지 **안정에 도달하지 못해도** 그 시점 측정값으로 확정한다. stable에만
+//  ① MIN(3초): 초기 3초(스핀업 과도)는 안정 판정을 **무시**하고, 3초 이후 **안정(isStable)**이면
+//     즉시 확정하고 멈춘다 — 좋은 모터는 5초를 다 기다리지 않는다.
+//  ② MAX(5초): 5초까지 **안정에 도달하지 못해도** 그 시점 마지막 측정값으로 확정한다. stable에만
 //     의존하면 CV가 계속 1.5% 이상인 "흔들림 큼" 모터가 왕복 경로로 아예 기록 안 되는 사각지대가
 //     생긴다(컨디션 추적 대상이 정작 안 잡힘) — 타임아웃이 그걸 막는다. 불안정 모터는 높은 CV 그대로 기록.
 // standalone [기록](측정 탭 직접)은 이 하한 미적용 — measuring이면 즉시 기록(v2.23).
-export const MIN_MEASURE_DURATION_MS = 5000
-export const MAX_MEASURE_DURATION_MS = 8000
+export const MIN_MEASURE_DURATION_MS = 3000
+export const MAX_MEASURE_DURATION_MS = 5000
 
 // ── 입력 길이 상한 (AS-1 — v1 유지. statusMemo 제거로 name 1건만)
 export const MOTOR_NAME_MAX_LENGTH = 30
