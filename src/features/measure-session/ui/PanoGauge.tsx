@@ -37,15 +37,15 @@ const MINOR_TICK_INNER_R = TICK_OUTER_R - 2.5 // v2.x(사용자): 눈금 짧게 
  */
 const LABEL_R = TRACK_R + STROKE_W / 2 + 8
 
-/** v2.21 스케일 — 게이지 표시 전용(측정 유효 대역과 분리) */
+/** 스케일 — 게이지 표시 전용. v2.x(사용자): 측정 상한 확장(fMax 800=48,000rpm)에 맞춰 0~800 */
 const GAUGE_MIN = 0
-const GAUGE_MAX = 700
+const GAUGE_MAX = 800
 const SWEEP_DEG = 220
 /** 라벨·주 눈금 100단위, 보조 눈금 50단위 */
 const MAJOR_STEP = 100
 const MINOR_STEP = 50
-/** 레드라인 = 상단 고위험 구간(600~700). 트랙 구간을 error 색으로 덮는다(DS-A15 장식) */
-const REDLINE_START = 600
+/** 레드라인 = 상단 고위험 구간(700~800). 울트라대시(628)는 정상 구간에 들어온다(DS-A15 장식) */
+const REDLINE_START = 700
 
 // 트랙·눈금 밝기. v2.x(사용자: 흐린 색감 제거 — 쨍하게): 반투명 걷어내고 전부 불투명(1).
 // dim(비측정 대기)만 낮춰 상태를 구분하되, 이전(0.45)보다 또렷하게 0.6.

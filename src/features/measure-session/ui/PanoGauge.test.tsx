@@ -24,21 +24,21 @@ const dashOffset = (c: HTMLElement): number | null => {
     : Number(getComputedStyle(p).strokeDashoffset.replace('px', ''))
 }
 
-describe('PanoGauge (0~700 스케일)', () => {
+describe('PanoGauge (0~800 스케일 — v2.x 측정 상한 fMax 800 정합)', () => {
   it('값이 없으면 채움 아크는 없고 바늘은 최소(0=-110°)에 남는다', () => {
     const {container} = render(<PanoGauge panoHz={null} />)
     expect(progressPath(container)).toBeUndefined()
     expect(needleTransform(container)).toContain('rotate(-110deg)')
   })
 
-  it('중앙값(350)은 바늘을 12시(0°)에 둔다', () => {
-    const {container} = render(<PanoGauge panoHz={350} />)
+  it('중앙값(400)은 바늘을 12시(0°)에 둔다', () => {
+    const {container} = render(<PanoGauge panoHz={400} />)
     expect(needleTransform(container)).toContain('rotate(0deg)')
   })
 
-  it('최소0·최대700은 스윕 양 끝(-110°/+110°)에 대응한다', () => {
+  it('최소0·최대800은 스윕 양 끝(-110°/+110°)에 대응한다', () => {
     expect(needleTransform(render(<PanoGauge panoHz={0} />).container)).toContain('rotate(-110deg)')
-    expect(needleTransform(render(<PanoGauge panoHz={700} />).container)).toContain(
+    expect(needleTransform(render(<PanoGauge panoHz={800} />).container)).toContain(
       'rotate(110deg)',
     )
   })
@@ -58,16 +58,16 @@ describe('PanoGauge (0~700 스케일)', () => {
     const dash = Number(progressPath(arc0.container)?.getAttribute('stroke-dasharray'))
     // 0 → dashoffset = 전체 길이(아무것도 안 그려짐)
     expect(dashOffset(arc0.container)).toBeCloseTo(dash, 0)
-    // 700 → dashoffset 0(완전히 참)
-    expect(dashOffset(render(<PanoGauge panoHz={700} />).container)).toBe(0)
+    // 800 → dashoffset 0(완전히 참)
+    expect(dashOffset(render(<PanoGauge panoHz={800} />).container)).toBe(0)
   })
 
-  it('눈금 라벨은 백자리 한 자리(0~7)로 축약 표기한다 (스케일은 0~700 불변)', () => {
-    const {container} = render(<PanoGauge panoHz={350} />)
+  it('눈금 라벨은 백자리 한 자리(0~8)로 축약 표기한다', () => {
+    const {container} = render(<PanoGauge panoHz={400} />)
     const labels = [...container.querySelectorAll('text')].map(t => t.textContent)
-    for (const v of ['0', '1', '3', '5', '7']) expect(labels).toContain(v)
-    // 3자리 표기(100·700 등)는 없다 — 표기만 축약, 스케일 상수(0~700)는 그대로
-    for (const v of ['100', '300', '700']) expect(labels).not.toContain(v)
+    for (const v of ['0', '1', '3', '5', '7', '8']) expect(labels).toContain(v)
+    // 3자리 표기(100·800 등)는 없다 — 표기만 축약, 스케일 상수(0~800)는 그대로
+    for (const v of ['100', '300', '800']) expect(labels).not.toContain(v)
   })
 
   it('진행 채움은 불투명 단색 라임 (v2.x 사용자: 흐린 그라디언트 제거)', () => {
