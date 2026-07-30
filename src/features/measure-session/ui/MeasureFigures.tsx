@@ -113,7 +113,10 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
       }}>
       {/* 파노 게이지 — 장식(aria-hidden). full-bleed 오버레이(존 전체를 채워 크게 — 사용자 req) */}
       <Box aria-hidden="true" sx={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
-        <PanoGauge panoHz={measuring ? view.panoHz : null} />
+        <PanoGauge
+          panoHz={measuring ? view.panoHz : null}
+          stabilityCv={measuring ? view.stabilityCv : null}
+        />
       </Box>
       {/* 수치 오버레이 — 게이지 위 중앙. 눈금 라벨이 아크 바깥(v2.21)이라 내부가 비어 겹치지 않는다.
           파노는 축소(guide)해 아크를 넘지 않고, canonical 텍스트는 BigNumber(스크린리더 경로).

@@ -26,51 +26,62 @@ const dashOffset = (c: HTMLElement): number | null => {
 
 describe('PanoGauge (0~700 스케일)', () => {
   it('값이 없으면 채움 아크는 없고 바늘은 최소(0=-110°)에 남는다', () => {
-    const {container} = render(<PanoGauge panoHz={null} />)
+    const {container} = render(<PanoGauge panoHz={null} stabilityCv={null} />)
     expect(progressPath(container)).toBeUndefined()
     expect(needleTransform(container)).toContain('rotate(-110deg)')
   })
 
   it('중앙값(350)은 바늘을 12시(0°)에 둔다', () => {
-    const {container} = render(<PanoGauge panoHz={350} />)
+    const {container} = render(<PanoGauge panoHz={350} stabilityCv={null} />)
     expect(needleTransform(container)).toContain('rotate(0deg)')
   })
 
   it('최소0·최대700은 스윕 양 끝(-110°/+110°)에 대응한다', () => {
-    expect(needleTransform(render(<PanoGauge panoHz={0} />).container)).toContain('rotate(-110deg)')
-    expect(needleTransform(render(<PanoGauge panoHz={700} />).container)).toContain(
+    expect(needleTransform(render(<PanoGauge panoHz={0} stabilityCv={null} />).container)).toContain('rotate(-110deg)')
+    expect(needleTransform(render(<PanoGauge panoHz={700} stabilityCv={null} />).container)).toContain(
       'rotate(110deg)',
     )
   })
 
   it('대역 밖은 끝점 클램프 — 바늘이 스윕 밖으로 나가지 않는다', () => {
-    expect(needleTransform(render(<PanoGauge panoHz={-50} />).container)).toContain(
+    expect(needleTransform(render(<PanoGauge panoHz={-50} stabilityCv={null} />).container)).toContain(
       'rotate(-110deg)',
     )
-    expect(needleTransform(render(<PanoGauge panoHz={5000} />).container)).toContain(
+    expect(needleTransform(render(<PanoGauge panoHz={5000} stabilityCv={null} />).container)).toContain(
       'rotate(110deg)',
     )
   })
 
   it('채움 아크는 최소에서 완전히 비고 최대에서 완전히 찬다 (butt 캡 — 값 위치 정합)', () => {
-    const arc0 = render(<PanoGauge panoHz={0} />)
+    const arc0 = render(<PanoGauge panoHz={0} stabilityCv={null} />)
     expect(progressPath(arc0.container)?.getAttribute('stroke-linecap')).toBe('butt')
     const dash = Number(progressPath(arc0.container)?.getAttribute('stroke-dasharray'))
     // 0 → dashoffset = 전체 길이(아무것도 안 그려짐)
     expect(dashOffset(arc0.container)).toBeCloseTo(dash, 0)
     // 700 → dashoffset 0(완전히 참)
-    expect(dashOffset(render(<PanoGauge panoHz={700} />).container)).toBe(0)
+    expect(dashOffset(render(<PanoGauge panoHz={700} stabilityCv={null} />).container)).toBe(0)
   })
 
   it('눈금 라벨은 100단위(0~700)를 적는다', () => {
-    const {container} = render(<PanoGauge panoHz={350} />)
+    const {container} = render(<PanoGauge panoHz={350} stabilityCv={null} />)
     const labels = [...container.querySelectorAll('text')].map(t => t.textContent)
     for (const v of ['0', '100', '300', '500', '700']) expect(labels).toContain(v)
   })
 
   it('진행 채움은 그라디언트 스트로크를 쓴다 (amCharts gradient-fill 룩)', () => {
-    const {container} = render(<PanoGauge panoHz={350} />)
+    const {container} = render(<PanoGauge panoHz={350} stabilityCv={null} />)
     const stroke = getComputedStyle(progressPath(container) as SVGPathElement).stroke
     expect(stroke).toContain('url(')
+  })
+
+  it('흔들림 부채꼴(A안): stabilityCv 있으면 pivot 닫힌 wedge path가 그려진다', () => {
+    const wedgeOf = (c: HTMLElement) =>
+      paths(c).find(p => (p.getAttribute('d') ?? '').startsWith('M 100 84 L'))
+    // cv 2% @350Hz → ±7Hz — 시각 폭 존재
+    expect(wedgeOf(render(<PanoGauge panoHz={350} stabilityCv={0.02} />).container)).toBeDefined()
+    // cv null → 부채꼴 없음 (안정 = 또렷한 바늘 단독)
+    expect(wedgeOf(render(<PanoGauge panoHz={350} stabilityCv={null} />).container)).toBeUndefined()
+    // 사실상 0 폭도 미렌더
+    expect(wedgeOf(render(<PanoGauge panoHz={350} stabilityCv={0.00001} />).container)).toBeUndefined()
   })
 })

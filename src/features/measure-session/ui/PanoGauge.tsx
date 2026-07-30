@@ -7,6 +7,12 @@ import {measureStatusTokens, motionTokens} from '@shared/config/design-tokens'
 export interface PanoGaugeProps {
   /** null → dim(바늘 최소 위치, 채움 없음). 값 있음 = measuring (component-spec v2 §2.4) */
   panoHz: number | null
+  /**
+   * 회전 안정도 CV (v2.x — 사용자 A안 채택: 흔들림 부채꼴).
+   * 바늘 주위 ±(cv×panoHz) Hz 범위를 반투명 부채꼴로 그린다 — 폭 = 흔들리는 범위.
+   * null(창 미충족·비측정)이면 미렌더. 판단 없는 원값 표현 — 색 변화 없음(중립 라임).
+   */
+  stabilityCv: number | null
 }
 
 /* ------------------------------------------------------------------ *
@@ -97,6 +103,30 @@ const NEEDLE_POINTS = [
   `${CX - NEEDLE_BASE_HALF},${CY + 2}`,
 ].join(' ')
 
+/** 흔들림 부채꼴 최대 반각(°) — CV 폭주 시 시각 폭 클램프 (전체 스윕의 ~27%) */
+const WEDGE_MAX_HALF_DEG = 30
+const WEDGE_OPACITY = 0.18
+
+/**
+ * 흔들림 부채꼴 path — pivot → ±범위 호(바늘 길이 반경) → 닫기.
+ * 각도는 값 공간에서 환산: halfHz = cv × pano. d는 프레임마다 재계산(≥10Hz)이라
+ * CSS transition 없이도 연속적으로 보인다(cv 자체가 완만하게 변하는 값).
+ */
+const wedgePath = (panoHz: number, cv: number): string | null => {
+  const centerDeg = valueToDeg(panoHz)
+  const halfHz = cv * panoHz
+  const halfDeg = Math.min(
+    WEDGE_MAX_HALF_DEG,
+    (SWEEP_DEG * halfHz) / (GAUGE_MAX - GAUGE_MIN),
+  )
+  if (halfDeg <= 0.05) return null // 사실상 폭 0 — 그리지 않음(안정 = 또렷한 바늘)
+  const lo = Math.max(-SWEEP_DEG / 2, centerDeg - halfDeg)
+  const hi = Math.min(SWEEP_DEG / 2, centerDeg + halfDeg)
+  const [x1, y1] = polar(lo, NEEDLE_TIP_R)
+  const [x2, y2] = polar(hi, NEEDLE_TIP_R)
+  return `M ${CX} ${CY} L ${x1} ${y1} A ${NEEDLE_TIP_R} ${NEEDLE_TIP_R} 0 0 1 ${x2} ${y2} Z`
+}
+
 interface GaugeTick {
   readonly v: number
   readonly major: boolean
@@ -128,12 +158,14 @@ const TICKS: readonly GaugeTick[] = (() => {
  * 진행 채움 = 그라디언트 라임(0→현재 값), 바늘 = 중성색, 레드라인 = 상단 고위험 구간.
  * 고정 viewBox → layout shift 0. reduced-motion 시 보간 0ms.
  */
-export function PanoGauge({panoHz}: PanoGaugeProps) {
+export function PanoGauge({panoHz, stabilityCv}: PanoGaugeProps) {
   const theme = useTheme()
   const palette = (theme.vars ?? theme).palette
   const limeFg = measureStatusTokens.measuring.fg
   const dim = panoHz === null
   const gradientId = useId()
+  // 흔들림 부채꼴 (A안) — 측정 중 + CV 보유 시에만. null이면 미렌더(안정 = 또렷한 바늘)
+  const wedge = panoHz !== null && stabilityCv !== null ? wedgePath(panoHz, stabilityCv) : null
 
   return (
     <svg
@@ -225,6 +257,10 @@ export function PanoGauge({panoHz}: PanoGaugeProps) {
             }}
           />
         )}
+
+        {/* 흔들림 부채꼴 (v2.x A안) — 바늘 아래 반투명 층: 폭 = ±(cv×pano) 범위.
+            판단 없는 원값 표현 — 색 고정(라임), 넓어질수록 '흔들린다'가 그대로 보인다 */}
+        {wedge !== null && <path d={wedge} style={{fill: limeFg, opacity: WEDGE_OPACITY}} />}
 
         {/* 바늘 — dim에서도 최소 위치(0)에 렌더(빈 계기판 금지). 중성색(라임 채움과 겹쳐도 보임) */}
         <Box
