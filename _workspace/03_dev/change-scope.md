@@ -1873,3 +1873,20 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - 브라우저(로컬): 모터 상세(실제 모터 "130 1")·not-found 모두 헤더에 수정·삭제 없음([뒤로]·테마·아바타만), 측정/차트/기록 정상. 모터 목록 행 스와이프 [수정]/[삭제] 유지 확인.
 - manifest.webmanifest 200(name·icons 4), 아이콘 4종 200 image/png, `<link rel=manifest/apple-touch-icon>` DOM 존재. 아이콘 픽셀 스캔: 192=13.8%·512=13.7%·maskable=7.7%·apple=6.9% 라임(글리프 정상, 초기 512 blank 재생성 완료).
 - 검증용 시드 모터는 IndexedDB에서 정리(빈 상태 복원).
+
+---
+
+## v2.46 — 홈 화면 아이콘 깨짐(잘림·투명) 수정 (bug-fix, 사용자 확인)
+
+### 증상 / 근원
+- v2.45 PNG 아이콘 4종이 **글리프 하단 절반 잘림 + 그 아래 투명**으로 생성됨(사용자 스크린샷 확인).
+- 근원: 래스터화 SVG 문자열에 `width/height`가 없어 `<img>` 고유 크기가 미정 → canvas `drawImage`가 상단 일부에만 렌더, 배경 rect도 함께 잘려 나머지 투명. (v2.45 sips 512는 잘린 192를 확대해 결함 승계+블러.)
+
+### 변경 (public/ 자산만)
+- `icon-192.png`·`icon-512.png`·`apple-touch-icon.png`: SVG에 `width/height` 명시해 브라우저 canvas로 **원본 크기 재래스터화**(꽉 찬 글리프).
+- `icon-maskable-512.png`: 사용자 결정으로 별도 생성 안 하고 `icon-512.png` 복사본 사용.
+
+### 검증
+- 전송 무결성: 각 PNG를 브라우저 SHA-256과 디스크 `shasum` 대조(192·512·apple 1치). **maskable 단일 붙여넣기에서 SHA MISMATCH 감지(de5475≠8ebeb3)** → v2.45식 대용량 base64 손상을 새 SHA 가드가 실제로 잡음. 이후 512 복사로 대체.
+- 브라우저: 디스크 4종 모두 꽉 찬 글리프·중앙정렬·풀블리드 배경(잘림/투명/아티팩트 없음) 확인. 사용자 최종 확인 완료.
+- 자산 전용 변경(소스·테스트 무변경)이라 typecheck/lint/test/build 영향 없음. dist는 배포 시 Vercel이 재빌드.
