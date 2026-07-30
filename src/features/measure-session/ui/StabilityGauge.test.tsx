@@ -8,13 +8,14 @@ import type {MeasureView} from './measure-view'
 // 변동률 게이지 unit — 브라우저 QA는 measuring 미도달(마이크 없음)이라 여기서 밴드·바늘 각도를 고정한다.
 // 스케일 0~2%: cvToDeg(cv) = -110 + 220*(cv/0.02). 0→-110°, 1%→0°, ≥2%→+110°.
 
-const measuring = (stabilityCv: number | null, rpm = 18000): MeasureView => ({
+const measuring = (stabilityCv: number | null, rpm = 18000, microCv: number | null = 0): MeasureView => ({
   status: 'measuring',
   panoHz: 300,
   rpm,
   isStable: true,
   measuredMs: 6000,
   stabilityCv,
+  microCv,
 })
 
 const paths = (c: HTMLElement): SVGPathElement[] => [...c.querySelectorAll('path')]
@@ -35,6 +36,21 @@ describe('StabilityGauge', () => {
     expect(rotations(render(<StabilityGauge view={measuring(0.02)} />).container)).toContain('rotate(110deg)')
     // 대역 밖 클램프 — +110° 초과 없음
     expect(rotations(render(<StabilityGauge view={measuring(0.5)} />).container)).toContain('rotate(110deg)')
+  })
+
+  it('바늘은 순간 편차(microCv)만큼 창 CV 중심에서 떨린다 — 등급·캡션은 창 CV 유지', () => {
+    // needleCv = cv + microCv. cv=1%에서 microCv ±0.5%면 바늘이 0.5%~1.5%로 흔들린다.
+    // cvToDeg: 0.5%→-55°, 1.5%→+55° (중심 1%→0°). 캡션 등급은 여전히 cv(1%=보통)만 본다.
+    expect(rotations(render(<StabilityGauge view={measuring(0.01, 18000, 0.005)} />).container)).toContain(
+      'rotate(55deg)',
+    )
+    expect(rotations(render(<StabilityGauge view={measuring(0.01, 18000, -0.005)} />).container)).toContain(
+      'rotate(-55deg)',
+    )
+    // microCv=0이면 바늘은 창 CV 위치 그대로 (떨림 0)
+    expect(rotations(render(<StabilityGauge view={measuring(0.01, 18000, 0)} />).container)).toContain(
+      'rotate(0deg)',
+    )
   })
 
   it('바늘은 파노와 동일하게 항상 표시된다 — cv 없음·비측정이면 최소(-110°)', () => {

@@ -26,6 +26,8 @@ export type MeasureView =
       isStable: boolean
       measuredMs: number
       stabilityCv: number | null
+      // 순간 편차(바늘 실시간 떨림용) — 매 프레임 갱신, 창 미충족이면 null. 기록·등급 비관여.
+      microCv: number | null
     } // 연속 갱신 ≥10Hz — 잠금 없음
   | {status: 'weak-signal'} // 수치 없음 — 타입으로 강제 (INV-13)
   | {status: 'no-permission'; permanent: boolean; settingsHelpOpen: boolean} // F-2

@@ -37,6 +37,13 @@ export interface DisplayEstimate {
    * 같은 모터의 시간에 따른 상대 비교 전용(절대 진단 아님). ±rpm 환산·등급화는 표시 계층 소관.
    */
   stabilityCv: number | null
+  /**
+   * 순간 편차 — 현재 프레임 f₀(kf)가 창 중앙값에서 벗어난 **부호 있는 상대량**((kf−median)/median).
+   * stabilityCv(1.5s 평균)와 달리 매 프레임 값이 바뀌므로, 표시 계층이 게이지 바늘을 실시간으로
+   * "떨리게" 하는 데 쓴다(사용자 req). 창 미충족·weak-signal이면 null. 기록·등급은 이 값을 쓰지
+   * 않는다(바늘 시각 효과 전용 — 기록값에 딜레이·잡음을 더하지 않기 위함).
+   */
+  microVariation: number | null
 }
 
 /** 고조파별 스펙트럼 계측 (comb 점수·일치도 검사 입력) */

@@ -48,6 +48,8 @@ export type EngineFrameView =
       measuredMs: number
       /** 회전 안정도 CV (엔진 1.5s 창) — 창 미충족이면 null. 컨디션 지표(v2.x) */
       stabilityCv: number | null
+      /** 순간 편차(바늘 실시간 떨림용) — 매 프레임 갱신. 창 미충족이면 null. 기록·등급 비관여 */
+      microCv: number | null
     }
   | {kind: 'weak-signal'}
 
@@ -100,6 +102,7 @@ export function toMeasureView(snapshot: MachineSnapshot): MeasureView {
             isStable: snapshot.frame.isStable,
             measuredMs: snapshot.frame.measuredMs,
             stabilityCv: snapshot.frame.stabilityCv,
+            microCv: snapshot.frame.microCv,
           }
         : {status: 'weak-signal'}
     case 'awaiting-gesture':
@@ -148,6 +151,7 @@ export function toEngineFrame(estimate: DisplayEstimate, measuredMs: number): En
       panoHz,
       isStable: estimate.status === 'stable',
       stabilityCv: estimate.stabilityCv,
+      microCv: estimate.microVariation,
     }
   }
   return {kind: 'weak-signal'}

@@ -74,6 +74,20 @@ function assertDisplayInvariant(est: DisplayEstimate, frameEndSec: number): void
   if (!(est.confidence >= 0 && est.confidence <= 1)) {
     throw new Error(`confidence 범위 이탈 (${at}, confidence=${est.confidence})`)
   }
+  // 순간 편차(바늘 떨림 신호) 계약: weak-signal이면 반드시 null. 값이 있으면 유한하고,
+  // stabilityCv와 같은 창 게이팅(둘 다 창이 차야 non-null)이라 한쪽만 null일 수 없다.
+  if (est.status === 'weak-signal') {
+    if (est.microVariation !== null) {
+      throw new Error(`weak-signal인데 microVariation 노출 (${at}, ${String(est.microVariation)})`)
+    }
+  } else if (est.microVariation !== null) {
+    if (!Number.isFinite(est.microVariation)) {
+      throw new Error(`microVariation 비유한 (${at}, ${String(est.microVariation)})`)
+    }
+    if (est.stabilityCv === null) {
+      throw new Error(`microVariation 있는데 stabilityCv null — 창 게이팅 불일치 (${at})`)
+    }
+  }
 }
 
 /** 엔진을 생성해 청크 스트리밍으로 전체 신호를 공급하고, 프레임 종료 시각을 붙여 수집한다 */

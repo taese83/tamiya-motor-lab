@@ -111,10 +111,13 @@ export function MeasurePage() {
   // 측정 중 모터 삭제만 목록으로 replace 복귀하고, 이때 대상은 origin별로 갈린다(v2.5):
   // 삭제된 모터의 상세로 되돌아가면 not-found 화면에 착지하므로 각 origin의 목록으로 보낸다.
   useRaceAutoCollect({
-    // v2.18: 왕복 자동 확정도 최소 측정시간 하한을 통과해야 한다. 이 경로를 빼면 레이스 왕복이
-    // 여전히 '너무 빠른' 값을 자동 기록한다 — 요청의 핵심 문제가 그대로 남는다.
-    isStable:
-      view.status === 'measuring' && view.isStable && view.measuredMs >= MIN_MEASURE_DURATION_MS,
+    // v2.x(사용자): 자동 확정 트리거를 엔진 stable 판정에서 분리 — 안정 여부 무관하게 CV가
+    // 계산되고(창 참: stabilityCv!==null) 연속 8초를 넘기면 확정한다. isStable에 의존하면
+    // "흔들림 큼"(CV≥1.5%) 모터가 왕복 경로로 아예 기록 안 되던 사각지대가 있었다(사용자 지적).
+    readyToCollect:
+      view.status === 'measuring' &&
+      view.stabilityCv !== null &&
+      view.measuredMs >= MIN_MEASURE_DURATION_MS,
     panoHz: view.status === 'measuring' ? view.panoHz : null,
     rpm: view.status === 'measuring' ? view.rpm : null,
     stabilityCv: view.status === 'measuring' ? view.stabilityCv : null,

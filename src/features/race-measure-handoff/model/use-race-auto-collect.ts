@@ -13,7 +13,8 @@ import {
 } from './store'
 
 // RV-1 레이스 왕복 자동 수집 (S1 측정 페이지 mount 훅).
-// 발화 조건: slot 존재 ∧ measured===null ∧ isStable ∧ panoHz·rpm 비null.
+// 발화 조건: slot 존재 ∧ measured===null ∧ readyToCollect ∧ panoHz·rpm 비null.
+// readyToCollect의 판정 기준(안정 여부·연속 시간 등)은 호출부(MeasurePage) 소관 — 훅은 그 신호로만 발화한다.
 // _markMeasuredPending이 동기 재진입을 차단하므로 StrictMode 이중 effect에도 수집은 1건.
 // 모든 outcome은 전달 직전 peekRaceMeasure()?.startedAt 일치를 확인한다 — 왕복이 이미
 // 파기(취소·새 왕복 시작)됐으면 신호를 폐기해 오배달 navigate를 방지한다.
@@ -24,8 +25,9 @@ export type RaceAutoCollectOutcome =
   | {kind: 'motor-deleted'}
 
 export interface UseRaceAutoCollectInput {
-  /** 측정 안정 판정 — 안정 시점의 panoHz·rpm이 그대로 기록된다 (재반올림 금지) */
-  isStable: boolean
+  /** 확정 준비 신호 — true가 된 시점의 panoHz·rpm이 그대로 기록된다 (재반올림 금지).
+   *  v2.x: '안정'이 아니라 '확정해도 되는 시점'(연속 8초·CV 계산됨 등) — 판정은 호출부 소관. */
+  readyToCollect: boolean
   panoHz: number | null
   rpm: number | null
   /** 수집 시점 회전 안정도 CV(컨디션 지표, v2.x) — 창 미충족이면 null(생략 저장) */
@@ -35,7 +37,7 @@ export interface UseRaceAutoCollectInput {
 }
 
 export function useRaceAutoCollect(input: UseRaceAutoCollectInput): void {
-  const {isStable, panoHz, rpm, stabilityCv, onOutcome} = input
+  const {readyToCollect, panoHz, rpm, stabilityCv, onOutcome} = input
   const slot = useRaceMeasureSlot()
   const queryClient = useQueryClient()
   // 최신 콜백 유지 — onOutcome 재생성이 수집 effect를 재발화시키지 않게 분리
@@ -46,7 +48,7 @@ export function useRaceAutoCollect(input: UseRaceAutoCollectInput): void {
 
   useEffect(() => {
     if (slot === null || slot.measured !== null) return
-    if (!isStable || panoHz === null || rpm === null) return
+    if (!readyToCollect || panoHz === null || rpm === null) return
     const {motorId, startedAt} = slot
     // 동기 single-flight 가드 — 전이에 실패하면 다른 호출이 이미 수집 중이다
     if (!_markMeasuredPending(startedAt, panoHz)) return
@@ -83,5 +85,5 @@ export function useRaceAutoCollect(input: UseRaceAutoCollectInput): void {
       _resolveMeasuredSave(startedAt, 'failed')
       deliver({kind: 'collect-failed', motorId, message: result.error.message})
     })()
-  }, [slot, isStable, panoHz, rpm, stabilityCv, queryClient])
+  }, [slot, readyToCollect, panoHz, rpm, stabilityCv, queryClient])
 }

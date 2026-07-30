@@ -1,7 +1,6 @@
 import {Box, Typography} from '@mui/material'
 import {useTheme} from '@mui/material/styles'
 
-import {motionTokens} from '@shared/config/design-tokens'
 import {
   STABILITY_EXCELLENT_MAX_CV,
   STABILITY_GOOD_MAX_CV,
@@ -36,6 +35,7 @@ const TICK_INNER_R = TICK_OUTER_R - 3.5
 const LABEL_R = R + STROKE_W / 2 + 7
 const NEEDLE_TIP_R = R - 9
 const DIM_OPACITY = 0.4
+const STAB_NEEDLE_MS = 60 // 순간 편차 떨림용 — 파노(100ms)보다 짧게(프레임 갱신이 뭉개지지 않게)
 
 const round2 = (n: number): number => Math.round(n * 100) / 100
 const cvToDeg = (cv: number): number => {
@@ -95,6 +95,12 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
 
   const level = cv !== null ? stabilityLevelOf(cv) : null
 
+  // 바늘 표시값 = 1.5s 창 CV(중심) + 순간 편차(떨림). 매 프레임 microCv가 바뀌어 바늘이 실시간으로
+  // 떨린다(사용자 req). 등급·캡션은 cv(창 평균)만 쓰므로 기록·판정에는 떨림이 섞이지 않는다.
+  // cvToDeg가 [0, MAX_CV]로 클램프하므로 합이 음수·초과여도 안전. 둘 다 null이면 0(최소).
+  const micro = measuring ? view.microCv : null
+  const needleCv = (cv ?? 0) + (micro ?? 0)
+
   return (
     <Box sx={{width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25}}>
       <Box aria-hidden="true" sx={{width: 'clamp(148px, 46vw, 208px)'}}>
@@ -150,10 +156,11 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
             <Box
               component="g"
               sx={{
-                transform: `rotate(${cvToDeg(cv ?? 0)}deg)`,
+                transform: `rotate(${cvToDeg(needleCv)}deg)`,
                 transformOrigin: `${CX}px ${CY}px`,
                 transformBox: 'view-box',
-                transition: `transform ${motionTokens.needleMs}ms linear`,
+                // 파노 바늘(100ms)보다 짧게 — 프레임마다 오는 순간 편차가 뭉개지지 않고 떨리도록.
+                transition: `transform ${STAB_NEEDLE_MS}ms linear`,
                 '@media (prefers-reduced-motion: reduce)': {transition: 'none'},
               }}>
               <polygon points={NEEDLE_POINTS} style={{fill: palette.text.primary}} strokeLinejoin="round" />

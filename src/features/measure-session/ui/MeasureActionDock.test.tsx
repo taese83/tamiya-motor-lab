@@ -20,6 +20,7 @@ const MEASURING: MeasureView = {
   isStable: true,
   measuredMs: 800,
   stabilityCv: 0.004, // v2.x 안정도 지표 — 액션 판정과 무관(표시 전용 필드)
+  microCv: 0, // v2.x 순간 편차(바늘 떨림) — 액션 판정과 무관
 }
 const WEAK: MeasureView = {status: 'weak-signal'}
 

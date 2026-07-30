@@ -28,7 +28,7 @@ const KALMAN_RELOCK_OCTAVES = 0.25 // Viterbi 출력이 이 이상 점프하면 
 
 function weakEstimate(confidence: number): DisplayEstimate {
   // weak-signal이면 f0/rpm은 반드시 null — 무음에서 0 RPM·임의 값 반환 금지 (REQ-ST-003)
-  return {f0: null, rpm: null, confidence, status: 'weak-signal', stabilityCv: null}
+  return {f0: null, rpm: null, confidence, status: 'weak-signal', stabilityCv: null, microVariation: null}
 }
 
 export function createTracker(options: ResolvedEngineOptions, hopSeconds?: number): Tracker {
@@ -183,6 +183,13 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
     return {full: true, cv, median}
   }
 
+  // 순간 편차 — 현재 kf가 창 중앙값에서 벗어난 부호 있는 상대량. 창 미충족이면 null(중앙값 미확립).
+  // stabilityCv(1.5s 평균)와 같은 null 게이팅 — 둘 다 창이 차야 의미가 생긴다.
+  function microOf(full: boolean, median: number): number | null {
+    if (!full || median <= 1e-9) return null
+    return (kf - median) / median
+  }
+
   return {
     push(analysis) {
       if (!analysis.gatePassed || analysis.candidates.length === 0) {
@@ -200,6 +207,7 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
             confidence: lastConfidence,
             status: 'measuring',
             stabilityCv: coast.full ? coast.cv : null,
+            microVariation: microOf(coast.full, coast.median),
           }
         }
         clearTrack()
@@ -240,6 +248,9 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
         status: isStable ? 'stable' : 'measuring',
         // 컨디션 지표(v2.x): 1.5s 창 CV — 창 미충족(스핀업 직후 등)이면 null
         stabilityCv: full ? cv : null,
+        // 순간 편차(바늘 실시간 떨림용) — 현재 kf가 창 중앙값에서 벗어난 부호 있는 상대량.
+        // isStable(displayF0=median)이어도 kf는 계속 추종하므로 이 값은 프레임마다 떨린다.
+        microVariation: microOf(full, median),
       }
     },
     reset() {
