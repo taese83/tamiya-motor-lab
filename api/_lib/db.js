@@ -32,14 +32,15 @@ export async function upsertUser(user) {
 export async function getUserData(userId) {
   const q = sql()
   const [motorRows, measureRows, raceRows] = await Promise.all([
-    q`SELECT id, name, kind, sort_order AS "sortOrder", created_at AS "createdAt", updated_at AS "updatedAt"
+    q`SELECT id, name, kind, sort_order AS "sortOrder", created_at AS "createdAt", updated_at AS "updatedAt", stability_best_cvs AS "stabilityBestCvs"
       FROM motors WHERE user_id = ${userId} ORDER BY sort_order ASC`,
-    q`SELECT id, motor_id AS "motorId", pano_hz AS "panoHz", rpm, measured_at AS "measuredAt"
+    q`SELECT id, motor_id AS "motorId", pano_hz AS "panoHz", rpm, measured_at AS "measuredAt", stability_cv AS "stabilityCv"
       FROM measure_records WHERE user_id = ${userId} ORDER BY measured_at ASC`,
     q`SELECT id, motor_id AS "motorId", pano_hz AS "panoHz", result, voltage, lap_time_ms AS "lapTimeMs", goal, created_at AS "createdAt"
       FROM race_records WHERE user_id = ${userId} ORDER BY created_at ASC`,
   ])
   return {
+    // null 옵션 필드(stabilityBestCvs·stabilityCv)는 생략 — IndexedDB의 undefined 생략 규칙과 일치
     motors: motorRows.map(m => ({
       id: m.id,
       name: m.name,
@@ -47,6 +48,8 @@ export async function getUserData(userId) {
       sortOrder: Number(m.sortOrder),
       createdAt: m.createdAt,
       updatedAt: m.updatedAt,
+      // JSONB는 드라이버가 파싱해 배열로 반환 — number[]로 정규화
+      ...(Array.isArray(m.stabilityBestCvs) ? {stabilityBestCvs: m.stabilityBestCvs.map(Number)} : {}),
     })),
     measures: measureRows.map(r => ({
       id: r.id,
@@ -54,6 +57,7 @@ export async function getUserData(userId) {
       panoHz: Number(r.panoHz),
       rpm: Number(r.rpm),
       measuredAt: r.measuredAt,
+      ...(r.stabilityCv != null ? {stabilityCv: Number(r.stabilityCv)} : {}),
     })),
     // null 옵션 필드(result·lapTimeMs·goal)는 생략 — IndexedDB의 undefined 생략 규칙과 일치
     races: raceRows.map(r => ({
@@ -80,12 +84,12 @@ export async function replaceUserData(userId, snapshot) {
     q`DELETE FROM measure_records WHERE user_id = ${userId}`,
     q`DELETE FROM race_records WHERE user_id = ${userId}`,
     ...motors.map(
-      m => q`INSERT INTO motors (id, user_id, name, kind, sort_order, created_at, updated_at)
-             VALUES (${m.id}, ${userId}, ${m.name}, ${m.kind}, ${m.sortOrder}, ${m.createdAt}, ${m.updatedAt})`,
+      m => q`INSERT INTO motors (id, user_id, name, kind, sort_order, created_at, updated_at, stability_best_cvs)
+             VALUES (${m.id}, ${userId}, ${m.name}, ${m.kind}, ${m.sortOrder}, ${m.createdAt}, ${m.updatedAt}, ${Array.isArray(m.stabilityBestCvs) ? JSON.stringify(m.stabilityBestCvs) : null}::jsonb)`,
     ),
     ...measures.map(
-      r => q`INSERT INTO measure_records (id, user_id, motor_id, pano_hz, rpm, measured_at)
-             VALUES (${r.id}, ${userId}, ${r.motorId}, ${r.panoHz}, ${r.rpm}, ${r.measuredAt})`,
+      r => q`INSERT INTO measure_records (id, user_id, motor_id, pano_hz, rpm, measured_at, stability_cv)
+             VALUES (${r.id}, ${userId}, ${r.motorId}, ${r.panoHz}, ${r.rpm}, ${r.measuredAt}, ${r.stabilityCv ?? null})`,
     ),
     ...races.map(
       r => q`INSERT INTO race_records (id, user_id, motor_id, pano_hz, result, voltage, lap_time_ms, goal, created_at)

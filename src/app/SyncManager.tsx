@@ -3,24 +3,50 @@ import {useEffect, useRef} from 'react'
 import {useQueryClient} from '@tanstack/react-query'
 
 import {useSession} from '@features/auth'
-import {pushServerData} from '@features/sync'
-import {readDomainSnapshot} from '@shared/lib/persistence'
+import {pullServerData, pushServerData} from '@features/sync'
+import {readDomainSnapshot, replaceDomainSnapshot} from '@shared/lib/persistence'
 
-// 서버 동기화 오케스트레이션 (v2.40 Phase B → v2.x 개정).
-// v2.x(사용자): **로그인 시 서버-우선 마이그레이션 제거.** 이전에는 로그인 시 서버 스냅샷으로
-// 로컬 IndexedDB를 replaceDomainSnapshot으로 덮어썼는데(서버 우선), 이게 로컬 측정 데이터를
-// 예상 밖으로 대체하는 문제가 있어 제거한다. 이제 **로컬이 진실**이고 로그인이 로컬을 건드리지
-// 않는다. 서버는 아래 mutation mirror push로 로컬을 따라가는 백업(미러)일 뿐이다.
-// - 도메인 mutation 성공 시(로그인 상태): 디바운스 후 로컬 전체 스냅샷을 서버로 mirror push.
-// 미로그인·로컬 정적 서버·오프라인에서는 push가 조용히 no-op → IndexedDB 동작 그대로.
+// 서버 동기화 오케스트레이션 (v2.40 Phase B → v2.x: 서버 DB 정본 통일).
+// v2.x(사용자): **데이터는 서버 DB가 정본.** 로그인 시 서버에서 로드해 로컬(IndexedDB 캐시)을 채운다.
+//  - 서버에 데이터가 있으면 **서버 우선**: 서버 스냅샷으로 로컬을 교체(replaceDomainSnapshot).
+//  - 서버가 비어 있으면 **최초 1회 병합**: 현재 로컬을 서버로 시드 push(전환 시 로컬 데이터 보존).
+// mutation 성공(로그인 상태) 시 로컬 전체 스냅샷을 서버로 디바운스 mirror push → 서버 정본 유지.
+// 필터·정렬은 로컬(localStorage) 전용 — 서버 스냅샷 대상 아님.
+// 미로그인·로컬 정적 서버·오프라인에서는 pull/push가 조용히 no-op → IndexedDB 동작 그대로.
 
 const PUSH_DEBOUNCE_MS = 800
 
 export function SyncManager() {
   const {user} = useSession()
   const queryClient = useQueryClient()
+  const syncedUserRef = useRef<string | null>(null)
   const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userId = user?.id ?? null
+
+  // 로그인 시 1회 서버 우선 로드(서버 정본) — 서버 있으면 로컬 교체, 비었으면 로컬 시드
+  useEffect(() => {
+    if (userId === null) {
+      syncedUserRef.current = null
+      return
+    }
+    if (syncedUserRef.current === userId) return
+    syncedUserRef.current = userId
+    void (async () => {
+      const server = await pullServerData()
+      if (server === null) return // 서버리스/DB 미가용 — skip(기존 로컬 유지)
+      const serverHasData =
+        server.motors.length > 0 || server.measures.length > 0 || server.races.length > 0
+      if (serverHasData) {
+        await replaceDomainSnapshot(server) // 서버 우선(로컬 대체)
+      } else {
+        const local = await readDomainSnapshot()
+        const localHasData =
+          local.motors.length > 0 || local.measures.length > 0 || local.races.length > 0
+        if (localHasData) await pushServerData(local) // 서버 비어있음 → 로컬 시드(최초 병합)
+      }
+      await queryClient.invalidateQueries()
+    })()
+  }, [userId, queryClient])
 
   // 도메인 mutation 성공 → 디바운스 mirror push(로그인 상태만)
   useEffect(() => {
