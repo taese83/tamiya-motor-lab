@@ -38,10 +38,15 @@ export interface EngineDiagnostics {
   snrDb: number
   /** pYIN voicing 확률 — gateVoicingThreshold(0.15) 미만이면 게이트 실패 */
   voicedProb: number
-  /** 검출된 고조파 개수 — gateMinHarmonics(1) 미만이면 게이트 실패 */
+  /** 검출된 고조파 개수 — gateMinHarmonics 미만이면 게이트 실패 */
   detectedHarmonics: number
   /** 게이트 통과 여부 — false면 수치 미표시(weak-signal) */
   gatePassed: boolean
+  /**
+   * 스펙트럼 상위 피크 (주파수 오름차순, 최대 5개) — 실제 배음 구조를 눈으로 확인하기 위한 값.
+   * 특정 모터에서만 절반으로 잠기는 원인(진짜 기본파가 어디인지)을 이걸로 판별한다.
+   */
+  topPeaks: readonly {readonly freq: number; readonly snrDb: number}[]
 }
 
 export interface DisplayEstimate {
@@ -118,6 +123,8 @@ export interface FrameAnalysis {
   /** 일치도 검사 후 VP에 실제 사용된 고조파 차수 */
   usedHarmonics: number[]
   rms: number
+  /** 스펙트럼 상위 피크 (진단 전용 — 판정 비관여). 무음·근접 미달 프레임은 빈 배열 */
+  topPeaks: readonly {readonly freq: number; readonly snrDb: number}[]
 }
 
 /** 엔진 파라미터 — 전부 주입 가능 (REQ-F-010/011 hook: 캘리브레이션·10ms hop은 이 객체로 흡수) */
@@ -202,33 +209,25 @@ export const DEFAULT_TUNING: EngineTuning = {
   frameSeconds: 0.2,
   hopSeconds: 0.025,
   targetDecimatedRate: 12000,
-  fMin: 100,
-  fMax: 700,
-  pitchDivisors: [1], // v2.x(사용자): 하위-복원 끔 — 지배 피치 그대로 (÷3·÷6 과대 하향 제거)
-  // v2.x(사용자 실측: 파노튜너 570 vs 앱 283 = 정확히 ÷2 옥타브 에러) — 지배 피치 채점으로 전환.
-  // 이전 [1,3,6]·가중 [1,1,0.7]은 "3·6배가 기본파보다 큰 정류 고조파" 가정이라, 후보의 3·6배가
-  // 강하면 낮은 후보가 이겼다. 이제 **후보 자기 주파수(k=1)의 에너지**를 지배적으로 보고 2·3배는
-  // 보조 증거로만 쓴다 → 스펙트럼 최강 피크에 앉은 후보가 승리(= 튜너가 보는 음).
-  scoredHarmonics: [1, 2, 3],
-  harmonicWeights: [1, 0.3, 0.15],
+  // v2.x(진단 확정): 실기기 계측 결과 이 모터의 **기본주파수는 287Hz**이고 파노튜너의 570은
+  // 그 2배(2차 고조파)였다. 후보를 570으로 잡으면 실제로 강한 287이 게이트 대역 밖이라 통째로
+  // 잡음으로 계산돼 SNR·고조파가 미달(사용자 스크린샷: 570에서 둘 다 빨강, 287에서 전부 통과).
+  // 즉 엔진이 287을 잡는 것이 정상이며, 지배 피치 채점으로의 전환은 게이트와 구조적으로 충돌한다.
+  // → 287을 안정적으로 잡던 원래 설정으로 복귀한다. 튜너 표시값(570)은 표시 계층의 배수로 맞춘다.
+  fMin: 170,
+  fMax: 620,
+  pitchDivisors: [1, 3, 6],
+  scoredHarmonics: [1, 3, 6],
+  harmonicWeights: [1, 1, 0.7],
   maxCandidates: 5,
-  nonHarmonicPenaltyWeight: 0.3,
-  // v2.x(사용자 실측): 2.5 → 0.2. 이 페널티가 옥타브 에러(283=570/2)의 직접 원인이었다 —
-  // 브러시 모터는 회전 1회당 성분이 실제로 존재해서, 지배음(570) 후보가 그 아래 피크 때문에
-  // 2.5배 감점되어 탈락하고 절반(283)이 살아남았다. 지배 피치 모드에서는 veto를 거의 끈다.
-  subHarmonicPenaltyWeight: 0.2,
+  nonHarmonicPenaltyWeight: 0.5,
+  // 하위 고조파 veto — 기본주파수 추적의 핵심 방어(원복). 287이 기본파임이 실측으로 확인돼
+  // 이 veto가 옳게 동작하고 있었다(570 후보는 아래의 강한 287 때문에 정당하게 탈락).
+  subHarmonicPenaltyWeight: 2.5,
   consistencyTolRatio: 0.005,
   gateSnrDb: 8,
-  // v2.x(사용자: 측정이 깜빡이며 끊김) — 지배 피치 모드에서는 승자가 최강 피크에 앉으므로
-  // "고조파 2개 이상"이 과하게 엄격하다(2·3배가 약한 모터에서 간헐 게이트 실패 → 깜빡임).
-  // 단일 고조파 통과 임계를 15→10 dB로 낮춰, 강한 지배음 하나만으로도 측정이 이어지게 한다.
-  gateStrongSnrDb: 10,
-  // v2.x(사용자: 570으로 갔다가 툭 사라지길 반복) — 고조파 **개수** 요구를 1로 낮춘다.
-  // 이전 2는 "기본파가 약하고 3·6배가 지배적"이라는 옛 전제(하위-복원 모드)의 안전장치였다.
-  // 지배 피치 모드에서는 승자가 이미 최강 피크에 앉으므로 고조파 구조를 추가로 요구할 이유가
-  // 없고, 2·3배가 약한 모터에서 게이트가 간헐 실패해 수치가 사라지는 원인이 된다.
-  // 잡음 방어는 SNR(gateSnrDb 8dB)·voicing·근접 RMS가 계속 담당한다(fixture ⑤ 0dB→weak 유지).
-  gateMinHarmonics: 1,
+  gateStrongSnrDb: 15,
+  gateMinHarmonics: 2,
   gateVoicingThreshold: 0.15,
   silenceRms: 1e-5,
   // v2.29(사용자: 너무 가까이 대야만 검출됨) — 근접 게이트를 0.008→0.004로 완화.

@@ -48,6 +48,7 @@ function diagnosticsOf(analysis: FrameAnalysis): EngineDiagnostics {
     voicedProb: analysis.voicedProb,
     detectedHarmonics: analysis.detectedHarmonics.length,
     gatePassed: analysis.gatePassed,
+    topPeaks: analysis.topPeaks,
   }
 }
 

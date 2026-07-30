@@ -11,7 +11,7 @@ import {
 } from './harmonics'
 import {estimateFrame} from './pyin'
 import {refine} from './refine'
-import {createSpectrumAnalyzer} from './spectrum'
+import {createSpectrumAnalyzer, findTopPeaks, medianNoiseFloor} from './spectrum'
 import type {
   FrameAnalysis,
   HarmonicMeasurement,
@@ -35,7 +35,33 @@ function emptyAnalysis(rms: number): FrameAnalysis {
     detectedHarmonics: [],
     usedHarmonics: [],
     rms,
+    topPeaks: [],
   }
+}
+
+/** 진단용 상위 피크 추출 (판정 비관여) — 실제 배음 구조 확인 목적. 주파수 오름차순 */
+const DIAGNOSTIC_PEAK_COUNT = 5
+function collectTopPeaks(
+  power: Float64Array,
+  binHz: number,
+  sampleRate: number,
+  options: CombOptions,
+): FrameAnalysis['topPeaks'] {
+  const lo = 0.8 * options.fMin
+  const hi = Math.min(6.5 * options.fMax, 0.47 * sampleRate)
+  return findTopPeaks(power, binHz, lo, hi, DIAGNOSTIC_PEAK_COUNT)
+    .map(p => ({
+      freq: Math.round(p.freq),
+      snrDb:
+        Math.round(
+          10 *
+            Math.log10(
+              p.power / medianNoiseFloor(power, binHz, p.freq, Math.max(4 * binHz, 0.03 * p.freq)),
+            ) *
+            10,
+        ) / 10,
+    }))
+    .sort((a, b) => a.freq - b.freq)
 }
 
 /** 검출 고조파 피크들의 f0 환산 가중 평균 — VP 탐색 시작점을 서브빈 정밀도로 당긴다 */
@@ -88,6 +114,8 @@ export function createFrameAnalyzer(
       if (pyinCandidates.length === 0) return emptyAnalysis(rms)
 
       spectrum.compute(frame)
+      // 진단 전용(판정 비관여) — 실제 배음 구조를 그대로 실어 보낸다
+      const topPeaks = collectTopPeaks(spectrum.power, spectrum.binHz, decimatedRate, combOptions)
       const scored = scoreCandidates(
         spectrum.power,
         spectrum.binHz,
@@ -150,6 +178,7 @@ export function createFrameAnalyzer(
           detectedHarmonics: gate.detectedHarmonics,
           usedHarmonics,
           rms,
+          topPeaks,
         }
       }
 
@@ -167,6 +196,7 @@ export function createFrameAnalyzer(
         detectedHarmonics: gate.detectedHarmonics,
         usedHarmonics,
         rms,
+        topPeaks,
       }
     },
   }

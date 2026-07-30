@@ -94,13 +94,13 @@ export const MAX_MEASURE_DURATION_MS = 5000
 // ── 입력 길이 상한 (AS-1 — v1 유지. statusMemo 제거로 name 1건만)
 export const MOTOR_NAME_MAX_LENGTH = 30
 
-// ── 파노(f₀) 탐색 대역 (analysis-algorithm v2 → v2.x 사용자: 지배 피치 100~700)
+// ── 파노(f₀) 저장·표시 대역 (analysis-algorithm v2 canonical)
 // write-strict 검증(shared/lib/schema/pano.ts panoHzWriteSchema)과 M-4 게이지 눈금이 이 상수 1곳을 공유한다.
-// v2.x(사용자): 엔진이 하위-복원 없이 지배 피치를 보고하도록 바뀌며 대역을 170~620 → 100~700으로 넓힌다
-// (60Hz 험 회피 하한 100, 42k rpm 상한 700 — 엔진 DEFAULT_TUNING.fMin/fMax와 일치).
-// rehydrate(read)는 완화 검증(유한 양수 ≤ F0_REHYDRATE_MAX) — 대역 확장이 기존 정상 데이터를
-// corrupt로 오판하지 않는다(write-strict/read-lenient 이원화, SC-A8). 넓힌 대역은 상위 호환.
-export const F0_RANGE = {min: 100, max: 700} as const
+// rehydrate(read)는 완화 검증(유한 양수 ≤ F0_REHYDRATE_MAX) — 대역 상수 변경이
+// 기존 정상 데이터를 corrupt로 오판하지 않게 하는 write-strict/read-lenient 이원화 계약(SC-A8).
+// 주의: 엔진 탐색 대역(DEFAULT_TUNING.fMin/fMax = 기본주파수 170~620)과 이 대역은 별개다 —
+// 표시·저장값에 배수(PANO_DISPLAY_MULTIPLE)가 적용되면 그만큼 넓어야 한다.
+export const F0_RANGE = {min: 170, max: 1400} as const
 export const F0_REHYDRATE_MAX = 2_000
 
 // ── 회전 안정도 · 컨디션 (v2.x 2축 판정 — 사용자 확정) ─────────────────────────
