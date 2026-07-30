@@ -26,6 +26,24 @@ export interface FrameCandidate {
  * 출력 계약 (v2 §7). weak-signal이면 f0/rpm은 반드시 null — 수치 미표시를 타입으로 강제(REQ-ST-003).
  * 필드명은 v2 canonical `f0` 유지 — Measurement.panoHz 매핑은 F2가 stable 확정 시 수행 (api-schema NR-1).
  */
+/**
+ * 게이트 진단 계측 (v2.x — 사용자: "측정됐다 안 됐다 반복, 원인 확인 필요").
+ * 게이트가 **어느 조건에서** 떨어지는지 화면에서 바로 보기 위한 값. 판정에 관여하지 않는다.
+ * 프레임마다 항상 채워진다(게이트 실패·무음 포함) — 실패 원인을 보려는 목적이므로.
+ */
+export interface EngineDiagnostics {
+  /** 입력 음량 — proximityRms(근접 게이트) 미만이면 분석 자체를 생략한다 */
+  rms: number
+  /** 고조파 대역 SNR(dB) — gateSnrDb(8) 미만이면 게이트 실패 */
+  snrDb: number
+  /** pYIN voicing 확률 — gateVoicingThreshold(0.15) 미만이면 게이트 실패 */
+  voicedProb: number
+  /** 검출된 고조파 개수 — gateMinHarmonics(1) 미만이면 게이트 실패 */
+  detectedHarmonics: number
+  /** 게이트 통과 여부 — false면 수치 미표시(weak-signal) */
+  gatePassed: boolean
+}
+
 export interface DisplayEstimate {
   f0: number | null
   rpm: number | null
@@ -44,6 +62,8 @@ export interface DisplayEstimate {
    * 않는다(바늘 시각 효과 전용 — 기록값에 딜레이·잡음을 더하지 않기 위함).
    */
   microVariation: number | null
+  /** 게이트 진단 (v2.x 임시 계측) — 표시 전용, 판정 비관여 */
+  diagnostics: EngineDiagnostics
 }
 
 /** 고조파별 스펙트럼 계측 (comb 점수·일치도 검사 입력) */

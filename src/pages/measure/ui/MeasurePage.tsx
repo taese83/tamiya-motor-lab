@@ -15,6 +15,7 @@ import {
   stopCapture,
   stopCaptureForHidden,
   toggleSettingsHelp,
+  useEngineDiagnostics,
   useMeasureAnnouncement,
   useMeasureView,
 } from '@features/measure-session/model'
@@ -39,6 +40,7 @@ import {ThemeToggle} from '@shared/ui/theme-toggle'
 import type {MotorPickItem} from '@features/collect-measure'
 import type {MeasureView} from '@features/measure-session/model'
 import {MAX_MEASURE_DURATION_MS, MIN_MEASURE_DURATION_MS} from '@shared/config/domain'
+import {DEFAULT_TUNING} from '@shared/lib/audio-analysis'
 
 import type {MotorKind} from '@shared/config/domain'
 import type {PersistenceStatus} from '@shared/lib/persistence'
@@ -72,6 +74,44 @@ function statusLabelKey(
     default:
       return view.status
   }
+}
+
+/**
+ * 게이트 진단 표시 (v2.x 임시 — 사용자: "측정됐다 안 됐다 반복, 원인 확인 필요").
+ * 각 값 옆의 임계를 함께 적어, **어느 조건에서 떨어지는지** 눈으로 바로 구분되게 한다.
+ * 실패 중인 항목은 붉게 표시한다. 원인 확정 후 이 컴포넌트와 diagnostics-store를 제거한다.
+ */
+function GateDiagnostics() {
+  const d = useEngineDiagnostics()
+  if (d === null) return null
+  const rmsFail = d.rms < DEFAULT_TUNING.proximityRms
+  const snrFail = d.snrDb < DEFAULT_TUNING.gateSnrDb
+  const voicedFail = d.voicedProb < DEFAULT_TUNING.gateVoicingThreshold
+  const harmFail = d.detectedHarmonics < DEFAULT_TUNING.gateMinHarmonics
+  const item = (label: string, fail: boolean) => (
+    <Box component="span" sx={{color: fail ? 'error.main' : 'text.secondary', fontWeight: fail ? 700 : 400}}>
+      {label}
+    </Box>
+  )
+  return (
+    <Box
+      sx={{
+        mt: 0.5,
+        px: 2,
+        display: 'flex',
+        gap: 1.25,
+        justifyContent: 'center',
+        flexWrap: 'wrap',
+        fontSize: '0.7rem',
+        fontVariantNumeric: 'tabular-nums lining-nums',
+      }}>
+      {item(`음량 ${d.rms.toFixed(4)}/${DEFAULT_TUNING.proximityRms}`, rmsFail)}
+      {item(`SNR ${d.snrDb.toFixed(1)}/${DEFAULT_TUNING.gateSnrDb}dB`, snrFail)}
+      {item(`주기성 ${d.voicedProb.toFixed(2)}/${DEFAULT_TUNING.gateVoicingThreshold}`, voicedFail)}
+      {item(`고조파 ${d.detectedHarmonics}/${DEFAULT_TUNING.gateMinHarmonics}`, harmFail)}
+      {item(d.gatePassed ? '통과' : '차단', !d.gatePassed)}
+    </Box>
+  )
 }
 
 export function MeasurePage() {
@@ -237,6 +277,10 @@ export function MeasurePage() {
         <Box sx={{mt: 1}}>
           <StabilityGauge view={view} />
         </Box>
+
+        {/* [진단] v2.x 임시 계측 — 측정이 끊기는 원인(어느 게이트에서 떨어지는지)을 보기 위한
+            표시. 원인 확정 후 이 블록과 diagnostics-store를 함께 제거한다. */}
+        <GateDiagnostics />
 
         <Box sx={{flex: 1}} />
 

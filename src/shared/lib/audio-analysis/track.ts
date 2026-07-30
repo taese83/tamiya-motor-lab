@@ -5,6 +5,7 @@
 
 import type {
   DisplayEstimate,
+  EngineDiagnostics,
   FrameAnalysis,
   ResolvedEngineOptions,
   TrackCandidate,
@@ -26,9 +27,28 @@ const KALMAN_ACCEL_STD = 400 // Hz/s² — 스핀업(150 Hz/s) 추종 여유
 const KALMAN_MEASUREMENT_VAR = 0.25 // (0.5 Hz)² — VP 프레임 추정 분산 상한
 const KALMAN_RELOCK_OCTAVES = 0.25 // Viterbi 출력이 이 이상 점프하면 재잠금
 
-function weakEstimate(confidence: number): DisplayEstimate {
+function weakEstimate(confidence: number, diagnostics: EngineDiagnostics): DisplayEstimate {
   // weak-signal이면 f0/rpm은 반드시 null — 무음에서 0 RPM·임의 값 반환 금지 (REQ-ST-003)
-  return {f0: null, rpm: null, confidence, status: 'weak-signal', stabilityCv: null, microVariation: null}
+  return {
+    f0: null,
+    rpm: null,
+    confidence,
+    status: 'weak-signal',
+    stabilityCv: null,
+    microVariation: null,
+    diagnostics,
+  }
+}
+
+/** FrameAnalysis → 진단 계측 투영 (v2.x 임시) — 게이트 실패 프레임도 원인을 실어 보낸다 */
+function diagnosticsOf(analysis: FrameAnalysis): EngineDiagnostics {
+  return {
+    rms: analysis.rms,
+    snrDb: analysis.snrDb,
+    voicedProb: analysis.voicedProb,
+    detectedHarmonics: analysis.detectedHarmonics.length,
+    gatePassed: analysis.gatePassed,
+  }
 }
 
 export function createTracker(options: ResolvedEngineOptions, hopSeconds?: number): Tracker {
@@ -208,11 +228,12 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
             status: 'measuring',
             stabilityCv: coast.full ? coast.cv : null,
             microVariation: microOf(coast.full, coast.median),
+            diagnostics: diagnosticsOf(analysis),
           }
         }
         clearTrack()
         lastConfidence = Math.min(0.2, 0.2 * analysis.voicedProb)
-        return weakEstimate(lastConfidence)
+        return weakEstimate(lastConfidence, diagnosticsOf(analysis))
       }
 
       missCount = 0
@@ -251,6 +272,7 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
         // 순간 편차(바늘 실시간 떨림용) — 현재 kf가 창 중앙값에서 벗어난 부호 있는 상대량.
         // isStable(displayF0=median)이어도 kf는 계속 추종하므로 이 값은 프레임마다 떨린다.
         microVariation: microOf(full, median),
+        diagnostics: diagnosticsOf(analysis),
       }
     },
     reset() {
