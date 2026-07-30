@@ -84,3 +84,29 @@ describe('실측 재현 ② 실패 모터 (기본파 584 + 하위 성분 292) �
     }
   })
 })
+
+describe('실측 재현 ③ 폰을 떼었을 때 (기본파 583인데 후보가 291로 미끄러지던 케이스)', () => {
+  // 사용자 화면(밀착): 후보 583Hz·SNR 14.1 → 통과, 582.6 표시.
+  //           (떼었을 때): 후보 291Hz·SNR 2.7 → 차단. 같은 모터·같은 피크인데 후보만 절반.
+  // 291의 배음은 582(2배)·1747(6배)·2329(8배)·3493(12배)로 **짝수 배만** 존재하고
+  // 홀수 배(873·1455)가 비어 있다 — 이것이 옥타브 하향 오판의 직접 증거이자 교정 근거다.
+  const pcm = toneSet(
+    [
+      {freqHz: 291, amplitude: 0.3}, // 오판을 유발하던 하위 성분
+      {freqHz: 582, amplitude: 1.0, phase: 0.3},
+      {freqHz: 1747, amplitude: 0.5, phase: 2.0},
+      {freqHz: 2329, amplitude: 0.14, phase: 0.7},
+      {freqHz: 2911, amplitude: 0.24, phase: 1.7},
+      {freqHz: 3493, amplitude: 0.62, phase: 2.6},
+    ],
+    SECONDS,
+  )
+  const f0s = settledF0s(runToSettled(pcm))
+
+  test('582 Hz를 채택한다 — 291(÷2)로 미끄러지지 않는다', () => {
+    expect(f0s.length).toBeGreaterThan(20)
+    for (const f0 of f0s) {
+      expect(Math.abs(f0 - 582), `f0=${f0.toFixed(1)}`).toBeLessThan(8)
+    }
+  })
+})

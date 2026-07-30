@@ -317,6 +317,9 @@ describe('fixture ⑧ 옥타브 유혹(300↔600 진폭 반전 교차) — 추�
     harmonicWeights: [1, 1, 0.7],
     nonHarmonicPenaltyWeight: 0.5,
     subHarmonicPenaltyWeight: 2.5,
+    // 이 fixture는 "2f0가 더 커도 f0를 지킨다"가 계약이므로 옥타브 승격 교정을 끈다.
+    // 기본값(true)은 실기기 요구(폰을 떼면 절반으로 미끄러짐)에서 나온 반대 방향 규칙이다.
+    octaveCorrection: false,
   } as const
 
   test('보고된 수치는 전부 300 Hz 근방 — 600 Hz로 점프하지 않는다 (레거시 옥타브 veto 모드)', () => {

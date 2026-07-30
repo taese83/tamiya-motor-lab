@@ -153,6 +153,12 @@ export interface EngineTuning {
    * (하위-복원 끔 = 검출된 지배 피치를 그대로 보고). 옵션이라 [1,3,6]로 되돌릴 수 있다.
    */
   pitchDivisors: readonly number[]
+  /**
+   * 옥타브 하향 오판 교정 (v2.x — 실기기 확정). 후보의 **짝수 배에만** 에너지가 있고 홀수
+   * 배(3·5배)가 비어 있으면 실제 기본파는 2f₀로 보고 승격한다. 폰을 모터에서 떼면 후보가
+   * 절반(583→291)으로 미끄러지던 문제의 직접 해법. 엄격 옥타브 고정 검증(fixture ⑧)에서는 끈다.
+   */
+  octaveCorrection: boolean
   /** comb 점수·검출 대상 고조파 차수 — v2 §1: 1·3·6 */
   scoredHarmonics: readonly number[]
   /** scoredHarmonics와 정렬된 가중치 (물리 기반 고정값 baseline) */
@@ -225,6 +231,7 @@ export const DEFAULT_TUNING: EngineTuning = {
   fMin: 170,
   fMax: 620,
   pitchDivisors: [1, 3, 6],
+  octaveCorrection: true,
   scoredHarmonics: [1, 3, 6],
   harmonicWeights: [1, 1, 0.7],
   maxCandidates: 5,
