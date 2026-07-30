@@ -28,7 +28,7 @@ const KALMAN_RELOCK_OCTAVES = 0.25 // Viterbi 출력이 이 이상 점프하면 
 
 function weakEstimate(confidence: number): DisplayEstimate {
   // weak-signal이면 f0/rpm은 반드시 null — 무음에서 0 RPM·임의 값 반환 금지 (REQ-ST-003)
-  return {f0: null, rpm: null, confidence, status: 'weak-signal'}
+  return {f0: null, rpm: null, confidence, status: 'weak-signal', stabilityCv: null}
 }
 
 export function createTracker(options: ResolvedEngineOptions, hopSeconds?: number): Tracker {
@@ -192,11 +192,14 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
           kalmanPredict()
           pushStability(kf)
           lastConfidence *= 0.7
+          // coast 프레임: 창이 차 있으면 직전 CV 유지 노출 (게이트 결손 중 새 판정 없음)
+          const coast = stabilityStats()
           return {
             f0: kf,
             rpm: Math.round(kf * 60),
             confidence: lastConfidence,
             status: 'measuring',
+            stabilityCv: coast.full ? coast.cv : null,
           }
         }
         clearTrack()
@@ -235,6 +238,8 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
         rpm: Math.round(displayF0 * 60),
         confidence,
         status: isStable ? 'stable' : 'measuring',
+        // 컨디션 지표(v2.x): 1.5s 창 CV — 창 미충족(스핀업 직후 등)이면 null
+        stabilityCv: full ? cv : null,
       }
     },
     reset() {

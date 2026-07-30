@@ -15,6 +15,7 @@ import {
   peekRaceMeasure,
   useRaceMeasureSlot,
 } from '@features/race-measure-handoff'
+import {stabilityGradeOf} from '@shared/config/domain'
 import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
 import {formatDateTimeShort, formatFanoHz, formatRpm} from '@shared/lib/format'
 import {EmptyState} from '@shared/ui/empty-state'
@@ -402,6 +403,22 @@ export function MotorDetailPage() {
                                   fontVariantNumeric: 'tabular-nums lining-nums',
                                 }}>
                                 {formatRpm(record.rpm)} rpm
+                                {/* 안정도(컨디션 지표, v2.x) — 지표 도입 전 기록은 필드 부재(미표시) */}
+                                {record.stabilityCv !== undefined && (
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      ml: 0.75,
+                                      color:
+                                        stabilityGradeOf(record.stabilityCv) === 'poor'
+                                          ? 'error.main'
+                                          : stabilityGradeOf(record.stabilityCv) === 'fair'
+                                            ? 'warning.main'
+                                            : 'success.main',
+                                    }}>
+                                    ±{formatRpm(Math.max(1, Math.round(record.stabilityCv * record.rpm)))}
+                                  </Box>
+                                )}
                               </Typography>
                             </Box>
                           </Box>

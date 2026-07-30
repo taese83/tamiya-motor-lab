@@ -19,6 +19,7 @@ const MEASURING: MeasureView = {
   rpm: 30720,
   isStable: true,
   measuredMs: 800,
+  stabilityCv: 0.004, // v2.x 안정도 지표 — 액션 판정과 무관(표시 전용 필드)
 }
 const WEAK: MeasureView = {status: 'weak-signal'}
 

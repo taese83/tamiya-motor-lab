@@ -52,6 +52,8 @@ export async function collectMeasureRecord(
     panoHz: parsed.data.panoHz,
     rpm: parsed.data.rpm,
     measuredAt: new Date().toISOString(),
+    // 안정도(컨디션 지표, v2.x) — undefined는 저장하지 않음(옵션 생략 규칙)
+    ...(parsed.data.stabilityCv !== undefined && {stabilityCv: parsed.data.stabilityCv}),
   }
 
   return withTransaction(['motors', 'measureRecords'], 'readwrite', async tx => {

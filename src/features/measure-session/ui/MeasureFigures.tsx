@@ -1,4 +1,5 @@
 import {Box, Typography} from '@mui/material'
+import {STABILITY_GRADE_LABELS, stabilityGradeOf} from '@shared/config/domain'
 import {layoutTokens, measureStatusTokens} from '@shared/config/design-tokens'
 import {formatPanoValue, formatRpm} from '@shared/lib/format'
 import {BigNumber} from '@shared/ui/big-number'
@@ -167,7 +168,7 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
           )}
         </Row>
         <Row height={ROW_HEIGHTS.message}>
-          {message !== null && (
+          {message !== null ? (
             <Typography
               variant="body2"
               sx={{
@@ -180,6 +181,35 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
               }}>
               {message}
             </Typography>
+          ) : (
+            // 안정도(컨디션 지표, v2.x) — measuring 중 비어 있던 문구 슬롯 재사용(레이아웃 불변).
+            // ±rpm = CV × 현재 rpm 환산. 등급 라벨 병행(색 단독 구분 금지 — REQ-NFR-003).
+            measuring &&
+            view.stabilityCv !== null && (
+              <Typography
+                variant="body2"
+                sx={{
+                  color: 'text.secondary',
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap',
+                  fontVariantNumeric: 'tabular-nums lining-nums',
+                }}>
+                안정도 ±{formatRpm(Math.max(1, Math.round(view.stabilityCv * view.rpm)))} rpm
+                {' · '}
+                <Box
+                  component="span"
+                  sx={{
+                    color:
+                      stabilityGradeOf(view.stabilityCv) === 'poor'
+                        ? 'error.main'
+                        : stabilityGradeOf(view.stabilityCv) === 'fair'
+                          ? 'warning.main'
+                          : 'success.main',
+                  }}>
+                  {STABILITY_GRADE_LABELS[stabilityGradeOf(view.stabilityCv)]}
+                </Box>
+              </Typography>
+            )
           )}
         </Row>
       </Box>

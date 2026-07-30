@@ -28,12 +28,14 @@ export interface UseRaceAutoCollectInput {
   isStable: boolean
   panoHz: number | null
   rpm: number | null
+  /** 수집 시점 회전 안정도 CV(컨디션 지표, v2.x) — 창 미충족이면 null(생략 저장) */
+  stabilityCv: number | null
   /** navigate 등 후속 처리 — liveness 확인을 통과한 신호만 도착한다 */
   onOutcome: (outcome: RaceAutoCollectOutcome) => void
 }
 
 export function useRaceAutoCollect(input: UseRaceAutoCollectInput): void {
-  const {isStable, panoHz, rpm, onOutcome} = input
+  const {isStable, panoHz, rpm, stabilityCv, onOutcome} = input
   const slot = useRaceMeasureSlot()
   const queryClient = useQueryClient()
   // 최신 콜백 유지 — onOutcome 재생성이 수집 effect를 재발화시키지 않게 분리
@@ -50,7 +52,7 @@ export function useRaceAutoCollect(input: UseRaceAutoCollectInput): void {
     if (!_markMeasuredPending(startedAt, panoHz)) return
 
     void (async () => {
-      const result = await collectMeasureRecord({motorId, panoHz, rpm})
+      const result = await collectMeasureRecord({motorId, panoHz, rpm, ...(stabilityCv !== null && {stabilityCv})})
 
       /** 전달 전 liveness 확인 — 이미 파기된 왕복이면 신호 폐기 */
       const deliver = (outcome: RaceAutoCollectOutcome): void => {
@@ -79,5 +81,5 @@ export function useRaceAutoCollect(input: UseRaceAutoCollectInput): void {
       _resolveMeasuredSave(startedAt, 'failed')
       deliver({kind: 'collect-failed', motorId, message: result.error.message})
     })()
-  }, [slot, isStable, panoHz, rpm, queryClient])
+  }, [slot, isStable, panoHz, rpm, stabilityCv, queryClient])
 }

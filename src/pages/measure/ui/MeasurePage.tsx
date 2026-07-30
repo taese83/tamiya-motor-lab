@@ -116,6 +116,7 @@ export function MeasurePage() {
       view.status === 'measuring' && view.isStable && view.measuredMs >= MIN_MEASURE_DURATION_MS,
     panoHz: view.status === 'measuring' ? view.panoHz : null,
     rpm: view.status === 'measuring' ? view.rpm : null,
+    stabilityCv: view.status === 'measuring' ? view.stabilityCv : null,
     onOutcome: outcome => {
       if (outcome.kind === 'motor-deleted') {
         // slot은 훅이 이미 파기했으므로 여기서는 소비 시점에 읽어둔 origin을 쓴다
@@ -149,7 +150,7 @@ export function MeasurePage() {
   // [기록] 탭 시점 스냅샷 고정(SC2-A3·MR-2) — measuring 밖에서는 액션이 이미 disabled/치환
   const handleRecord = () => {
     if (view.status !== 'measuring') return
-    flow.open({panoHz: view.panoHz, rpm: view.rpm})
+    flow.open({panoHz: view.panoHz, rpm: view.rpm, stabilityCv: view.stabilityCv})
   }
 
   // 행 이벤트는 id 기준 — 이름은 summaries에서 역참조해 flow에 전달 (토스트 문구 소유)

@@ -31,6 +31,12 @@ export interface DisplayEstimate {
   rpm: number | null
   confidence: number
   status: EngineStatus
+  /**
+   * 회전 안정도 — 최근 1.5s 창의 f₀ 변동계수(CV, 0~). 창 미충족·weak-signal이면 null.
+   * v2.x 컨디션 지표(사용자 승인): 브러시·정류자·베어링 마모 시 공회전 요동이 커진다 —
+   * 같은 모터의 시간에 따른 상대 비교 전용(절대 진단 아님). ±rpm 환산·등급화는 표시 계층 소관.
+   */
+  stabilityCv: number | null
 }
 
 /** 고조파별 스펙트럼 계측 (comb 점수·일치도 검사 입력) */

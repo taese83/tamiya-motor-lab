@@ -94,3 +94,23 @@ export const MOTOR_NAME_MAX_LENGTH = 30
 // 기존 정상 데이터를 corrupt로 오판하지 않게 하는 write-strict/read-lenient 이원화 계약(SC-A8).
 export const F0_RANGE = {min: 170, max: 620} as const
 export const F0_REHYDRATE_MAX = 2_000
+
+// ── 회전 안정도(컨디션 지표, v2.x — 사용자 승인 방향) ─────────────────────────
+// 엔진 1.5s 창 변동계수(CV) 기준 3등급. good 상한은 정상 공회전의 통상 요동(<0.5%),
+// fair 상한은 엔진 안정 판정 임계(1.5% — DEFAULT_TUNING.stabilityCv)와 정렬한다.
+// 절대 진단이 아니라 같은 모터의 시간에 따른 상대 비교 지표다. 상수 1곳 — 라벨 맵과 함께 교체.
+export const STABILITY_GRADES = ['good', 'fair', 'poor'] as const
+export type StabilityGrade = (typeof STABILITY_GRADES)[number]
+export const STABILITY_GRADE_LABELS: Record<StabilityGrade, string> = {
+  good: '안정',
+  fair: '보통',
+  poor: '불안정',
+}
+export const STABILITY_CV_GOOD_MAX = 0.005 // CV < 0.5% → 안정
+export const STABILITY_CV_FAIR_MAX = 0.015 // CV < 1.5% → 보통 (이상 = 불안정)
+
+export function stabilityGradeOf(cv: number): StabilityGrade {
+  if (cv < STABILITY_CV_GOOD_MAX) return 'good'
+  if (cv < STABILITY_CV_FAIR_MAX) return 'fair'
+  return 'poor'
+}

@@ -10,6 +10,11 @@ import {panoHzStoredSchema, panoHzWriteSchema, panoRpmPair} from '@shared/lib/sc
 // panoHz는 SC-A8 이원화: write-strict(F0_RANGE+소수 1자리) / read-lenient(유한 양수 ≤2,000).
 // 쌍 불변식 rpm === round(panoHz×60)은 양쪽 모두 엄격 (INV-06).
 
+// 회전 안정도 CV(컨디션 지표, v2.x) — optional additive: 지표 도입 전 기록에는 없다.
+// write는 [0, 1) sanity(CV 100% 이상은 측정값으로 무의미), read는 유한 음수 아님 완화.
+const stabilityCvWriteSchema = z.number().min(0).lt(1)
+const stabilityCvStoredSchema = z.number().min(0).finite()
+
 // rehydrate(read-lenient) — 저장 데이터 검증
 export const measureRecordSchema = z
   .object({
@@ -18,6 +23,7 @@ export const measureRecordSchema = z
     panoHz: panoHzStoredSchema, // SC-A8 완화 (유한 양수 ≤2,000)
     rpm: z.number().int().positive(),
     measuredAt: z.iso.datetime(), // 구조 필드 — 차트 X축·rolling 삭제 순서 키
+    stabilityCv: stabilityCvStoredSchema.optional(), // v2.x additive — 구 기록 부재 허용
   })
   .refine(panoRpmPair, {path: ['rpm'], message: 'RPM은 파노 × 60 반올림 정수여야 합니다'})
 export type MeasureRecord = z.infer<typeof measureRecordSchema>
@@ -28,6 +34,7 @@ export const collectMeasureInputSchema = z
     motorId: z.uuid(),
     panoHz: panoHzWriteSchema, // F0_RANGE 엄격 + 소수 1자리 (AS-3)
     rpm: z.number().int().positive(),
+    stabilityCv: stabilityCvWriteSchema.optional(), // 수집 시점 CV — 창 미충족이면 생략
   })
   .refine(panoRpmPair, {path: ['rpm'], message: 'RPM은 파노 × 60 반올림 정수여야 합니다'})
 export type CollectMeasureInput = z.input<typeof collectMeasureInputSchema>

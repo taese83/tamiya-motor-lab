@@ -14,6 +14,8 @@ import {useToast} from '@shared/ui/toast'
 export interface CollectSnapshot {
   panoHz: number
   rpm: number
+  /** 수집 시점 회전 안정도 CV (컨디션 지표, v2.x) — 창 미충족이면 null */
+  stabilityCv: number | null
 }
 
 export interface CollectFlowApi {
@@ -77,6 +79,7 @@ export function useCollectFlow(): CollectFlowApi {
         const result = await collectMeasureRecord({
           motorId,
           panoHz: snapshot.panoHz,
+          ...(snapshot.stabilityCv !== null && {stabilityCv: snapshot.stabilityCv}),
           rpm: snapshot.rpm,
         })
         if (result.ok) {

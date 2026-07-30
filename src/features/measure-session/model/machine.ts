@@ -40,7 +40,15 @@ export type NoPermissionCause = 'denied' | 'device-error'
  * 내부 신호(M-3). 렌더 분기·수치 잠금·announce 사용 금지, 소비처는 RV-1 자동 확정 트리거뿐.
  */
 export type EngineFrameView =
-  | {kind: 'measuring'; rpm: number; panoHz: number; isStable: boolean; measuredMs: number}
+  | {
+      kind: 'measuring'
+      rpm: number
+      panoHz: number
+      isStable: boolean
+      measuredMs: number
+      /** 회전 안정도 CV (엔진 1.5s 창) — 창 미충족이면 null. 컨디션 지표(v2.x) */
+      stabilityCv: number | null
+    }
   | {kind: 'weak-signal'}
 
 export interface MachineSnapshot {
@@ -91,6 +99,7 @@ export function toMeasureView(snapshot: MachineSnapshot): MeasureView {
             panoHz: snapshot.frame.panoHz,
             isStable: snapshot.frame.isStable,
             measuredMs: snapshot.frame.measuredMs,
+            stabilityCv: snapshot.frame.stabilityCv,
           }
         : {status: 'weak-signal'}
     case 'awaiting-gesture':
@@ -138,6 +147,7 @@ export function toEngineFrame(estimate: DisplayEstimate, measuredMs: number): En
       rpm: Math.round(panoHz * 60),
       panoHz,
       isStable: estimate.status === 'stable',
+      stabilityCv: estimate.stabilityCv,
     }
   }
   return {kind: 'weak-signal'}
