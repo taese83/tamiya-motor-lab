@@ -1632,3 +1632,35 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - typecheck·lint·build·test 전부 exit 0, vitest **98건**(assignExponentialWeights 2·가중 추세 1 추가).
 - 브라우저: 서로 다른 파노 2건 시드가 유효 저장·조회 확인(스키마 통과). 가중 추세·프리필 근거는 단위테스트로 커버.
 - **미검증(장비/키 필요)**: 실제 LLM 프롬프트 응답 품질은 Vercel `ANTHROPIC_API_KEY` 설정 후 확인.
+
+---
+
+## v2.38 — 레이스 전압 2자리 + 파노 기록 개별(밀어서) 삭제 + 파비콘·SEO (사용자, 비블로킹 4건)
+
+### TARGET_BEHAVIOR
+- 레이스 리스트 전압을 소수 **2자리**까지 표시.
+- 모터 상세의 파노(측정) 기록을 **개별 삭제**(일괄 없음) — **밀어서 삭제(스와이프 트레이 [삭제])**, 다이얼로그 없음.
+- 웹 파비콘을 **메뉴 모터 아이콘**으로 교체 + **SEO** 추가.
+
+### 변경
+- `format`: `formatVoltage` toFixed(1)→**toFixed(2)** (두 레이스 리스트가 소비).
+- `entities/measure-record`: `deleteMeasureRecord(id)` 커맨드 추가(멱등 tx) — **append-only(T-2) 번복**,
+  개별 삭제만. index export.
+- `features/measure-management`(신규): `useDeleteMeasureRecord` — measureKeys.byMotor + motorKeys.summaries invalidate.
+- `MotorDetailPage`: 측정 기록 행을 `SwipeActions`로 감싸 [삭제] 트레이 → 탭 즉시 삭제(다이얼로그 없음) +
+  토스트, `useSingleOpenRow`로 한 번에 한 행만.
+- `public/favicon.svg`(신규): 모터 캔 글리프(lime400/carbon). `index.html`: favicon link + **robots noindex→index**
+  + description·og 메타(SEO).
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 측정값(panoHz/rpm) 불변·update 없음(개별 delete만 추가) · 파생(차트·요약·레이스 자동 파노) invalidation
+- 전압 저장·검증(0.1~9.9·소수≤2) 불변 — 표시 자리수만 변경 · 스와이프 단일 열림·접근성(aria)
+
+### NON_GOALS (이번 커밋)
+- **구글 로그인 + 서버 DB + 동기화** — 외부 자격증명·설계 결정 필요로 별도 진행(아래 결정 대기)
+- 파노 기록 일괄 삭제 · 삭제 확인 다이얼로그(사용자: 단순화)
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0, vitest 98건.
+- 브라우저: favicon `/favicon.svg` 로드(image/svg+xml)·robots index·description·og 확인. 시드 모터에서
+  측정 2건 → 트레이 [삭제] 탭 → **다이얼로그 없이** 1건 삭제·토스트·목록 갱신 확인(시드 정리 완료).

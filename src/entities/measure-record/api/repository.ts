@@ -1,3 +1,5 @@
+import {z} from 'zod'
+
 import {MEASURE_RECORD_LIMIT} from '@shared/config/domain'
 import {DOMAIN_ERROR_MESSAGES, DomainError, fromZodError} from '@shared/lib/errors'
 import {mapStorageError, requireDb, withTransaction} from '@shared/lib/persistence'
@@ -8,8 +10,9 @@ import {collectMeasureInputSchema, parseMeasureRecordRow} from '../model/schema'
 import type {CollectMeasureInput, MeasureRecord} from '../model/schema'
 import type {Result} from '@shared/lib/result'
 
-// MeasureRecord command 1건 + query 1건 (api-schema v2 §0·§4.3·§5 — F6-M, 수집 전용 T-2).
-// update·개별 delete command는 존재하지 않는다 (T-2·RV-A1·INV-05).
+// MeasureRecord command 2건 + query 1건 (api-schema v2 §0·§4.3·§5 — F6-M).
+// v2.38(사용자): **개별 delete 추가**(T-2 append-only 번복 — 파노 기록을 개별로만 삭제).
+// update는 여전히 없다(측정값 불변). 개별 delete만 허용(일괄 삭제 경로 미제공).
 // motors store 접근은 entity 코드 import가 아닌 shared/lib/persistence 경유 store 접근이다
 // (state-contract 위임 계약 5). store·index 이름은 state-contract v2 표기(measureRecords·by-motorId).
 
@@ -88,4 +91,19 @@ export async function listMeasureRecordsByMotor(motorId: string): Promise<Measur
     throw mapStorageError(e)
   }
   return rows.map(parseMeasureRecordRow).sort(byMeasuredAtAscIdAsc)
+}
+
+/**
+ * command: deleteMeasureRecord (v2.38 — 사용자: 파노 기록 개별 삭제).
+ * 개별 삭제만 제공(일괄 없음). 대상 부재 시 멱등 성공(LWW 수렴 — deleteRaceRecord와 동일).
+ * 파생(차트·요약 lastMeasure/panoTrend·레이스 자동 파노)은 invalidation으로 재계산(mutation 훅 소관).
+ * 오류: validation · storage-unavailable · transaction-failed.
+ */
+export async function deleteMeasureRecord(id: string): Promise<Result<void>> {
+  const idParsed = z.uuid().safeParse(id)
+  if (!idParsed.success) return err(fromZodError(idParsed.error))
+
+  return withTransaction(['measureRecords'], 'readwrite', async tx => {
+    await tx.objectStore('measureRecords').delete(idParsed.data)
+  })
 }

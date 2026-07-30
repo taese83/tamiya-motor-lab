@@ -18,9 +18,9 @@ export function formatFanoHz(panoHz: number): string {
   return `${panoHz.toFixed(1)} Hz`
 }
 
-/** 전압: 소수 1자리 표시 + " V" — `2.8 → "2.8 V"` (입력 허용은 소수 ≤2자리 — A5) */
+/** 전압: 소수 2자리 표시 + " V" — `2.8 → "2.80 V"` (v2.38 사용자: 레이스 리스트 2째자리까지) */
 export function formatVoltage(voltage: number): string {
-  return `${voltage.toFixed(1)} V`
+  return `${voltage.toFixed(2)} V`
 }
 
 /** 전압 범위: `(2.8, 3.0) → "2.8 ~ 3.0 V"` — S5 추천 범위 (`추천` 접두는 소비 측) */

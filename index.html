@@ -9,8 +9,19 @@
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
-    <!-- 개인 도구 — 공개 CDN 배포 대비 색인 차단 (layout-spec §2.5) -->
-    <meta name="robots" content="noindex" />
+    <!-- v2.38(사용자: SEO 추가) — 색인 허용 + 파비콘(메뉴 모터 아이콘)·메타·OG -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="robots" content="index, follow" />
+    <meta
+      name="description"
+      content="미니카(타미야 미니4WD) 모터의 파노(회전수) 측정과 레이스 전압 세팅을 기록·분석하는 모바일 도구"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="%VITE_APP_TITLE%" />
+    <meta
+      property="og:description"
+      content="미니카 모터 파노 측정 · 레이스 전압 세팅 기록·분석 도구"
+    />
     <!-- 웹폰트 미도입(DS-A2: 시스템 폰트 스택) — font preload 힌트 없음 -->
     <!-- 다크 기본 no-flash 부팅 (design-system v2 §7.2) — MUI InitColorSchemeScript는 CSR에서
          실행되지 않으므로 동등 인라인 스크립트를 직접 둔다. 'mml-mode'는 ThemeProvider

@@ -6,6 +6,7 @@ import {useNavigate, useOutletContext, useParams} from 'react-router'
 
 import {measureQueries} from '@entities/measure-record'
 import {MotorKindChip, motorQueries} from '@entities/motor'
+import {useDeleteMeasureRecord} from '@features/measure-management'
 import {useDeleteMotorCascade, useUpdateMotor} from '@features/motor-management/api'
 import {useMotorDeleteFlow} from '@features/motor-management/model'
 import {MotorFormSheet, PanoLineChart} from '@features/motor-management/ui'
@@ -19,9 +20,11 @@ import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
 import {formatDateTimeShort, formatFanoHz, formatRpm} from '@shared/lib/format'
 import {ConfirmDialog} from '@shared/ui/confirm-dialog'
 import {EmptyState} from '@shared/ui/empty-state'
+import {TrashIcon} from '@shared/ui/icons'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
 import {SectionHeading} from '@shared/ui/section-heading'
+import {SWIPE_ACTION_WIDTH, SwipeActionButton, SwipeActions, useSingleOpenRow} from '@shared/ui/swipe-actions'
 import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
@@ -138,6 +141,20 @@ export function MotorDetailPage() {
   const requestDelete = () => {
     if (motor === null) return
     deleteFlow.requestDelete({id: motor.id, name: motor.name})
+  }
+
+  // ── v2.38 파노 기록 개별 삭제 — 밀어서 삭제(스와이프 트레이 [삭제] 탭, 다이얼로그 없음, 사용자) ──
+  // 개별만 제공(일괄 없음). 제스처(스와이프)+탭이 의도 게이트 — 탭 즉시 삭제 + 성공 토스트.
+  const deleteMeasure = useDeleteMeasureRecord(motorId)
+  const measureSwipe = useSingleOpenRow()
+  const handleDeleteMeasure = (id: string) => {
+    if (deleteMeasure.isPending) return
+    deleteMeasure.mutate(id, {
+      onSuccess: () => {
+        measureSwipe.closeAll()
+        toast.showSuccess('측정 기록이 삭제되었습니다')
+      },
+    })
   }
 
   // ── v2.5 측정 왕복 ────────────────────────────────────────────────────────
@@ -379,48 +396,73 @@ export function MotorDetailPage() {
                         component="li"
                         key={record.id}
                         sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1,
-                          py: 1,
                           '&:not(:last-of-type)': {
                             borderBottom: '1px solid',
                             borderBottomColor: 'divider',
                           },
                         }}>
-                        <Typography
-                          variant="overline"
-                          component="span"
-                          sx={{color: 'text.secondary', lineHeight: 1, minWidth: '1.75em'}}>
-                          {String(seq).padStart(2, '0')}
-                        </Typography>
-                        <Typography variant="body2" component="span" sx={{color: 'text.secondary'}}>
-                          {formatDateTimeShort(record.measuredAt)}
-                        </Typography>
-                        <Box
-                          sx={{
-                            ml: 'auto',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'flex-end',
-                            gap: 0.25,
-                          }}>
-                          <Typography
-                            component="span"
-                            sx={{...numericTypography.listValue, lineHeight: 1.2}}>
-                            {formatFanoHz(record.panoHz)}
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            component="span"
+                        {/* v2.38 밀어서 삭제 — 스와이프 트레이 [삭제] 탭 즉시 삭제(다이얼로그 없음) */}
+                        <SwipeActions
+                          open={measureSwipe.openId === record.id}
+                          onOpenChange={open => measureSwipe.setOpen(record.id, open)}
+                          trayWidth={SWIPE_ACTION_WIDTH}
+                          actions={
+                            <SwipeActionButton
+                              destructive
+                              icon={<TrashIcon size={20} />}
+                              label="삭제"
+                              ariaLabel={`${formatDateTimeShort(record.measuredAt)} 측정 기록 삭제`}
+                              onClick={() => handleDeleteMeasure(record.id)}
+                              disabled={deleteMeasure.isPending}
+                            />
+                          }>
+                          {/* 슬라이딩 표면 — 트레이를 덮도록 불투명 배경(페이지 배경) */}
+                          <Box
                             sx={{
-                              color: 'text.secondary',
-                              lineHeight: 1.2,
-                              fontVariantNumeric: 'tabular-nums lining-nums',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 1,
+                              py: 1,
+                              bgcolor: 'background.default',
                             }}>
-                            {formatRpm(record.rpm)} rpm
-                          </Typography>
-                        </Box>
+                            <Typography
+                              variant="overline"
+                              component="span"
+                              sx={{color: 'text.secondary', lineHeight: 1, minWidth: '1.75em'}}>
+                              {String(seq).padStart(2, '0')}
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              component="span"
+                              sx={{color: 'text.secondary'}}>
+                              {formatDateTimeShort(record.measuredAt)}
+                            </Typography>
+                            <Box
+                              sx={{
+                                ml: 'auto',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'flex-end',
+                                gap: 0.25,
+                              }}>
+                              <Typography
+                                component="span"
+                                sx={{...numericTypography.listValue, lineHeight: 1.2}}>
+                                {formatFanoHz(record.panoHz)}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                component="span"
+                                sx={{
+                                  color: 'text.secondary',
+                                  lineHeight: 1.2,
+                                  fontVariantNumeric: 'tabular-nums lining-nums',
+                                }}>
+                                {formatRpm(record.rpm)} rpm
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </SwipeActions>
                       </Box>
                     ))}
                 </Box>

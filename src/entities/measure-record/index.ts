@@ -6,6 +6,6 @@ export {
   parseMeasureRecordRow,
 } from './model/schema'
 export type {CollectMeasureInput, MeasureRecord} from './model/types'
-export {collectMeasureRecord, listMeasureRecordsByMotor} from './api/repository'
+export {collectMeasureRecord, deleteMeasureRecord, listMeasureRecordsByMotor} from './api/repository'
 export {measureKeys} from './api/keys'
 export {measureQueries} from './api/queries'
