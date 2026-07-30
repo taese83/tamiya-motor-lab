@@ -6,6 +6,7 @@ import {ErrorBoundary} from 'react-error-boundary'
 
 import {AppRouterProvider} from '@app/providers/RouterProvider'
 import {RootErrorFallback} from '@app/routes'
+import {SyncManager} from '@app/SyncManager'
 import {theme} from '@app/theme'
 import {themeColorMeta} from '@shared/config/design-tokens'
 
@@ -55,6 +56,8 @@ export function App() {
       <CssBaseline />
       <ThemeColorMetaSync />
       <QueryClientProvider client={queryClient}>
+        {/* v2.40 Phase B — 로그인 시 서버 우선 동기화 + mutation mirror push (미로그인/로컬은 no-op) */}
+        <SyncManager />
         <QueryErrorResetBoundary>
           {({reset}) => (
             <ErrorBoundary FallbackComponent={RootErrorFallback} onReset={reset}>

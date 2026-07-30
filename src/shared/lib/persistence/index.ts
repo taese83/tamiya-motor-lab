@@ -24,3 +24,6 @@ export {mapStorageError} from './map-storage-error'
 export {withTransaction} from './with-transaction'
 export type {TransactionMode} from './with-transaction'
 export {resetAllData, resetAllRecords, resetRaceRecordsByMotor} from './reset'
+// v2.40 Phase B — 서버 동기화용 로컬 스냅샷 read/replace
+export {readDomainSnapshot, replaceDomainSnapshot} from './domain-snapshot'
+export type {DomainSnapshot} from './domain-snapshot'

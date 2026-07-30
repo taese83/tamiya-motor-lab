@@ -1744,3 +1744,46 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 ### TEST_EVIDENCE
 - typecheck·lint·build·test 전부 exit 0.
 - 브라우저(로컬·비로그인): 아바타 aria-label "구글 로그인"·aria-haspopup 없음·Menu DOM 부재 확인(클릭 시 로그인 진입).
+
+---
+
+## v2.42 — 로그인 Phase B: 서버 DB + 동기화 (서버 우선, 최소 침습) (사용자)
+
+### TARGET_BEHAVIOR
+- 로그인 시 도메인 데이터(모터·측정·레이스)를 **서버 DB(Neon)에 영구 저장**. 비로그인은 기존(IndexedDB)과 동일.
+- **서버 우선(로컬 대체)**: 로그인 시 서버 데이터가 있으면 로컬을 서버 스냅샷으로 교체.
+- 쓰기 시 서버·IndexedDB **함께 반영**(dual-write): 모든 도메인 mutation 후 서버로 전체 스냅샷 mirror push.
+- 필터·정렬은 **로컬(localStorage) 전용** — 서버 미저장(요청대로).
+
+### 설계 (최소 침습 — read 계층 무변경)
+- IndexedDB를 계속 워킹 read 스토어로 유지. 동기화는 **로그인 지점(pull-replace)** + **mutation 성공 지점(debounced push)**
+  두 곳에서만 개입 → 엔티티 repository·query·mutation 미변경. 전체 스냅샷 교체 방식이라 충돌 로직 불필요(LWW).
+- 초기 로그인 데이터 보존: 서버가 비어 있으면 로컬을 시드로 push(그 외엔 서버 우선 교체).
+
+### 변경
+- `migrations/002_domain.sql`: motors·measure_records·race_records (user_id=구글 sub FK, 타임스탬프 TEXT ISO).
+- `api/_lib/db.js` += `getUserData`(alias→앱 레코드 형태·null 옵션 생략)·`replaceUserData`(delete-all+insert, sql.transaction).
+- `api/_lib/authGuard.js`(신규 — requireSession 401 가드), `api/data.js`(신규 — GET 스냅샷/PUT 교체, 세션 필수).
+- `shared/lib/persistence/domain-snapshot.ts`(신규 — readDomainSnapshot/replaceDomainSnapshot, raw 3-store).
+- `features/sync`(신규 — pullServerData/pushServerData 클라이언트).
+- `app/SyncManager.tsx`(신규 — 세션 의존 오케스트레이션: 로그인 pull-replace/seed + mutationCache 구독 debounced push).
+  App.tsx QueryClientProvider 하위 마운트. (features 간 import 회피 위해 오케스트레이션은 app 계층 소유)
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 비로그인·로컬·오프라인 = pull/push no-op(조용히 skip) → 기존 IndexedDB 동작 불변
+- 데이터 사용자별 격리(user_id) · 세션 필수(authGuard) · 키·DB URL 서버 env 전용(번들 미포함)
+- 필터·정렬 로컬 유지 · 읽기 검증(rehydrate parse*Row)로 서버 인입 데이터도 corrupt 방어
+
+### NON_GOALS
+- 실시간 동기화·per-entity 델타 API·양방향 병합(전체 스냅샷·LWW로 단순화) · 다중 프로필
+
+### TEST_EVIDENCE
+- typecheck·lint(api/*.js 포함)·build·test 전부 exit 0, vitest 98건.
+- 브라우저(로컬·비로그인): SyncManager no-op, 앱 기존대로 동작(게이지·로그인 버튼). 모터 상세 정상 렌더
+  (측정 기록·스와이프 [삭제]) — 앞선 deletingMeasureId 오류는 stale HMR로 확인, 풀리로드로 해소. 시드 정리 완료.
+- **미검증(자격증명·배포 필요)**: 실제 서버 저장·서버 우선 pull·mirror push는 Vercel `DATABASE_URL` +
+  로그인 + `migrations/001·002.sql` 실행 후 동작.
+
+### 배포 활성화 (사용자)
+- Neon `DATABASE_URL`을 Vercel 환경변수에 추가 + `migrations/001_users.sql`·`002_domain.sql` 실행(1회).
+- (Phase A 인증 env 이미 설정 전제) 재배포 → 로그인 시 서버 우선 동기화·mutation mirror push 동작.

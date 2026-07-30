@@ -25,3 +25,72 @@ export async function upsertUser(user) {
       updated_at = NOW()
   `
 }
+
+// ─── 도메인 전체 스냅샷 (v2.40 Phase B) — 컬럼을 앱(IndexedDB) 레코드 형태로 alias, null 옵션 필드는 생략 ───
+
+/** 사용자의 전체 도메인 데이터 조회 → {motors, measures, races} (IndexedDB 레코드 형태) */
+export async function getUserData(userId) {
+  const q = sql()
+  const [motorRows, measureRows, raceRows] = await Promise.all([
+    q`SELECT id, name, kind, sort_order AS "sortOrder", created_at AS "createdAt", updated_at AS "updatedAt"
+      FROM motors WHERE user_id = ${userId} ORDER BY sort_order ASC`,
+    q`SELECT id, motor_id AS "motorId", pano_hz AS "panoHz", rpm, measured_at AS "measuredAt"
+      FROM measure_records WHERE user_id = ${userId} ORDER BY measured_at ASC`,
+    q`SELECT id, motor_id AS "motorId", pano_hz AS "panoHz", result, voltage, lap_time_ms AS "lapTimeMs", goal, created_at AS "createdAt"
+      FROM race_records WHERE user_id = ${userId} ORDER BY created_at ASC`,
+  ])
+  return {
+    motors: motorRows.map(m => ({
+      id: m.id,
+      name: m.name,
+      kind: m.kind,
+      sortOrder: Number(m.sortOrder),
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
+    })),
+    measures: measureRows.map(r => ({
+      id: r.id,
+      motorId: r.motorId,
+      panoHz: Number(r.panoHz),
+      rpm: Number(r.rpm),
+      measuredAt: r.measuredAt,
+    })),
+    // null 옵션 필드(result·lapTimeMs·goal)는 생략 — IndexedDB의 undefined 생략 규칙과 일치
+    races: raceRows.map(r => ({
+      id: r.id,
+      motorId: r.motorId,
+      panoHz: Number(r.panoHz),
+      voltage: Number(r.voltage),
+      createdAt: r.createdAt,
+      ...(r.result != null ? {result: r.result} : {}),
+      ...(r.lapTimeMs != null ? {lapTimeMs: Number(r.lapTimeMs)} : {}),
+      ...(r.goal != null ? {goal: r.goal} : {}),
+    })),
+  }
+}
+
+/** 사용자 전체 도메인 데이터를 스냅샷으로 교체(delete-all + insert). 단일 트랜잭션(원자적). */
+export async function replaceUserData(userId, snapshot) {
+  const q = sql()
+  const motors = Array.isArray(snapshot.motors) ? snapshot.motors : []
+  const measures = Array.isArray(snapshot.measures) ? snapshot.measures : []
+  const races = Array.isArray(snapshot.races) ? snapshot.races : []
+  const queries = [
+    q`DELETE FROM motors WHERE user_id = ${userId}`,
+    q`DELETE FROM measure_records WHERE user_id = ${userId}`,
+    q`DELETE FROM race_records WHERE user_id = ${userId}`,
+    ...motors.map(
+      m => q`INSERT INTO motors (id, user_id, name, kind, sort_order, created_at, updated_at)
+             VALUES (${m.id}, ${userId}, ${m.name}, ${m.kind}, ${m.sortOrder}, ${m.createdAt}, ${m.updatedAt})`,
+    ),
+    ...measures.map(
+      r => q`INSERT INTO measure_records (id, user_id, motor_id, pano_hz, rpm, measured_at)
+             VALUES (${r.id}, ${userId}, ${r.motorId}, ${r.panoHz}, ${r.rpm}, ${r.measuredAt})`,
+    ),
+    ...races.map(
+      r => q`INSERT INTO race_records (id, user_id, motor_id, pano_hz, result, voltage, lap_time_ms, goal, created_at)
+             VALUES (${r.id}, ${userId}, ${r.motorId}, ${r.panoHz}, ${r.result ?? null}, ${r.voltage}, ${r.lapTimeMs ?? null}, ${r.goal ?? null}, ${r.createdAt})`,
+    ),
+  ]
+  await q.transaction(queries)
+}
