@@ -5,7 +5,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext} from 'react-router'
 
 import {motorQueries} from '@entities/motor'
-import {AuthMenu} from '@features/auth'
+import {AuthMenu, useSession} from '@features/auth'
 import {useCreateMotor, useDeleteMotorCascade, useUpdateMotor} from '@features/motor-management/api'
 import {
   useMotorDeleteFlow,
@@ -13,6 +13,7 @@ import {
   useMotorSort,
 } from '@features/motor-management/model'
 import {MotorFormSheet, MotorKindFilter, MotorList} from '@features/motor-management/ui'
+import {layoutTokens} from '@shared/config/design-tokens'
 import {ConfirmDialog} from '@shared/ui/confirm-dialog'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
@@ -48,14 +49,31 @@ interface ShellOutletContext {
 /** 필터 훅 입력 안정 참조 — pending/error 시 매 렌더 새 배열을 만들지 않게 한다 */
 const EMPTY_SUMMARIES: ReadonlyArray<never> = []
 
+// v2.x(사용자) — 모터도 레이스와 동일하게 로그인 필수. 비로그인 시 본문 대체 중앙 게이트.
+// RacePage.loginGateSx와 동일 규칙(콘텐츠 영역 높이 채워 세로 중앙 정렬).
+const loginGateSx = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  textAlign: 'center',
+  gap: 1,
+  px: 3,
+  minHeight: `calc(100dvh - 3.5rem - ${layoutTokens.bottomNavHeight}px - ${layoutTokens.safeAreaBottom})`,
+} as const
+
 export function MotorsPage() {
   const toast = useToast()
   const navigate = useNavigate()
   const shell = useOutletContext<ShellOutletContext>()
   const corrupted = shell.persistenceStatus?.status === 'corrupted'
+  // v2.x(사용자) — 로그인 게이트(레이스와 동일). 서버 세션 조회(로컬 정적 서버는 null=미로그인).
+  const {user, isPending: sessionPending} = useSession()
+  const loggedIn = user !== null
 
-  // v2: 파생 join은 entity 데이터 계층 소유(listMotorSummaries) — 페이지 합성 제거
-  const summariesQuery = useQuery({...motorQueries.summaries(), enabled: !corrupted})
+  // v2: 파생 join은 entity 데이터 계층 소유(listMotorSummaries) — 페이지 합성 제거.
+  // 비로그인이면 본문을 렌더하지 않으므로 조회도 걸지 않는다(레이스와 동일).
+  const summariesQuery = useQuery({...motorQueries.summaries(), enabled: !corrupted && loggedIn})
 
   // 행 탭 → 상세 페이지 push (v2.2 — 차트·기록·수정·삭제는 상세 소유)
   const openDetail = (motorId: string) => {
@@ -117,18 +135,36 @@ export function MotorsPage() {
         title="모터"
         actions={
           <>
-            {/* v2.6: 화면의 주 행동이므로 시그니처 라임 contained(컷코너)로 위계를 명확히 한다 */}
-            <Button variant="contained" onClick={openCreateSheet} sx={{minHeight: '2.75rem'}}>
-              + 모터
-            </Button>
+            {/* v2.6: 화면의 주 행동이므로 시그니처 라임 contained(컷코너)로 위계를 명확히 한다.
+                v2.x(사용자): 로그인 게이트와 정합 — 비로그인 시엔 생성 진입점도 숨긴다(게이트 취지). */}
+            {loggedIn && (
+              <Button variant="contained" onClick={openCreateSheet} sx={{minHeight: '2.75rem'}}>
+                + 모터
+              </Button>
+            )}
             <ThemeToggle />
             <AuthMenu />
           </>
         }
       />
 
-      {/* [M] 본문 — corrupt / loading / 읽기 오류(D-10) / empty / 목록 */}
-      {corrupted ? (
+      {/* [M] 본문 — 로그인 게이트 / corrupt / loading / 읽기 오류(D-10) / empty / 목록 */}
+      {sessionPending ? (
+        // 세션 확인 중 — 콘텐츠/게이트 플래시 방지용 중립 안내
+        <Typography color="text.secondary" sx={{px: 2, py: 2}}>
+          확인 중…
+        </Typography>
+      ) : !loggedIn ? (
+        // v2.x 로그인 게이트(레이스와 동일) — 모터 목록은 로그인 이후에만. 우상단 아바타로 로그인 진입.
+        <Box sx={loginGateSx}>
+          <Typography variant="h2" component="p">
+            로그인 후에 사용하세요
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            오른쪽 위 프로필을 눌러 로그인하면 모터 목록을 볼 수 있습니다
+          </Typography>
+        </Box>
+      ) : corrupted ? (
         <Box sx={{px: 2, py: 2}}>
           <RecoveryPanel
             onRetry={shell.retryPersistence}
