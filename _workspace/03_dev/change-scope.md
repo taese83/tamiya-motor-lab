@@ -1819,3 +1819,30 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - typecheck·lint·test(98)·build 전부 exit 0.
 - 브라우저(로컬·비로그인, 375px): 측정=우상단 [달·아바타] 클러스터(좌상단 정리), 모터=[+모터][달][아바타] 헤더 정상, 레이스·레이스상세=헤더 [달][아바타](레이스상세 +기록 미노출)+중앙 "로그인 후에 사용하세요", 모터상세=[뒤로][수정 없음/not-found][달][아바타] 정상 렌더. 콘솔의 AuthMenu ReferenceError는 import 추가 이전 stale HMR(단일 `?t=` 타임스탬프)로, 재렌더 스냅샷은 정상 헤더(에러 폴백 아님) 확인.
 - **미검증(자격증명·배포 필요)**: 로그인 상태의 레이스 콘텐츠 경로.
+
+---
+
+## v2.44 — 레이스 목록 정렬 추가 + 모터와 공유 (사용자)
+
+### TARGET_BEHAVIOR
+- 레이스 진입 목록(`/race`)에도 **정렬 3종**(최근 등록순·파노 높은순·이름순) 추가.
+- 모터 목록과 **정렬 상태 공유**: 한쪽에서 고른 정렬이 다른 쪽에도 그대로 반영(종류 필터와 동일 원칙).
+
+### 변경
+- `pages/race/ui/RacePage.tsx`: `useMotorSort`(기존 모터 정렬 훅) + `SegmentControl` 추가.
+  필터→정렬 순으로 뷰 계층 적용, RaceMotorList가 `motorSort.sorted` 소비. 필터 결과 1건 이상일 때만 컨트롤 노출.
+- 소스 변경은 RacePage 1파일뿐 — `useMotorSort`는 이미 영속 zustand store(`mml-motor-sort-1`)라 신규 배선만으로 공유·영속 자동 충족.
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 모터 목록(MotorsPage)·정렬 store·SegmentControl 컴포넌트 무변경(레이스가 동일 store/컴포넌트를 재사용).
+- 정렬은 뷰 계층 — 데이터층 순서(sortOrder asc) 불변. 두 화면이 같은 원본(motorQueries.summaries)+같은 정렬을 소비해 순서 일치.
+- 레이스 로그인 게이트(v2.43)·종류 필터 공유 불변.
+
+### NON_GOALS
+- 레이스 전용 별도 정렬 기준 · 정렬 store 분리(공유가 요구사항) · 레이스 상세(/race/:id) 회차 정렬 변경
+
+### TEST_EVIDENCE
+- typecheck·lint·test(98)·build 전부 exit 0.
+- 브라우저(로컬, 테스트 모터 3건 시드): /motors에 정렬 SegmentControl 노출, [이름순] 선택 시 순서 재정렬(recent: 베타·감마 → name: 감마·베타) 확인. 선택이 공유 store 키 `mml-motor-sort-1`(= RacePage가 읽는 동일 키)에 `sort:"name"`으로 영속됨을 localStorage로 확인.
+- /race는 로그인 게이트로 정상 렌더(새 훅 추가 후에도 무회귀). **로그인 상태의 레이스 정렬 UI**는 배포·로그인 후 확인(로컬 정적 서버는 미로그인 수렴). 콘솔 에러는 v2.43 이전 stale HMR(`?t=` 단일 타임스탬프) 뿐, 신규 에러 없음.
+- 검증용 시드 모터·정렬값은 IndexedDB(mml-db)·localStorage에서 정리 완료(빈 상태·기본 정렬 복원 확인).

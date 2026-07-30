@@ -4,13 +4,14 @@ import {useNavigate, useOutletContext} from 'react-router'
 
 import {motorQueries} from '@entities/motor'
 import {AuthMenu, useSession} from '@features/auth'
-import {useMotorKindFilter} from '@features/motor-management/model'
+import {useMotorKindFilter, useMotorSort} from '@features/motor-management/model'
 import {MotorKindFilter} from '@features/motor-management/ui'
 import {RaceMotorList} from '@features/race-record/ui'
 import {layoutTokens} from '@shared/config/design-tokens'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
+import {SegmentControl} from '@shared/ui/segment-control'
 import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
@@ -67,9 +68,12 @@ export function RacePage() {
 
   const summaries = summariesQuery.data
 
-  // v2.17 — 모터 목록과 공유하는 종류 필터(영속). 이 화면은 DnD 정렬이 없어
-  // 모터 목록의 정렬 잠금(SO-2)은 해당되지 않는다 — filtered만 소비한다.
+  // v2.17 — 모터 목록과 공유하는 종류 필터(영속). 필터 먼저 걸고 그 결과를 정렬한다.
   const kindFilter = useMotorKindFilter(summaries ?? EMPTY_SUMMARIES)
+  // v2.44(사용자) — 정렬도 모터 목록과 **같은 store**(useMotorSort, 영속)로 공유한다.
+  // 한쪽에서 고른 정렬이 다른 쪽에도 그대로 반영된다(종류 필터와 동일 원칙). 뷰 계층 —
+  // 데이터층 순서(sortOrder)는 불변. 두 화면이 같은 원본·같은 정렬을 소비하므로 순서 일치.
+  const motorSort = useMotorSort(kindFilter.filtered)
 
   return (
     <>
@@ -158,6 +162,20 @@ export function RacePage() {
             onClear={kindFilter.clear}
           />
 
+          {/* v2.44 정렬 — 모터 목록과 같은 컴포넌트·같은 store(영속·공유). 최근 등록순(기본)·
+              파노 높은순·이름순. 필터 결과가 1건 이상일 때만 노출(죽은 컨트롤 방지). */}
+          {kindFilter.filtered.length > 0 && (
+            <SegmentControl
+              aria-label="레이스 모터 정렬"
+              rounded
+              options={motorSort.options.map(o => ({value: o.key, label: o.label}))}
+              value={motorSort.sort}
+              onChange={next => {
+                if (next !== null) motorSort.setSort(next)
+              }}
+            />
+          )}
+
           {/* v2.2: [기록 초기화]는 모터별 처리로 이동 — 레이스 상세(/race/:motorId) 하단 */}
           {kindFilter.filtered.length === 0 ? (
             // 필터 결과 0건 — 모터 0건(EmptyState)과 **다른 경로**다. 빈 상태로 위장하면
@@ -170,7 +188,7 @@ export function RacePage() {
             </Box>
           ) : (
             <RaceMotorList
-              summaries={kindFilter.filtered}
+              summaries={motorSort.sorted}
               onSelect={motorId => {
                 void navigate(`/race/${motorId}`)
               }}
