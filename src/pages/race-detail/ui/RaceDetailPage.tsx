@@ -18,6 +18,7 @@ import {useNavigate, useOutletContext, useParams} from 'react-router'
 import {measureQueries} from '@entities/measure-record'
 import {motorQueries} from '@entities/motor'
 import {raceQueries} from '@entities/race-record'
+import {AuthMenu, useSession} from '@features/auth'
 import {beginRaceMeasure, consumeRaceMeasureReturn} from '@features/race-measure-handoff'
 import {useRaceDeleteFlow, useRaceEntry, useResetRecordsFlow} from '@features/race-record/model'
 import {RaceEntrySheet, RaceGoalSheet, RaceRecordRow, ResetRecordsBlock} from '@features/race-record/ui'
@@ -29,6 +30,7 @@ import {useSingleOpenRow} from '@shared/ui/swipe-actions'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
+import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
 import type {RaceRecord} from '@entities/race-record'
@@ -119,12 +121,17 @@ export function RaceDetailPage() {
   const toast = useToast()
   const shell = useOutletContext<ShellOutletContext>()
   const corrupted = shell.persistenceStatus?.status === 'corrupted'
+  // v2.43 — 레이스는 로그인 필수. 비로그인이면 본문·+기록을 게이트한다(로컬 정적 서버는 미로그인 수렴).
+  const {user, isPending: sessionPending} = useSession()
+  const loggedIn = user !== null
+  const gated = !sessionPending && !loggedIn
 
-  // 부재는 정상 도메인 결과(null) — in-place not-found로 분기 (layout-spec §2.2)
-  const motorQuery = useQuery({...motorQueries.detail(motorId), enabled: !corrupted})
-  const racesQuery = useQuery({...raceQueries.byMotor(motorId), enabled: !corrupted})
+  // 부재는 정상 도메인 결과(null) — in-place not-found로 분기 (layout-spec §2.2).
+  // 비로그인(gated)이면 본문을 렌더하지 않으므로 도메인 조회도 걸지 않는다.
+  const motorQuery = useQuery({...motorQueries.detail(motorId), enabled: !corrupted && loggedIn})
+  const racesQuery = useQuery({...raceQueries.byMotor(motorId), enabled: !corrupted && loggedIn})
   // 파노 자동 인용(R-3①) — byMotor(asc) 마지막 요소 파생, 전용 query 신설 금지 (AR-5)
-  const measuresQuery = useQuery({...measureQueries.byMotor(motorId), enabled: !corrupted})
+  const measuresQuery = useQuery({...measureQueries.byMotor(motorId), enabled: !corrupted && loggedIn})
   const motor = motorQuery.data ?? null
 
   const lastMeasure = measuresQuery.data?.at(-1)
@@ -256,21 +263,51 @@ export function RaceDetailPage() {
     <>
       {/* v2.24 고정 셸 — 헤더는 고정, 기록 목록만 스크롤, [초기화]는 하단 고정 */}
       <Box sx={pageShellSx}>
-        {/* [H] 화면 헤더 — [←] [h1 모터명] [+ 기록] */}
+        {/* [H] 화면 헤더 — [←] [h1 모터명] [+ 기록] [ThemeToggle] [Avatar] (v2.43: 아바타 전역·오른쪽 끝) */}
         <PageHeader
           onBack={handleBack}
           title={motor?.name ?? '레이스'}
           actions={
-            motor !== null ? (
-              // v2.6: 화면의 주 행동 — 라임 contained(컷코너)로 위계를 명확히 한다
-              <Button variant="contained" onClick={handleAddRecord} sx={{minHeight: '2.75rem'}}>
-                + 기록
-              </Button>
-            ) : undefined
+            <>
+              {/* +기록은 로그인·모터 존재 시에만 — 게이트 상태에서는 진입점을 노출하지 않는다 */}
+              {loggedIn && motor !== null && (
+                // v2.6: 화면의 주 행동 — 라임 contained(컷코너)로 위계를 명확히 한다
+                <Button variant="contained" onClick={handleAddRecord} sx={{minHeight: '2.75rem'}}>
+                  + 기록
+                </Button>
+              )}
+              <ThemeToggle />
+              <AuthMenu />
+            </>
           }
         />
 
-        {corrupted ? (
+        {sessionPending ? (
+          // 세션 확인 중 — 콘텐츠/게이트 플래시 방지
+          <Typography color="text.secondary" sx={{px: 2, py: 2}}>
+            확인 중…
+          </Typography>
+        ) : gated ? (
+          // v2.43 로그인 게이트 — 레이스 정보는 로그인 이후에만. 우상단 아바타로 로그인 진입.
+          <Box
+            sx={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              gap: 1,
+              px: 3,
+            }}>
+            <Typography variant="h2" component="p">
+              로그인 후에 사용하세요
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              오른쪽 위 프로필을 눌러 로그인하면 레이스 기록을 볼 수 있습니다
+            </Typography>
+          </Box>
+        ) : corrupted ? (
           <Box sx={{px: 2, py: 2}}>
             <RecoveryPanel
               onRetry={shell.retryPersistence}

@@ -201,26 +201,21 @@ export function MeasurePage() {
       {/* 왕복 모드 스트립 (component-spec §7.1) — slot 존재와 렌더가 동치(INV-21), 최상단 */}
       {slot !== null && <RaceMeasureStrip motorName={slot.motorName} origin={slot.origin} />}
 
-      {/* v2.39 로그인 — S1 좌상단(테마 토글 대칭). 미로그인=구글 로그인, 로그인=이름·로그아웃 */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 'calc(8px + var(--mml-safe-top, 0px))',
-          left: 8,
-          zIndex: 1,
-        }}>
-        <AuthMenu />
-      </Box>
-
-      {/* 테마 토글 — S1 우상단 고정, 수치 영역 밖 (design-system §7.3 — 기존 패턴 승계) */}
+      {/* v2.43 우상단 클러스터 — 테마 토글 + 로그인 아바타. 아바타는 전 화면 헤더 오른쪽 끝
+          정책(모든 화면에서 로그인 가능·아바타 노출). S1은 PageHeader가 없어 절대배치로 우상단에 둔다.
+          미로그인=클릭 시 구글 로그인, 로그인=아바타 메뉴(이름·로그아웃). */}
       <Box
         sx={{
           position: 'absolute',
           top: 'calc(8px + var(--mml-safe-top, 0px))',
           right: 8,
           zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
         }}>
         <ThemeToggle />
+        <AuthMenu />
       </Box>
 
       <Box sx={{px: 2, flex: 1, display: 'flex', flexDirection: 'column'}}>

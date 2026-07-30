@@ -6,6 +6,7 @@ import {useNavigate, useOutletContext, useParams} from 'react-router'
 
 import {measureQueries} from '@entities/measure-record'
 import {MotorKindChip, motorQueries} from '@entities/motor'
+import {AuthMenu} from '@features/auth'
 import {useDeleteMeasureRecord} from '@features/measure-management'
 import {useDeleteMotorCascade, useUpdateMotor} from '@features/motor-management/api'
 import {useMotorDeleteFlow} from '@features/motor-management/model'
@@ -221,35 +222,38 @@ export function MotorDetailPage() {
     <>
       {/* v2.8 고정 셸 — 헤더·차트·[측정]은 고정, 기록 목록만 스크롤한다 */}
       <Box sx={pageShellSx}>
-        {/* [H] 화면 헤더 — [←] [h1 모터명] [수정][삭제] [ThemeToggle] */}
+        {/* [H] 화면 헤더 — [←] [h1 모터명] [수정][삭제] [ThemeToggle] [Avatar] (v2.43: 아바타 전역·오른쪽 끝) */}
         <PageHeader
           onBack={handleBack}
           title={motor?.name ?? '모터 상세'}
-          action={<ThemeToggle />}
           actions={
-            motor !== null ? (
-              // v2.6 헤더 정리: 보조·파괴 액션은 테두리를 걷어 text 톤으로 낮춘다.
-              // 이전에는 outlined 사각 2개(+빨간 테두리)가 56px 헤더에서 제목 폭을 잠식하고
-              // 파괴 액션이 과하게 시선을 끌었다. 라벨은 유지한다(아이콘 단독 파괴 액션 금지) —
-              // 실제 안전장치는 ConfirmDialog의 명시 고지다.
-              <>
-                {/* 중립 톤 — 라임은 주 행동([측정]) 전용이라 보조 액션이 같은 색을 쓰지 않는다 */}
-                <Button
-                  variant="text"
-                  onClick={openEditSheet}
-                  sx={{minWidth: 44, minHeight: '2.75rem', color: 'text.primary'}}>
-                  수정
-                </Button>
-                <Button
-                  variant="text"
-                  color="error"
-                  disabled={deleteFlow.isCounting}
-                  onClick={requestDelete}
-                  sx={{minWidth: 44, minHeight: '2.75rem'}}>
-                  삭제
-                </Button>
-              </>
-            ) : undefined
+            <>
+              {motor !== null && (
+                // v2.6 헤더 정리: 보조·파괴 액션은 테두리를 걷어 text 톤으로 낮춘다.
+                // 이전에는 outlined 사각 2개(+빨간 테두리)가 56px 헤더에서 제목 폭을 잠식하고
+                // 파괴 액션이 과하게 시선을 끌었다. 라벨은 유지한다(아이콘 단독 파괴 액션 금지) —
+                // 실제 안전장치는 ConfirmDialog의 명시 고지다.
+                <>
+                  {/* 중립 톤 — 라임은 주 행동([측정]) 전용이라 보조 액션이 같은 색을 쓰지 않는다 */}
+                  <Button
+                    variant="text"
+                    onClick={openEditSheet}
+                    sx={{minWidth: 44, minHeight: '2.75rem', color: 'text.primary'}}>
+                    수정
+                  </Button>
+                  <Button
+                    variant="text"
+                    color="error"
+                    disabled={deleteFlow.isCounting}
+                    onClick={requestDelete}
+                    sx={{minWidth: 44, minHeight: '2.75rem'}}>
+                    삭제
+                  </Button>
+                </>
+              )}
+              <ThemeToggle />
+              <AuthMenu />
+            </>
           }
         />
 

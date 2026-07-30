@@ -1787,3 +1787,35 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 ### 배포 활성화 (사용자)
 - Neon `DATABASE_URL`을 Vercel 환경변수에 추가 + `migrations/001_users.sql`·`002_domain.sql` 실행(1회).
 - (Phase A 인증 env 이미 설정 전제) 재배포 → 로그인 시 서버 우선 동기화·mutation mirror push 동작.
+
+---
+
+## v2.43 — 로그인 UX: 아바타 전역 노출 + 레이스 로그인 게이트 (사용자)
+
+### TARGET_BEHAVIOR
+- **로그인/아바타를 모든 화면에서** 헤더 **오른쪽 끝**에 노출(측정·모터·모터상세·레이스·레이스상세).
+- **레이스 정보는 로그인 이후에만** 표시. 비로그인 시 본문을 중앙 "로그인 후에 사용하세요" 안내로 대체(+ 프로필 유도 문구).
+
+### 변경
+- `pages/measure/ui/MeasurePage.tsx`: 좌상단 AuthMenu 제거 → 우상단 [ThemeToggle+AuthMenu] 클러스터로 통합(절대배치, 헤더 없는 S1).
+- `pages/motors/ui/MotorsPage.tsx`: PageHeader `action`(ThemeToggle) 폐지 → `actions`에 [+모터][ThemeToggle][AuthMenu] 클러스터.
+- `pages/motor-detail/ui/MotorDetailPage.tsx`: 동일 — [수정][삭제](모터 존재 시)+[ThemeToggle][AuthMenu]. 로딩·not-found에도 아바타 상시.
+- `pages/race/ui/RacePage.tsx`: `useSession` 게이트. 헤더 [ThemeToggle][AuthMenu]. 비로그인=중앙 게이트, 로그인=기존 목록. summaries 조회는 로그인 시에만 enabled.
+- `pages/race-detail/ui/RaceDetailPage.tsx`: 동일 게이트. **+기록은 로그인+모터 존재 시에만** 노출. 도메인 조회 3종 로그인 시에만 enabled. ThemeToggle 신규 추가(기존 미노출).
+
+### 설계 노트
+- 아바타 클러스터는 **페이지별 주입**(FSD: pages→features/shared 허용, shared PageHeader는 features import 불가). 기존 ThemeToggle 주입 패턴 승계 → 헤더 flex 자연 배치로 액션 버튼과 충돌 없음.
+- 게이트 순서: `sessionPending`(확인 중) → `!loggedIn`(게이트) → 기존 corrupt/loading/error/empty/content. 세션 확인 중 콘텐츠·게이트 플래시 방지.
+- 로컬 정적 서버는 `useSession`이 null(미로그인) 수렴 → 로컬에서 레이스는 항상 게이트(설계상 정상). 로그인 후 콘텐츠 경로는 배포·인증 필요.
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- AuthMenu 동작 불변(비로그인=클릭 시 구글 로그인 이동, 로그인=계정 메뉴). ThemeToggle 동작 불변.
+- 레이스 왕복(RV-1)·입력 시트·삭제 플로우는 로그인 상태에서 기존과 동일(gated 시 진입점 미노출로 트리거 불가).
+
+### NON_GOALS
+- 측정·모터 화면 게이트(레이스만 로그인 필수) · 아바타 클러스터의 공용 컴포넌트화(widgets 레이어 미도입)
+
+### TEST_EVIDENCE
+- typecheck·lint·test(98)·build 전부 exit 0.
+- 브라우저(로컬·비로그인, 375px): 측정=우상단 [달·아바타] 클러스터(좌상단 정리), 모터=[+모터][달][아바타] 헤더 정상, 레이스·레이스상세=헤더 [달][아바타](레이스상세 +기록 미노출)+중앙 "로그인 후에 사용하세요", 모터상세=[뒤로][수정 없음/not-found][달][아바타] 정상 렌더. 콘솔의 AuthMenu ReferenceError는 import 추가 이전 stale HMR(단일 `?t=` 타임스탬프)로, 재렌더 스냅샷은 정상 헤더(에러 폴백 아님) 확인.
+- **미검증(자격증명·배포 필요)**: 로그인 상태의 레이스 콘텐츠 경로.

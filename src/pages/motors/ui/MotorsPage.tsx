@@ -5,6 +5,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext} from 'react-router'
 
 import {motorQueries} from '@entities/motor'
+import {AuthMenu} from '@features/auth'
 import {useCreateMotor, useDeleteMotorCascade, useUpdateMotor} from '@features/motor-management/api'
 import {
   useMotorDeleteFlow,
@@ -111,15 +112,18 @@ export function MotorsPage() {
 
   return (
     <>
-      {/* [H] 화면 헤더 — [h1 모터] [+ 모터] [ThemeToggle] */}
+      {/* [H] 화면 헤더 — [h1 모터] [+ 모터] [ThemeToggle] [Avatar] (v2.43: 아바타 전역·오른쪽 끝) */}
       <PageHeader
         title="모터"
-        action={<ThemeToggle />}
         actions={
-          // v2.6: 화면의 주 행동이므로 시그니처 라임 contained(컷코너)로 위계를 명확히 한다
-          <Button variant="contained" onClick={openCreateSheet} sx={{minHeight: '2.75rem'}}>
-            + 모터
-          </Button>
+          <>
+            {/* v2.6: 화면의 주 행동이므로 시그니처 라임 contained(컷코너)로 위계를 명확히 한다 */}
+            <Button variant="contained" onClick={openCreateSheet} sx={{minHeight: '2.75rem'}}>
+              + 모터
+            </Button>
+            <ThemeToggle />
+            <AuthMenu />
+          </>
         }
       />
 

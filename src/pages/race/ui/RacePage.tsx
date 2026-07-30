@@ -3,9 +3,11 @@ import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext} from 'react-router'
 
 import {motorQueries} from '@entities/motor'
+import {AuthMenu, useSession} from '@features/auth'
 import {useMotorKindFilter} from '@features/motor-management/model'
 import {MotorKindFilter} from '@features/motor-management/ui'
 import {RaceMotorList} from '@features/race-record/ui'
+import {layoutTokens} from '@shared/config/design-tokens'
 import {EmptyState} from '@shared/ui/empty-state'
 import {PageHeader} from '@shared/ui/page-header'
 import {RecoveryPanel} from '@shared/ui/recovery-panel'
@@ -37,14 +39,31 @@ interface ShellOutletContext {
 /** 필터 훅 입력 안정 참조 — pending/error 시 매 렌더 새 배열을 만들지 않게 한다 */
 const EMPTY_SUMMARIES: ReadonlyArray<never> = []
 
+// v2.43 — 레이스는 로그인 필수. 비로그인 시 본문을 대체하는 중앙 게이트 안내.
+// 콘텐츠 영역(헤더·탭 바 제외) 높이를 채워 세로 중앙 정렬한다.
+const loginGateSx = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  textAlign: 'center',
+  gap: 1,
+  px: 3,
+  minHeight: `calc(100dvh - 3.5rem - ${layoutTokens.bottomNavHeight}px - ${layoutTokens.safeAreaBottom})`,
+} as const
+
 export function RacePage() {
   const navigate = useNavigate()
   const toast = useToast()
   const shell = useOutletContext<ShellOutletContext>()
   const corrupted = shell.persistenceStatus?.status === 'corrupted'
+  // v2.43 — 로그인 게이트. 서버 세션 조회(로컬 정적 서버는 null=미로그인으로 수렴).
+  const {user, isPending: sessionPending} = useSession()
+  const loggedIn = user !== null
 
-  // S3와 동일 원본(motorQueries.summaries) — 화면 간 순서·데이터 불일치 금지 (INV-09)
-  const summariesQuery = useQuery({...motorQueries.summaries(), enabled: !corrupted})
+  // S3와 동일 원본(motorQueries.summaries) — 화면 간 순서·데이터 불일치 금지 (INV-09).
+  // 비로그인이면 본문을 렌더하지 않으므로 조회도 걸지 않는다.
+  const summariesQuery = useQuery({...motorQueries.summaries(), enabled: !corrupted && loggedIn})
 
   const summaries = summariesQuery.data
 
@@ -54,10 +73,33 @@ export function RacePage() {
 
   return (
     <>
-      {/* [H] 화면 헤더 — [h1 레이스] [ThemeToggle] */}
-      <PageHeader title="레이스" action={<ThemeToggle />} />
+      {/* [H] 화면 헤더 — [h1 레이스] [ThemeToggle] [Avatar] (v2.43: 아바타 전역·오른쪽 끝) */}
+      <PageHeader
+        title="레이스"
+        actions={
+          <>
+            <ThemeToggle />
+            <AuthMenu />
+          </>
+        }
+      />
 
-      {corrupted ? (
+      {sessionPending ? (
+        // 세션 확인 중 — 콘텐츠/게이트 플래시 방지용 중립 안내
+        <Typography color="text.secondary" sx={{px: 2, py: 2}}>
+          확인 중…
+        </Typography>
+      ) : !loggedIn ? (
+        // v2.43 로그인 게이트 — 레이스 정보는 로그인 이후에만. 우상단 아바타로 로그인 진입.
+        <Box sx={loginGateSx}>
+          <Typography variant="h2" component="p">
+            로그인 후에 사용하세요
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            오른쪽 위 프로필을 눌러 로그인하면 레이스 기록을 볼 수 있습니다
+          </Typography>
+        </Box>
+      ) : corrupted ? (
         <Box sx={{px: 2, py: 2}}>
           <RecoveryPanel
             onRetry={shell.retryPersistence}
