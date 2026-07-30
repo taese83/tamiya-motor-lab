@@ -3,19 +3,10 @@ import {useTheme} from '@mui/material/styles'
 import {useId} from 'react'
 
 import {measureStatusTokens, motionTokens} from '@shared/config/design-tokens'
-import {stabilityLevelOf} from '@shared/config/domain'
 
 export interface PanoGaugeProps {
   /** null → dim(바늘 최소 위치, 채움 없음). 값 있음 = measuring (component-spec v2 §2.4) */
   panoHz: number | null
-  /**
-   * 회전 안정도 CV (v2.x — 사용자 A안 채택: 흔들림 부채꼴).
-   * 바늘 주위 ±(cv×panoHz) Hz 범위를 반투명 부채꼴로 그린다 — 폭 = 흔들리는 범위.
-   * null(창 미충족·비측정)이면 미렌더.
-   * v2.x 2축(사용자): 색 = 절대 등급(stabilityLevelOf) — 좋음 계열 초록·보통 앰버·흔들림 큼 빨강.
-   * 반투명이라 아래 트랙·채움이 비쳐 보인다(게이지 가독 유지 — 사용자 req).
-   */
-  stabilityCv: number | null
 }
 
 /* ------------------------------------------------------------------ *
@@ -25,48 +16,39 @@ export interface PanoGaugeProps {
  * 못 그리고 대비 버그를 재현, amCharts는 라이선스·번들 과다 — 커스텀이 우위). 대신
  * amCharts gauge-with-gradient-fill 데모의 룩을 SVG linearGradient로 진행 아크에 얹는다.
  *
- * v2.21 스케일 변경(사용자): 게이지 눈금을 **0~700, 100단위 라벨**로 바꾼다. 이전에는
- * 유효 대역 F0_RANGE(170~620)에 그대로 매핑했지만, 사용자가 0 시작·700 끝의 계기판을
- * 원했다. 게이지 표시 스케일과 측정 유효 대역은 이제 별개다(게이지는 시각 표시 전용 —
- * 실제 값 검증은 여전히 스키마 소관, 게이지는 aria-hidden 장식이라 판정 비관여).
+ * v2.21 스케일: 게이지 눈금 0~700, 100단위. 게이지 표시 스케일과 측정 유효 대역은 별개다
+ * (게이지는 aria-hidden 시각 표시 전용 — 값 검증은 스키마 소관).
+ *
+ * v2.x(사용자): 변동률은 이 파노 게이지와 **별개**의 축소 아크(StabilityGauge)로 아래에 분리.
+ * 여기서는 파노만 그린다(부채꼴·내장 미니 게이지 폐기).
  * ------------------------------------------------------------------ */
-// v2.26(사용자: 더 크게): viewBox를 콘텐츠(아크+바깥 라벨) 실제 경계로 좁혀 여백을 제거한다.
-// 좌우 ~30 여백을 잘라내면 같은 화면 폭에서 게이지가 더 크게 렌더된다(좌표계는 불변 — 창만 축소).
-const VIEW_BOX = '18 3 164 114'
+// v2.x(사용자: 게이지 더 크게 + 라벨 한 자리 + 눈금 짧게): 라벨을 백자리 한 자리(0~7)로 줄여
+// 좌우 라벨 폭이 작아진 만큼 viewBox를 더 좁히고 트랙 반경을 키웠다(같은 화면 폭에서 확대).
+const VIEW_BOX = '22 6 156 112'
 const CX = 100
-const CY = 84
-const STROKE_W = 5 // v2.26(사용자): 트랙 두께 더 얇게(12→9→7→5)
-const TRACK_R = 58
-const TICK_OUTER_R = TRACK_R - STROKE_W / 2 - 2.5
-const MAJOR_TICK_INNER_R = TICK_OUTER_R - 7
-const MINOR_TICK_INNER_R = TICK_OUTER_R - 4
+const CY = 86
+const STROKE_W = 5
+const TRACK_R = 64 // v2.x(사용자): 58→64 확대
+const TICK_OUTER_R = TRACK_R - STROKE_W / 2 - 2
+const MAJOR_TICK_INNER_R = TICK_OUTER_R - 4 // v2.x(사용자): 눈금 짧게 (7→4)
+const MINOR_TICK_INNER_R = TICK_OUTER_R - 2.5 // v2.x(사용자): 눈금 짧게 (4→2.5)
 /**
- * v2.21 라벨을 **아크 바깥**에 둔다(사용자: 숫자가 게이지 안쪽에 오되 그래프와 안 겹치게).
- * 0~700을 100단위로 8개 찍으면 300·400이 12시 근처 안쪽에 놓여 **중앙 파노 수치와 겹친다**.
- * 라벨을 트랙 바깥 코너로 빼면 아크 **내부가 비어** 중앙 수치가 겹침 없이 들어앉는다.
- * (자동차 계기판에서 숫자를 링 바깥에 두는 방식 — 내부는 디지털 값 전용.)
- * v2.26(사용자: 라벨이 게이지에 겹치지 않게): 아크 바깥 여백 7→13으로 늘려 라벨을 트랙에서
- * 더 떼어놓는다(트랙 두께 축소분과 합쳐 라벨-아크 간격 확대). viewBox는 이에 맞춰 넓혔다.
+ * 라벨을 아크 바깥 코너에 둔다(내부는 중앙 수치 전용 — 겹침 방지). v2.x: 백자리 한 자리라
+ * 라벨 폭이 작아져 아크에 더 붙여도(gap 13→8) 겹치지 않는다.
  */
-const LABEL_R = TRACK_R + STROKE_W / 2 + 13
+const LABEL_R = TRACK_R + STROKE_W / 2 + 8
 
 /** v2.21 스케일 — 게이지 표시 전용(측정 유효 대역과 분리) */
 const GAUGE_MIN = 0
 const GAUGE_MAX = 700
 const SWEEP_DEG = 220
-/** 라벨·주 눈금 100단위, 보조 눈금 50단위(0~700에서 25단위는 과밀) */
+/** 라벨·주 눈금 100단위, 보조 눈금 50단위 */
 const MAJOR_STEP = 100
 const MINOR_STEP = 50
 /** 레드라인 = 상단 고위험 구간(600~700). 트랙 구간을 error 색으로 덮는다(DS-A15 장식) */
 const REDLINE_START = 600
 
-/**
- * v2.21 색 강화(사용자: "너무 흐림"). 트랙 opacity 0.48→0.6으로 올려 계기 링의 존재감을
- * 키운다(양 모드 대비는 실측 재확인 — text.primary라 모드별 반전 유지). 진행 채움은
- * 단색 라임 대신 **그라디언트**(어두운 라임→밝은 라임)로 차트(파노 라인)와 톤을 맞춘다.
- */
-// v2.29(사용자: 더 밝게) — 트랙·보조눈금 opacity 상향(0.6→0.8, 0.5→0.7). 주눈금·라벨은
-// text.secondary(어두움)에서 text.primary(밝음)로 승격(아래 JSX). dim(대기)은 그대로.
+// 트랙·눈금 밝기 (v2.29 사용자). dim(대기)은 DIM_OPACITY.
 const TRACK_OPACITY = 0.8
 const MINOR_TICK_OPACITY = 0.7
 const DIM_OPACITY = 0.45
@@ -98,38 +80,13 @@ const TRACK_PATH = arcPath(-SWEEP_DEG / 2, SWEEP_DEG / 2, TRACK_R)
 const REDLINE_PATH = arcPath(valueToDeg(REDLINE_START), SWEEP_DEG / 2, TRACK_R)
 const TRACK_ARC_LENGTH = round2((TRACK_R * Math.PI * SWEEP_DEG) / 180)
 
-const NEEDLE_TIP_R = 46
+const NEEDLE_TIP_R = 50 // v2.x: 확대된 다이얼에 맞춰 46→50
 const NEEDLE_BASE_HALF = 2.6
 const NEEDLE_POINTS = [
   `${CX},${CY - NEEDLE_TIP_R}`,
   `${CX + NEEDLE_BASE_HALF},${CY + 2}`,
   `${CX - NEEDLE_BASE_HALF},${CY + 2}`,
 ].join(' ')
-
-/** 흔들림 부채꼴 최대 반각(°) — CV 폭주 시 시각 폭 클램프 (전체 스윕의 ~27%) */
-const WEDGE_MAX_HALF_DEG = 30
-/** 살짝 반투명(사용자: 게이지가 잘 보이는 정도) — 색 추가에 맞춰 0.18→0.22로 소폭 상향 */
-const WEDGE_OPACITY = 0.22
-
-/**
- * 흔들림 부채꼴 path — pivot → ±범위 호(바늘 길이 반경) → 닫기.
- * 각도는 값 공간에서 환산: halfHz = cv × pano. d는 프레임마다 재계산(≥10Hz)이라
- * CSS transition 없이도 연속적으로 보인다(cv 자체가 완만하게 변하는 값).
- */
-const wedgePath = (panoHz: number, cv: number): string | null => {
-  const centerDeg = valueToDeg(panoHz)
-  const halfHz = cv * panoHz
-  const halfDeg = Math.min(
-    WEDGE_MAX_HALF_DEG,
-    (SWEEP_DEG * halfHz) / (GAUGE_MAX - GAUGE_MIN),
-  )
-  if (halfDeg <= 0.05) return null // 사실상 폭 0 — 그리지 않음(안정 = 또렷한 바늘)
-  const lo = Math.max(-SWEEP_DEG / 2, centerDeg - halfDeg)
-  const hi = Math.min(SWEEP_DEG / 2, centerDeg + halfDeg)
-  const [x1, y1] = polar(lo, NEEDLE_TIP_R)
-  const [x2, y2] = polar(hi, NEEDLE_TIP_R)
-  return `M ${CX} ${CY} L ${x1} ${y1} A ${NEEDLE_TIP_R} ${NEEDLE_TIP_R} 0 0 1 ${x2} ${y2} Z`
-}
 
 interface GaugeTick {
   readonly v: number
@@ -143,7 +100,8 @@ const buildTick = (v: number, major: boolean, labeled: boolean): GaugeTick => {
   const [x1, y1] = polar(deg, TICK_OUTER_R)
   const [x2, y2] = polar(deg, major ? MAJOR_TICK_INNER_R : MINOR_TICK_INNER_R)
   const [lx, ly] = polar(deg, LABEL_R)
-  return {v, major, line: [x1, y1, x2, y2], label: labeled ? {text: String(v), x: lx, y: ly} : null}
+  // v2.x(사용자): 라벨은 **백자리 한 자리**만 (300→3, 700→7). 상수 스케일은 불변, 표기만 축약.
+  return {v, major, line: [x1, y1, x2, y2], label: labeled ? {text: String(v / MAJOR_STEP), x: lx, y: ly} : null}
 }
 
 /** 눈금 전수 — 0~700, 주 100(라벨)·보조 50 */
@@ -162,25 +120,12 @@ const TICKS: readonly GaugeTick[] = (() => {
  * 진행 채움 = 그라디언트 라임(0→현재 값), 바늘 = 중성색, 레드라인 = 상단 고위험 구간.
  * 고정 viewBox → layout shift 0. reduced-motion 시 보간 0ms.
  */
-export function PanoGauge({panoHz, stabilityCv}: PanoGaugeProps) {
+export function PanoGauge({panoHz}: PanoGaugeProps) {
   const theme = useTheme()
   const palette = (theme.vars ?? theme).palette
   const limeFg = measureStatusTokens.measuring.fg
   const dim = panoHz === null
   const gradientId = useId()
-  // 흔들림 부채꼴 (A안) — 측정 중 + CV 보유 시에만. null이면 미렌더(안정 = 또렷한 바늘)
-  const wedge = panoHz !== null && stabilityCv !== null ? wedgePath(panoHz, stabilityCv) : null
-  // 부채꼴 색 = 절대 등급(v2.x 2축, 사용자) — MeasureFigures 라벨 색과 동일 체계.
-  // excellent·good은 success(초록)로 라임 채움과 구분, fair는 warning, high는 error.
-  const wedgeFill =
-    stabilityCv !== null
-      ? {
-          excellent: palette.success.main,
-          good: palette.success.main,
-          fair: palette.warning.main,
-          high: palette.error.main,
-        }[stabilityLevelOf(stabilityCv)]
-      : limeFg
 
   return (
     <svg
@@ -231,7 +176,6 @@ export function PanoGauge({panoHz, stabilityCv}: PanoGaugeProps) {
               y2={tick.line[3]}
               strokeWidth={tick.major ? 1.5 : 1}
               style={{
-                // v2.29: 주·보조 모두 text.primary(밝게). 이전엔 주 눈금이 text.secondary라 더 어두웠다
                 stroke: palette.text.primary,
                 ...(tick.major ? {} : {opacity: MINOR_TICK_OPACITY}),
               }}
@@ -243,8 +187,8 @@ export function PanoGauge({panoHz, stabilityCv}: PanoGaugeProps) {
                 textAnchor="middle"
                 dominantBaseline="central"
                 style={{
-                  fill: palette.text.primary, // v2.29(사용자: 밝게) — 눈금 숫자 text.secondary→primary
-                  fontSize: 6.5, // v2.26(사용자): 100단위 라벨 숫자 조금 더 축소(8→6.5)
+                  fill: palette.text.primary,
+                  fontSize: 7.5, // v2.x(사용자): 한 자리라 조금 키워도 여백 확보 (6.5→7.5)
                   fontWeight: 700,
                   letterSpacing: '0.04em',
                   fontVariantNumeric: 'tabular-nums lining-nums',
@@ -273,10 +217,6 @@ export function PanoGauge({panoHz, stabilityCv}: PanoGaugeProps) {
           />
         )}
 
-        {/* 흔들림 부채꼴 (v2.x A안+색) — 바늘 아래 반투명 층: 폭 = ±(cv×pano) 범위,
-            색 = 절대 등급(초록/앰버/빨강). 반투명이라 트랙·채움이 비쳐 게이지 가독 유지 */}
-        {wedge !== null && <path d={wedge} style={{fill: wedgeFill, opacity: WEDGE_OPACITY}} />}
-
         {/* 바늘 — dim에서도 최소 위치(0)에 렌더(빈 계기판 금지). 중성색(라임 채움과 겹쳐도 보임) */}
         <Box
           component="g"
@@ -287,11 +227,7 @@ export function PanoGauge({panoHz, stabilityCv}: PanoGaugeProps) {
             transition: `transform ${motionTokens.needleMs}ms linear`,
             '@media (prefers-reduced-motion: reduce)': {transition: 'none'},
           }}>
-          <polygon
-            points={NEEDLE_POINTS}
-            style={{fill: palette.text.primary}}
-            strokeLinejoin="round"
-          />
+          <polygon points={NEEDLE_POINTS} style={{fill: palette.text.primary}} strokeLinejoin="round" />
         </Box>
         <circle
           cx={CX}

@@ -22,6 +22,7 @@ import {
   MeasureActionDock,
   MeasureFigures,
   PermissionHelpDialog,
+  StabilityGauge,
   deriveMeasureAction,
 } from '@features/measure-session/ui'
 import {useCreateMotor} from '@features/motor-management/api'
@@ -226,6 +227,11 @@ export function MeasurePage() {
 
         {/* [Z2] 수치 존 — 고정 높이는 MeasureFigures가 소유 (component-spec §2.4) */}
         <MeasureFigures view={view} />
+
+        {/* [Z2b] 변동률 게이지 — 파노 게이지와 별개, 아래쪽 축소 아크 (v2.x 사용자 req) */}
+        <Box sx={{mt: 1}}>
+          <StabilityGauge view={view} />
+        </Box>
 
         <Box sx={{flex: 1}} />
 

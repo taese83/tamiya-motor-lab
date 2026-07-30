@@ -254,8 +254,10 @@ export const layoutTokens = {
   /** 하단 탭 콘텐츠 높이 (safe-area 제외) */
   bottomNavHeight: 56,
   /** S1 중앙 수치 영역 고정 높이 — 6-status 전부 동일 (layout shift 금지, DS-A3).
-   *  v3: rpmValue 상향에 동조 재클램프 (계약 자체는 불변 — DS-A16) */
-  measureValueMinHeight: 'clamp(200px, 60vw, 272px)',
+   *  v3: rpmValue 상향에 동조 재클램프 (계약 자체는 불변 — DS-A16)
+   *  v2.x(사용자: 게이지 더 크게): 게이지가 이 높이에 맞춰 스케일되므로 상향 재클램프 —
+   *  다이얼 아래 여백이 넓어 하단 콘텐츠 압박 없음. 계약(전 status 동일 높이)은 불변. */
+  measureValueMinHeight: 'clamp(224px, 66vw, 300px)',
   /** v3 additive: 섹션 간 수직 여백 (px) — 여백 스케일 ~1.5× */
   sectionGap: 40,
   /** v3 additive: 카드 내부 패딩 (px) */

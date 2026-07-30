@@ -1,7 +1,5 @@
 import {Box, Typography} from '@mui/material'
 import {layoutTokens, measureStatusTokens} from '@shared/config/design-tokens'
-import {STABILITY_LEVEL_LABELS, stabilityLevelOf} from '@shared/config/domain'
-import type {StabilityLevel} from '@shared/config/domain'
 import {formatPanoValue, formatRpm} from '@shared/lib/format'
 import {BigNumber} from '@shared/ui/big-number'
 import type {ReactNode} from 'react'
@@ -14,15 +12,6 @@ export interface MeasureFiguresProps {
 
 /** 값 없음 placeholder — BigNumber(null)는 sr-only를 동반하므로 보조 행은 aria-hidden dash만 */
 const EM_DASH = '—'
-
-// 절대 등급 라벨 색 — 판단 축이므로 등급색을 쓴다(원값 %·±rpm은 중립 유지).
-// 게이지 부채꼴 색과 동일 체계: excellent·good=초록, fair=앰버, high=빨강 (사용자 색 추가 req).
-const STABILITY_LEVEL_COLOR: Record<StabilityLevel, string> = {
-  excellent: 'success.main',
-  good: 'success.main',
-  fair: 'warning.main',
-  high: 'error.main',
-}
 
 /**
  * view 8종 → measureStatusTokens 6키 매핑 (component-spec v2 §2.3과 동일 규칙):
@@ -124,10 +113,7 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
       }}>
       {/* 파노 게이지 — 장식(aria-hidden). full-bleed 오버레이(존 전체를 채워 크게 — 사용자 req) */}
       <Box aria-hidden="true" sx={{position: 'absolute', inset: 0, pointerEvents: 'none'}}>
-        <PanoGauge
-          panoHz={measuring ? view.panoHz : null}
-          stabilityCv={measuring ? view.stabilityCv : null}
-        />
+        <PanoGauge panoHz={measuring ? view.panoHz : null} />
       </Box>
       {/* 수치 오버레이 — 게이지 위 중앙. 눈금 라벨이 아크 바깥(v2.21)이라 내부가 비어 겹치지 않는다.
           파노는 축소(guide)해 아크를 넘지 않고, canonical 텍스트는 BigNumber(스크린리더 경로).
@@ -163,7 +149,7 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
             </Typography>
           )}
         </Row>
-        {/* v2.28(사용자: rpm만 더 내려) — hub 안착에서 한 단계 더 아래로. 뷰포트 비례(clamp) */}
+        {/* v2.28(사용자): rpm을 바늘 축(hub)보다 더 아래로 — 파노/Hz는 그대로, rpm 행만 이동. */}
         <Row height={ROW_HEIGHTS.rpm} offsetY="clamp(44px, 12vw, 56px)">
           {measuring ? (
             // rpm 보조 — 고대비 중립색(text.primary). 파노=라임과 위계 구분
@@ -180,8 +166,9 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
             </Typography>
           )}
         </Row>
+        {/* 문구 슬롯 — 오류·안내 문구만(변동률은 v2.x부터 별도 StabilityGauge 소관). */}
         <Row height={ROW_HEIGHTS.message}>
-          {message !== null ? (
+          {message !== null && (
             <Typography
               variant="body2"
               sx={{
@@ -194,29 +181,6 @@ export function MeasureFigures({view}: MeasureFiguresProps) {
               }}>
               {message}
             </Typography>
-          ) : (
-            // 안정도(v2.x 2축) — 원값(변동률 %·±rpm) + **절대 등급 병기**(사용자 확정: 변동률
-            // 자체의 4구간 기준). 추세(기준선 대비) 판정은 모터별 기준선이 있는 모터 상세 소관 —
-            // 측정 화면은 어느 모터인지 모른다. measuring 중 비어 있던 문구 슬롯 재사용(레이아웃 불변).
-            measuring &&
-            view.stabilityCv !== null && (
-              <Typography
-                variant="body2"
-                sx={{
-                  color: 'text.secondary',
-                  textAlign: 'center',
-                  whiteSpace: 'nowrap',
-                  fontVariantNumeric: 'tabular-nums lining-nums',
-                }}>
-                변동률 {(view.stabilityCv * 100).toFixed(2)}% · ±
-                {formatRpm(Math.max(1, Math.round(view.stabilityCv * view.rpm)))} rpm ·{' '}
-                <Box
-                  component="span"
-                  sx={{color: STABILITY_LEVEL_COLOR[stabilityLevelOf(view.stabilityCv)]}}>
-                  {STABILITY_LEVEL_LABELS[stabilityLevelOf(view.stabilityCv)]}
-                </Box>
-              </Typography>
-            )
           )}
         </Row>
       </Box>
