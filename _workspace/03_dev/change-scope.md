@@ -1846,3 +1846,30 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - 브라우저(로컬, 테스트 모터 3건 시드): /motors에 정렬 SegmentControl 노출, [이름순] 선택 시 순서 재정렬(recent: 베타·감마 → name: 감마·베타) 확인. 선택이 공유 store 키 `mml-motor-sort-1`(= RacePage가 읽는 동일 키)에 `sort:"name"`으로 영속됨을 localStorage로 확인.
 - /race는 로그인 게이트로 정상 렌더(새 훅 추가 후에도 무회귀). **로그인 상태의 레이스 정렬 UI**는 배포·로그인 후 확인(로컬 정적 서버는 미로그인 수렴). 콘솔 에러는 v2.43 이전 stale HMR(`?t=` 단일 타임스탬프) 뿐, 신규 에러 없음.
 - 검증용 시드 모터·정렬값은 IndexedDB(mml-db)·localStorage에서 정리 완료(빈 상태·기본 정렬 복원 확인).
+
+---
+
+## v2.45 — 모터 상세 수정·삭제 버튼 제거 + 홈 화면 추가 아이콘(PWA) (사용자)
+
+### TARGET_BEHAVIOR
+1. 모터 상세(`/motors/:id`) 헤더에서 **수정·삭제 버튼 제거**. 모터 관리 진입점은 모터 목록 스와이프 1곳으로 단일화.
+2. 웹사이트를 **스마트폰/PC 홈 화면에 추가**할 때 앱 아이콘(모터 글리프)이 표시되도록 PWA manifest + 아이콘 자산 추가.
+
+### 변경
+- `pages/motor-detail/ui/MotorDetailPage.tsx`: 헤더 [수정][삭제] 버튼 및 관련 로직(수정 시트 state·useUpdateMotor·useMotorDeleteFlow·useDeleteMotorCascade·MotorFormSheet·ConfirmDialog·count 오류 Alert·죽은 import) 전부 제거. 헤더 우측은 [ThemeToggle][Avatar]만. (측정 왕복·파노 기록 개별 삭제 스와이프는 유지.)
+- `public/manifest.webmanifest`(신규): name·short_name·display standalone·theme/background #0A0A0B·icons(svg any + 192/512 png + maskable 512).
+- `public/icon-192.png`·`icon-512.png`·`icon-maskable-512.png`·`apple-touch-icon.png`(신규): favicon 모터 글리프(라임 #D8F542 / 카본 #0A0A0B)를 래스터화. 192/apple-touch(180)는 브라우저 canvas 렌더, 512·maskable은 192에서 sips 확대(및 maskable은 dark 패딩으로 safe-zone 확보).
+- `index.html`: `<link rel="manifest">`·`<link rel="apple-touch-icon">`·apple/mobile web-app-capable·status-bar-style·apple title 메타 추가.
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- 모터 수정·삭제 기능은 **모터 목록(MotorsPage) 행 스와이프**에 그대로 존재(상세에서만 제거).
+- 기존 favicon.svg·theme-color·SEO·safe-area·no-flash 부팅 스크립트 불변. Vercel은 정적 파일을 rewrite보다 우선 서빙하므로 manifest/아이콘 라우팅 문제 없음(vercel.json 무변경).
+
+### NON_GOALS
+- service worker/오프라인 캐시(설치형 아이콘만) · 스플래시 커스텀 · 모터 수정·삭제 기능 자체 삭제
+
+### TEST_EVIDENCE
+- typecheck·lint·test(98)·build 전부 exit 0. dist에 아이콘 4종+manifest 복사 확인(public↔dist sha256 일치).
+- 브라우저(로컬): 모터 상세(실제 모터 "130 1")·not-found 모두 헤더에 수정·삭제 없음([뒤로]·테마·아바타만), 측정/차트/기록 정상. 모터 목록 행 스와이프 [수정]/[삭제] 유지 확인.
+- manifest.webmanifest 200(name·icons 4), 아이콘 4종 200 image/png, `<link rel=manifest/apple-touch-icon>` DOM 존재. 아이콘 픽셀 스캔: 192=13.8%·512=13.7%·maskable=7.7%·apple=6.9% 라임(글리프 정상, 초기 512 blank 재생성 완료).
+- 검증용 시드 모터는 IndexedDB에서 정리(빈 상태 복원).

@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react'
+import {useEffect} from 'react'
 
 import {Alert, Box, Button, Typography} from '@mui/material'
 import {useQuery} from '@tanstack/react-query'
@@ -8,9 +8,7 @@ import {measureQueries} from '@entities/measure-record'
 import {MotorKindChip, motorQueries} from '@entities/motor'
 import {AuthMenu} from '@features/auth'
 import {useDeleteMeasureRecord} from '@features/measure-management'
-import {useDeleteMotorCascade, useUpdateMotor} from '@features/motor-management/api'
-import {useMotorDeleteFlow} from '@features/motor-management/model'
-import {MotorFormSheet, PanoLineChart} from '@features/motor-management/ui'
+import {PanoLineChart} from '@features/motor-management/ui'
 import {
   beginMotorMeasure,
   cancelRaceMeasure,
@@ -19,7 +17,6 @@ import {
 } from '@features/race-measure-handoff'
 import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
 import {formatDateTimeShort, formatFanoHz, formatRpm} from '@shared/lib/format'
-import {ConfirmDialog} from '@shared/ui/confirm-dialog'
 import {EmptyState} from '@shared/ui/empty-state'
 import {TrashIcon} from '@shared/ui/icons'
 import {PageHeader} from '@shared/ui/page-header'
@@ -29,15 +26,14 @@ import {SWIPE_ACTION_WIDTH, SwipeActionButton, SwipeActions, useSingleOpenRow} f
 import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
-import type {MotorKind} from '@shared/config/domain'
 import type {PersistenceStatus} from '@shared/lib/persistence'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 모터 상세 ('/motors/:motorId', 스택 push) — 버그 리포트 #2: 목록 인라인 확장을
-// 상세 페이지로 전환. 조립 계약: PageHeader(←/모터명/[수정][삭제]/ThemeToggle) +
+// 상세 페이지로 전환. 조립 계약: PageHeader(←/모터명/ThemeToggle/Avatar) +
 // MotorKindChip + PanoLineChart(measureQueries.byMotor asc ≤20) + 기록 리스트
-// (canonical 텍스트 채널 — 차트는 추세 보조 aria-hidden) + 하단 [측정] +
-// MotorFormSheet(edit) + useMotorDeleteFlow(cascade ConfirmDialog, 성공 시 '/motors' replace).
+// (canonical 텍스트 채널 — 차트는 추세 보조 aria-hidden) + 하단 [측정].
+// v2.45(사용자): 모터 수정·삭제는 이 화면에서 제거 — 진입점은 모터 목록 스와이프 1곳으로 단일화.
 // 미존재 motorId는 라우트 404가 아니라 in-place EmptyState (layout-spec §2.2).
 //
 // v2.5 측정 왕복: 하단 [측정] → beginMotorMeasure + navigate('/') → S1이 수치 안정 시 자동
@@ -117,32 +113,9 @@ export function MotorDetailPage() {
   const recordsQuery = useQuery({...measureQueries.byMotor(motorId), enabled: !corrupted})
   const motor = motorQuery.data ?? null
 
-  // ── 수정 시트 (edit 전용 — create는 목록 페이지 소관) ────────────────────────
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const updateMotor = useUpdateMotor()
-  const openEditSheet = () => {
-    updateMotor.reset()
-    setSheetOpen(true)
-  }
-  const handleSheetSubmit = (values: {name: string; kind: MotorKind}) => {
-    updateMotor.mutate({id: motorId, patch: values}, {onSuccess: () => setSheetOpen(false)})
-  }
-
-  // ── cascade 삭제 (CP-3) — count 실측 → ConfirmDialog → deleteMotorCascade ──
-  const deleteMotorCascade = useDeleteMotorCascade()
-  const deleteFlow = useMotorDeleteFlow({
-    deleteMotor: async id => {
-      await deleteMotorCascade.mutateAsync(id)
-    },
-    // 삭제 성공 — 상세의 대상이 소멸했으므로 목록으로 replace (스택에 잔존 금지)
-    onDeleted: () => {
-      void navigate('/motors', {replace: true})
-    },
-  })
-  const requestDelete = () => {
-    if (motor === null) return
-    deleteFlow.requestDelete({id: motor.id, name: motor.name})
-  }
+  // v2.45(사용자): 모터 수정·삭제는 이 화면에서 제거했다 — 진입점은 모터 목록(MotorsPage)의
+  // 행 스와이프 [수정]/[삭제] 1곳으로 단일화한다(상세 헤더가 붐비지 않게). cascade 삭제·수정 폼
+  // 훅/시트/ConfirmDialog는 목록 페이지가 그대로 소유한다.
 
   // ── v2.38 파노 기록 개별 삭제 — 밀어서 삭제(스와이프 트레이 [삭제] 탭, 다이얼로그 없음, 사용자) ──
   // 개별만 제공(일괄 없음). 제스처(스와이프)+탭이 의도 게이트 — 탭 즉시 삭제 + 성공 토스트.
@@ -222,35 +195,13 @@ export function MotorDetailPage() {
     <>
       {/* v2.8 고정 셸 — 헤더·차트·[측정]은 고정, 기록 목록만 스크롤한다 */}
       <Box sx={pageShellSx}>
-        {/* [H] 화면 헤더 — [←] [h1 모터명] [수정][삭제] [ThemeToggle] [Avatar] (v2.43: 아바타 전역·오른쪽 끝) */}
+        {/* [H] 화면 헤더 — [←] [h1 모터명] [ThemeToggle] [Avatar]
+            v2.45(사용자): 수정·삭제 버튼 제거 — 모터 관리는 목록 화면 스와이프에서 수행한다. */}
         <PageHeader
           onBack={handleBack}
           title={motor?.name ?? '모터 상세'}
           actions={
             <>
-              {motor !== null && (
-                // v2.6 헤더 정리: 보조·파괴 액션은 테두리를 걷어 text 톤으로 낮춘다.
-                // 이전에는 outlined 사각 2개(+빨간 테두리)가 56px 헤더에서 제목 폭을 잠식하고
-                // 파괴 액션이 과하게 시선을 끌었다. 라벨은 유지한다(아이콘 단독 파괴 액션 금지) —
-                // 실제 안전장치는 ConfirmDialog의 명시 고지다.
-                <>
-                  {/* 중립 톤 — 라임은 주 행동([측정]) 전용이라 보조 액션이 같은 색을 쓰지 않는다 */}
-                  <Button
-                    variant="text"
-                    onClick={openEditSheet}
-                    sx={{minWidth: 44, minHeight: '2.75rem', color: 'text.primary'}}>
-                    수정
-                  </Button>
-                  <Button
-                    variant="text"
-                    color="error"
-                    disabled={deleteFlow.isCounting}
-                    onClick={requestDelete}
-                    sx={{minWidth: 44, minHeight: '2.75rem'}}>
-                    삭제
-                  </Button>
-                </>
-              )}
               <ThemeToggle />
               <AuthMenu />
             </>
@@ -306,18 +257,6 @@ export function MotorDetailPage() {
           <>
             {/* ── 고정 영역: 알림 · 종류 칩 · 차트 (스크롤 대상 아님) ── */}
             <Box sx={fixedTopSx}>
-              {deleteFlow.countError !== null && (
-                <Alert
-                  severity="error"
-                  action={
-                    <Button color="inherit" size="small" onClick={deleteFlow.retryCount}>
-                      다시 시도
-                    </Button>
-                  }>
-                  {deleteFlow.countError}
-                </Alert>
-              )}
-
               {/* 왕복 수집 실패 고지 (v2.5) — 성공 위장 금지. 닫기 = slot 파기(고지의 원천 제거) */}
               {measureFailed && (
                 <Alert severity="error" onClose={cancelRaceMeasure}>
@@ -486,25 +425,6 @@ export function MotorDetailPage() {
           </>
         )}
       </Box>
-
-      {/* 시트·다이얼로그는 portal 렌더 — 고정 셸 밖에 둬 높이 계산에 끼어들지 않게 한다 */}
-      {/* 수정 시트 — 닫힘 = 폼 파기, pending 중 닫힘 차단(single-flight) */}
-      {motor !== null && (
-        <MotorFormSheet
-          open={sheetOpen}
-          mode="edit"
-          initial={{name: motor.name, kind: motor.kind}}
-          pending={updateMotor.isPending}
-          errorMessage={updateMotor.isError ? updateMotor.error.message : null}
-          onSubmit={handleSheetSubmit}
-          onClose={() => {
-            if (!updateMotor.isPending) setSheetOpen(false)
-          }}
-        />
-      )}
-
-      {/* cascade 삭제 confirm — copy·pending·오류는 flow가 소유 (§3.1 스프레드 계약) */}
-      <ConfirmDialog {...deleteFlow.dialogProps} />
     </>
   )
 }

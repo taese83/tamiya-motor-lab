@@ -11,6 +11,14 @@
     />
     <!-- v2.38(사용자: SEO 추가) — 색인 허용 + 파비콘(메뉴 모터 아이콘)·메타·OG -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- v2.45(사용자: 홈 화면 추가 아이콘) — PWA manifest(Android·PC 설치) + apple-touch-icon(iOS).
+         iOS는 manifest 아이콘·SVG를 홈 화면에 쓰지 않으므로 180×180 PNG를 별도 지정한다. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Motor Lab" />
     <meta name="robots" content="index, follow" />
     <meta
       name="description"
