@@ -8,11 +8,14 @@ export interface EstimateFrameOptions {
   fMin?: number
   fMax?: number
   maxCandidates?: number
+  /** 하위-복원 제수 — dip을 이 값들로 나눠 후보 확장 (v2.x). 기본 [1]=지배 피치 그대로 */
+  divisors?: readonly number[]
 }
 
-const DEFAULT_FMIN = 170
-const DEFAULT_FMAX = 620
+const DEFAULT_FMIN = 100
+const DEFAULT_FMAX = 700
 const DEFAULT_MAX_CANDIDATES = 5
+const DEFAULT_DIVISORS: readonly number[] = [1]
 
 // pYIN 임계 분포: Beta(2,18) 근사 가중 (저임계에 질량 집중 — pYIN 원 논문 파라미터)
 const THRESHOLD_COUNT = 24
@@ -46,9 +49,12 @@ export function estimateFrame(
   const fMin = options.fMin ?? DEFAULT_FMIN
   const fMax = options.fMax ?? DEFAULT_FMAX
   const maxCandidates = options.maxCandidates ?? DEFAULT_MAX_CANDIDATES
+  const divisors = options.divisors ?? DEFAULT_DIVISORS
+  // dip을 최대 제수까지 나눠 확장하므로, 탐색 상한도 fMax·maxDivisor까지 넓혀 그 고역 dip을 잡는다.
+  const maxDivisor = Math.max(1, ...divisors)
   const n = frame.length
   const lagMax = Math.min(Math.floor(sampleRate / fMin), Math.floor(n / 2))
-  const lagMin = Math.max(2, Math.floor(sampleRate / (fMax * 6)))
+  const lagMin = Math.max(2, Math.floor(sampleRate / (fMax * maxDivisor)))
   if (lagMax <= lagMin + 1) return []
 
   // 차분 함수 d(τ), τ ∈ [1, lagMax] — W = n − lagMax 고정 창 (YIN step 2)
@@ -79,7 +85,7 @@ export function estimateFrame(
       const refinedLag = lag + offset
       const depth = Math.max(0, cur - 0.25 * (prev - next) * offset)
       const freq = sampleRate / refinedLag
-      if (freq >= fMin * 0.98 && freq <= fMax * 6 * 1.02) {
+      if (freq >= fMin * 0.98 && freq <= fMax * maxDivisor * 1.02) {
         dips.push({lag: refinedLag, freq, depth, prob: 0})
       }
     }
@@ -101,10 +107,10 @@ export function estimateFrame(
     }
   }
 
-  // ÷1·÷3·÷6 확장 후 [fMin, fMax] 대역 내 후보만 채택
+  // 제수 확장(기본 [1]=하위-복원 없음) 후 [fMin, fMax] 대역 내 후보만 채택
   const raw: {f0: number; salience: number}[] = []
   for (const dip of dips) {
-    for (const divisor of [1, 3, 6]) {
+    for (const divisor of divisors) {
       const f0 = dip.freq / divisor
       if (f0 >= fMin && f0 <= fMax) {
         // 확장 후보는 소폭 할인, dip 깊이(1−depth)를 하한 salience로 보전

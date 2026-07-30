@@ -83,6 +83,7 @@ export function createFrameAnalyzer(
         fMin: options.fMin,
         fMax: options.fMax,
         maxCandidates: options.maxCandidates,
+        divisors: options.pitchDivisors,
       })
       if (pyinCandidates.length === 0) return emptyAnalysis(rms)
 

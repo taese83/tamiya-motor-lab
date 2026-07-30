@@ -90,9 +90,16 @@ function assertDisplayInvariant(est: DisplayEstimate, frameEndSec: number): void
   }
 }
 
-/** 엔진을 생성해 청크 스트리밍으로 전체 신호를 공급하고, 프레임 종료 시각을 붙여 수집한다 */
-function runEngine(pcm: Float32Array, sampleRate: number, chunkSize = 1024): TimedEstimate[] {
-  const engine = createAnalysisEngine({sampleRate})
+/** 엔진을 생성해 청크 스트리밍으로 전체 신호를 공급하고, 프레임 종료 시각을 붙여 수집한다.
+ *  tuning override는 v2.x 이후 필요 — 기본 pitchDivisors=[1](지배 피치)라, ÷3·÷6 하위-복원을
+ *  검증하는 fixture는 명시적으로 [1,3,6]을 켠다. */
+function runEngine(
+  pcm: Float32Array,
+  sampleRate: number,
+  chunkSize = 1024,
+  tuning: Partial<typeof DEFAULT_TUNING> = {},
+): TimedEstimate[] {
+  const engine = createAnalysisEngine({sampleRate, ...tuning})
   const out: TimedEstimate[] = []
   let produced = 0
   for (let offset = 0; offset < pcm.length; offset += chunkSize) {
@@ -217,7 +224,15 @@ describe('fixture ③ 고조파 오염(+1805 Hz 독립 톤) — 일치도 검사
 })
 
 describe('fixture ④ 잡음 SNR 10 dB — f0 오차 < 0.5 Hz, 게이트 통과', () => {
-  const estimates = runEngine(fixtureSnr(10), FIXTURE_SAMPLE_RATE)
+  // HARMONIC_SET은 **약한 기본파(300, amp 0.12) + 강한 3·6배(900/1800)** = "묻힌 기본파" 신호다.
+  // v2.x 기본(pitchDivisors=[1]·범위 100~700, 지배 피치)에서는 잡음 하 약한 300을 정밀 추정할 수
+  // 없으므로, 이 fixture는 ÷3·÷6 하위-복원 **능력**을 원래 설계 파라미터(170~620·[1,3,6])로 켜서
+  // 검증한다(그 모드가 여전히 동작함을 보장 — 기본 동작은 지배 피치로 바뀌었을 뿐 능력은 유지).
+  const estimates = runEngine(fixtureSnr(10), FIXTURE_SAMPLE_RATE, 1024, {
+    fMin: 170,
+    fMax: 620,
+    pitchDivisors: [1, 3, 6],
+  })
 
   test('정착 후 게이트를 통과하며 오차 < 0.5 Hz', () => {
     const settled = estimatesAfter(estimates, WARMUP_SEC)

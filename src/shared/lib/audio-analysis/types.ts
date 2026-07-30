@@ -108,9 +108,16 @@ export interface EngineTuning {
   hopSeconds: number
   /** 데시메이션 목표 샘플레이트 (Hz) — v2 §1: 12 kHz */
   targetDecimatedRate: number
-  /** f0 탐색 대역 (Hz) — v2 §0: 170~620 */
+  /** f0 탐색 대역 (Hz) — v2.x(사용자): 지배 피치 기준 100~700 (60Hz 험 회피 하한, 42k rpm 상한) */
   fMin: number
   fMax: number
+  /**
+   * pYIN 후보 하위-복원 제수 (v2.x 신설). 검출 dip을 이 값들로 나눠 후보를 확장한다.
+   * v2 초기 설계는 [1,3,6](정류 고조파가 기본파보다 클 때 하위 f0 복원)이었으나, 실측 결과
+   * 지배 피치(파노튜너 기준)를 하위로 과하게 끌어내리는 부작용이 있어 **기본을 [1]로**
+   * (하위-복원 끔 = 검출된 지배 피치를 그대로 보고). 옵션이라 [1,3,6]로 되돌릴 수 있다.
+   */
+  pitchDivisors: readonly number[]
   /** comb 점수·검출 대상 고조파 차수 — v2 §1: 1·3·6 */
   scoredHarmonics: readonly number[]
   /** scoredHarmonics와 정렬된 가중치 (물리 기반 고정값 baseline) */
@@ -175,8 +182,9 @@ export const DEFAULT_TUNING: EngineTuning = {
   frameSeconds: 0.2,
   hopSeconds: 0.025,
   targetDecimatedRate: 12000,
-  fMin: 170,
-  fMax: 620,
+  fMin: 100,
+  fMax: 700,
+  pitchDivisors: [1], // v2.x(사용자): 하위-복원 끔 — 지배 피치 그대로 (÷3·÷6 과대 하향 제거)
   scoredHarmonics: [1, 3, 6],
   harmonicWeights: [1, 1, 0.7],
   maxCandidates: 5,
