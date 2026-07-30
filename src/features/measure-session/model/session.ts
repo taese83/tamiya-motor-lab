@@ -405,6 +405,12 @@ function handleStateChange(): void {
 }
 
 function teardownResources(): void {
+  // 연속 측정 타이머 리셋(v2.x 버그 수정): measuringSinceMs는 무신호 프레임에서만 null이 됐다.
+  // 그래서 모터가 계속 도는 채로 왕복 복귀(언마운트→stopCapture→teardown) 후 재측정하면,
+  // 파이프라인은 새로 만들어져도 옛 시작 시각이 남아(??= 가 non-null이라 안 덮음) measuredMs가
+  // 즉시 5초를 넘겨 **즉시 확정**되는 버그가 있었다. 파이프라인 파기 = 측정 종료이므로 여기서
+  // 타이머를 초기화해, 다음 세션 첫 measuring 프레임이 시작 시각을 새로 잡게 한다.
+  measuringSinceMs = null
   const resources = active
   if (resources === null) return
   active = null

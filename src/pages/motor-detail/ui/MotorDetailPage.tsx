@@ -459,7 +459,14 @@ export function MotorDetailPage() {
             기록 0건에서도 노출한다(첫 수집 진입점). primary contained 48px.
           */}
             <Box sx={footerSx}>
-              <Button variant="contained" fullWidth onClick={handleMeasure} sx={{minHeight: 48}}>
+              {/* 쓰기(기록 삭제) 진행 중에는 [측정] 비활성 — 왕복 진입이 in-flight 쓰기와 겹치지
+                  않게(사용자 요청: 서버 요청 중 버튼 비활성). 삭제 완료 후 즉시 재활성. */}
+              <Button
+                variant="contained"
+                fullWidth
+                onClick={handleMeasure}
+                disabled={deleteMeasure.isPending}
+                sx={{minHeight: 48}}>
                 측정
               </Button>
             </Box>
