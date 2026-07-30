@@ -1890,3 +1890,27 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - 전송 무결성: 각 PNG를 브라우저 SHA-256과 디스크 `shasum` 대조(192·512·apple 1치). **maskable 단일 붙여넣기에서 SHA MISMATCH 감지(de5475≠8ebeb3)** → v2.45식 대용량 base64 손상을 새 SHA 가드가 실제로 잡음. 이후 512 복사로 대체.
 - 브라우저: 디스크 4종 모두 꽉 찬 글리프·중앙정렬·풀블리드 배경(잘림/투명/아티팩트 없음) 확인. 사용자 최종 확인 완료.
 - 자산 전용 변경(소스·테스트 무변경)이라 typecheck/lint/test/build 영향 없음. dist는 배포 시 Vercel이 재빌드.
+
+---
+
+## v2.47 — 레이스 목록 행 스타일 통일 + 측정 왕복 안내 재배치 (ui-change, 사용자)
+
+### TARGET_BEHAVIOR
+1. 레이스 진입 목록(RaceMotorList) 행의 높이·정렬을 모터 목록(MotorList/MotorRow)과 통일.
+2. 측정 페이지 왕복 모드 안내("수치가 안정되면 자동으로 돌아갑니다")를 최상단 → [돌아가기] 버튼 바로 위로 재배치.
+
+### 변경
+- `features/race-record/ui/RaceMotorList.tsx`: 행 간격 `List gap 1.5→1`(MotorList `Stack spacing=1`=8px와 동일), 행 패딩 `pl/pr 2→1.5`(MotorRow와 동일). minHeight 64·py 1.25·gap 1.5는 기존과 동일.
+- `pages/measure/ui/MeasurePage.tsx`: `RaceMeasureStrip`을 페이지 최상단에서 Z3 액션 존으로 이동, `MeasureActionDock`(돌아가기 버튼) 바로 위에 `mb:1`로 배치.
+
+### PUBLIC_CONTRACTS_TO_PRESERVE
+- RaceMeasureStrip `role="status"` 발화(왕복 진입 1회)는 위치와 무관하게 유지. 왕복 slot 렌더 동치(INV-21) 불변.
+- 행 accessible name·종류색 카드·스와이프 없음(레이스 목록) 등 기존 동작 불변.
+
+### NON_GOALS
+- 레이스 행에 스파크라인 추가(요청은 높이·정렬만) · 스트립 문구 변경 · MotorRow 측 변경
+
+### TEST_EVIDENCE
+- typecheck·lint·test(98)·build 전부 exit 0.
+- 브라우저(로컬): 모터 행 실측 = 64px 높이·pl/pr 12px·py 10px → RaceMotorList가 동일 값(pl/pr 1.5=12px, gap 1=8px)으로 정렬(#1). 왕복 모드 진입(모터 상세→측정) 후 안내 스트립이 [모터로 돌아가기] 버튼 **바로 위**·페이지 상단은 비어 있음을 a11y 트리+스크린샷으로 확인(#2). 시드 모터 정리 완료.
+- #1 레이스 목록 실제 렌더는 로그인 게이트로 로컬 미표시 — 행 sx가 측정한 모터 행과 동일하므로 배포에서 동일 표시(DEPLOY 확인 권장).

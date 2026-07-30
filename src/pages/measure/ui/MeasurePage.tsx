@@ -198,9 +198,6 @@ export function MeasurePage() {
         onClose={toggleSettingsHelp}
       />
 
-      {/* 왕복 모드 스트립 (component-spec §7.1) — slot 존재와 렌더가 동치(INV-21), 최상단 */}
-      {slot !== null && <RaceMeasureStrip motorName={slot.motorName} origin={slot.origin} />}
-
       {/* v2.43 우상단 클러스터 — 테마 토글 + 로그인 아바타. 아바타는 전 화면 헤더 오른쪽 끝
           정책(모든 화면에서 로그인 가능·아바타 노출). S1은 PageHeader가 없어 절대배치로 우상단에 둔다.
           미로그인=클릭 시 구글 로그인, 로그인=아바타 메뉴(이름·로그아웃). */}
@@ -233,6 +230,13 @@ export function MeasurePage() {
 
         {/* [Z3] 액션 존 — 단일 슬롯 h56, action은 deriveMeasureAction 순수 산출 (§2.7) */}
         <Box sx={{pb: 2}}>
+          {/* v2.47(사용자): 왕복 모드 안내를 최상단 → 돌아가기 버튼 바로 위로 재배치.
+              slot 존재와 렌더 동치(INV-21), role="status"는 위치와 무관하게 진입 시 1회 발화. */}
+          {slot !== null && (
+            <Box sx={{mb: 1}}>
+              <RaceMeasureStrip motorName={slot.motorName} origin={slot.origin} />
+            </Box>
+          )}
           <MeasureActionDock
             action={action}
             onRecord={handleRecord}

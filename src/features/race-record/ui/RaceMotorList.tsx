@@ -46,7 +46,7 @@ const raceDetailLine = (race: MotorSummaryRace): string => {
  */
 export function RaceMotorList({summaries, onSelect}: RaceMotorListProps) {
   return (
-    <List disablePadding sx={{display: 'flex', flexDirection: 'column', gap: 1.5}}>
+    <List disablePadding sx={{display: 'flex', flexDirection: 'column', gap: 1}}>
       {summaries.map(summary => {
         const {motor, lastRace} = summary
         const visual = motorKindColors[motor.kind]
@@ -83,7 +83,9 @@ export function RaceMotorList({summaries, onSelect}: RaceMotorListProps) {
               <ListItemButton
                 onClick={() => onSelect(motor.id)}
                 aria-label={rowLabel}
-                sx={{minHeight: 64, alignItems: 'center', gap: 1.5, pl: 2, pr: 2, py: 1.25}}>
+                // v2.47(사용자): 높이·정렬을 모터 목록(MotorRow)과 통일 — 행 패딩 pl/pr 1.5,
+                // 행 간격 1(List gap)로 MotorList(Stack spacing=1)·MotorRow(pl/pr 1.5)와 동일.
+                sx={{minHeight: 64, alignItems: 'center', gap: 1.5, pl: 1.5, pr: 1.5, py: 1.25}}>
                 {/* 좌측 2줄 — 이름(주) / 종류 라벨(부). 종류색은 카드·bar가 담당하므로 칩은 없다 */}
                 <Box
                   sx={{minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 0.25}}>
