@@ -1727,3 +1727,20 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - typecheck·lint·build·test 전부 exit 0, vitest 98건.
 - 브라우저(로컬·비로그인): 좌상단 기본 아바타(사람 실루엣, aria-label "로그인"), 클릭→메뉴 [구글 로그인].
   로그인 메뉴(이름·이메일·로그아웃)는 Vercel 로그인 후 확인 대상.
+
+---
+
+## v2.41 — 비로그인 아바타 클릭 = 즉시 구글 로그인 (사용자)
+
+### TARGET_BEHAVIOR
+- 비로그인 아바타 클릭 시 메뉴 없이 **바로 구글 로그인 페이지로 이동**(/api/auth/google/start).
+- 로그인 아바타는 기존대로 메뉴(기본 정보 + 로그아웃).
+
+### 변경
+- `AuthMenu.tsx`: 아바타 onClick 분기 — user===null이면 `location.href='/api/auth/google/start'`,
+  로그인 시 메뉴 오픈. 비로그인 [구글 로그인] MenuItem 제거, Menu는 로그인 시에만 렌더.
+  aria-label 비로그인 "구글 로그인"·aria-haspopup 미부여(메뉴 아님).
+
+### TEST_EVIDENCE
+- typecheck·lint·build·test 전부 exit 0.
+- 브라우저(로컬·비로그인): 아바타 aria-label "구글 로그인"·aria-haspopup 없음·Menu DOM 부재 확인(클릭 시 로그인 진입).
