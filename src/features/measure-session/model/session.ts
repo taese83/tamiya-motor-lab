@@ -56,8 +56,8 @@ let denialCount = 0
 let measuringSinceMs: number | null = null
 /** 마지막 measuring 프레임 시각 — 끊김 길이 판정 기준 */
 let lastMeasuringAtMs: number | null = null
-/** 이 시간 이내의 신호 끊김은 연속 측정으로 간주한다 (v2.x) */
-const MEASURING_GAP_TOLERANCE_MS = 800
+/** 이 시간 이내의 신호 끊김은 연속 측정으로 간주한다 (v2.x — 800ms로도 부족해 1200ms로 상향) */
+const MEASURING_GAP_TOLERANCE_MS = 1200
 /** no-permission 중 granted 전환 감지 구독 (Permissions API 가용 시 — F-2 ①) */
 let permissionWatcher: PermissionStatus | null = null
 
