@@ -22,7 +22,7 @@ export interface PanoLineChartProps {
   points: ReadonlyArray<PanoLineChartPoint>
 }
 
-const CHART_HEIGHT = 200
+const CHART_HEIGHT = 140 // R18(사용자): 그래프 높이 축소 — 스크롤 셸에서 리스트 공간 확보(추세 보조 채널이므로 축소 무해)
 
 /**
  * v2.21(사용자): X축을 **시간축 → 측정 인덱스(1..N 회차)** 로 바꿨다. 측정 간격이 불규칙해서

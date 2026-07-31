@@ -30,3 +30,10 @@
 - EVIDENCE: Node 22 pin(CI=true pnpm) typecheck·lint·test(123/123)·build 4종 PASS + check-iterate-scope OK.
   프리뷰(:8082) 실측: 히어로 값 computed fontSize 45px(guide clamp)·weight 800·Oxanium·color rgb(216,245,66)=primary.main(라임),
   라이트 모드 rgb(86,110,0)로 자동 적응(대비 확보). 값 309.0==차트 마지막 점==목록 최신행 일치. 콘솔 에러 0.
+
+## 2026-07-31 R18 파노 추세 그래프 높이 축소 (ui-change)
+- MODIFIED: src/features/motor-management/ui/PanoLineChart.tsx — L25 `const CHART_HEIGHT = 200` → `140`
+  (+ 사유 주석). 단일 소비처(모터 상세)라 상수 직접 변경(prop 일반화는 NON_GOALS). 공개 API·aria-hidden 계약·
+  series/축/색·Y 도메인 padding·`points.length===0` early return 전부 무변경.
+- 위임: component-builder∥route-builder 병렬(독립 슬라이스). subagent 저널 Write hook 차단 → 대필.
+- EVIDENCE: Node 22 게이트 4종 PASS(123 tests) + check-iterate-scope OK. 프리뷰(:8082, 375×667) 실측 chart svg height=140px.

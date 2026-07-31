@@ -2020,3 +2020,25 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 파일 3, 신규 컴포넌트 1, dependency 0, 커밋 1. 위임: component-builder∥route-builder(계약 선고정 병렬).
 - TEST_EVIDENCE: LOCAL_VERIFIABLE — Node22 pnpm typecheck·lint·test·build PASS + 프리뷰(:8082)
   모터 상세 실측(히어로 값 == 목록 최신행 값, 라임 대형, 차트 위 배치, 기록 0건 모터 미렌더).
+
+## R18 — 모터 상세 스크롤 셸 재구성 + 그래프 높이 축소 (2026-07-31, ui-change)
+- CHANGE_MODE: existing-change
+- REQUEST: 모터 상세 그래프 높이 축소 + 하단 기록 리스트가 안 눌리고 스크롤되게. 스크롤이 그래프까지 포함되게(그래프도 스크롤).
+- OBSERVED_BASELINE: R17에서 최근 파노 히어로를 fixedTopSx(비스크롤 상단)에 추가하며 고정 영역이 커져
+  짧은 뷰포트에서 scrollAreaSx(기록 리스트)가 눌려 스크롤 불가. 그래프(PanoLineChart h200)가 고정 영역에 있어
+  스크롤 대상이 아님. owner: pages/motor-detail(MotorDetailPage 셸), features/motor-management/ui(PanoLineChart).
+- TARGET_BEHAVIOR (사용자 확정 — 옵션 B):
+  - PanoLineChart CHART_HEIGHT 200 → 140.
+  - fixedTopSx는 종류칩·안정도(ConditionSummary)·최근 파노(LatestPanoHero)까지 유지, '파노 추세' 헤딩+그래프를
+    scrollAreaSx **최상단**으로 이동 → 그래프+기록 리스트가 하나의 스크롤 영역. 헤더(PageHeader)·하단 [측정]은 고정 유지.
+- ALLOWED_PATHS:
+  - src/features/motor-management/ui/PanoLineChart.tsx (CHART_HEIGHT — component-builder)
+  - src/pages/motor-detail/ui/MotorDetailPage.tsx (셸 재구성·주석 — route-builder)
+- PUBLIC_CONTRACTS_TO_PRESERVE: PanoLineChart aria-hidden 장식 계약·points asc·PanoLineChart 공개 API(props)·
+  기록 리스트 canonical 텍스트/역순/회차/밀어서 삭제·측정 왕복(v2.5)·최근 파노 히어로(R17)·ConditionSummary·
+  not-found/error/corrupted/pending 분기·하단 [측정] 고정·표시 포맷 단일화(@shared/lib/format).
+- NON_GOALS: 그래프 데이터/축/색 변경, 히어로·컨디션 내용 변경, 새 컴포넌트/route, 데이터 계층 변경,
+  PanoLineChart를 prop 기반 높이로 일반화(단일 소비처라 상수 직접 변경).
+- CHANGE_BUDGET: 파일 2, 신규 0, dependency 0, 커밋 1. 위임: component-builder∥route-builder(독립 슬라이스 병렬).
+- TEST_EVIDENCE: LOCAL_VERIFIABLE — Node22 게이트 4종 + 프리뷰(:8082) 짧은 뷰포트(375×667)에서 리스트 스크롤 동작·
+  그래프가 스크롤과 함께 이동·그래프 높이 140·헤더/[측정] 고정 실측.

@@ -44,10 +44,10 @@ import type {PersistenceStatus} from '@shared/lib/persistence'
 // invalidation 소관이라 이 페이지가 별도 갱신하지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── v2.8 고정 셸 레이아웃 (하단 [측정] 고정 + 기록 목록만 스크롤) ─────────────
+// ── v2.8 고정 셸 레이아웃 (하단 [측정] 고정 + 기록 목록만 스크롤) (R18: 그래프도 스크롤) ──
 //
-// 페이지 전체를 뷰포트 높이에 고정하고 기록 목록에만 overflow를 준다. 헤더·차트·[측정]은
-// 스크롤을 타지 않으므로 기록이 늘어도 [측정]이 화면 밖으로 밀리지 않는다.
+// 페이지 전체를 뷰포트 높이에 고정하고 기록 목록에만 overflow를 준다. 헤더·상단 요약(칩·안정도·
+// 최근 파노)·[측정]은 스크롤을 타지 않으므로 기록이 늘어도 [측정]이 화면 밖으로 밀리지 않는다.
 //
 // 높이 계산: <main>이 이미 탭 바 높이를 pb로 예약하므로 여기서 같은 값을 빼면 문서 스크롤이
 // 생기지 않는다(S1 MeasurePage와 동일 관례). 전역 배너[G]가 떠 있는 동안에는 그 높이만큼
@@ -59,7 +59,7 @@ const pageShellSx = {
   height: `calc(100dvh - ${layoutTokens.bottomNavHeight}px - ${layoutTokens.safeAreaBottom})`,
 } as const
 
-/** 스크롤을 타지 않는 상단 블록 — 알림·종류 칩·차트 */
+/** 스크롤을 타지 않는 상단 블록 — 알림·종류 칩·안정도·최근 파노 (R18: 그래프는 스크롤 영역으로 이동) */
 const fixedTopSx = {
   px: 2,
   pt: 2,
@@ -70,7 +70,7 @@ const fixedTopSx = {
 } as const
 
 /**
- * 유일한 스크롤 영역 — 기록 목록.
+ * 유일한 스크롤 영역 — 파노 추세 그래프 + 기록 목록 (R18: 그래프를 이 영역으로 이동).
  * minHeight 0이 없으면 flex 자식이 콘텐츠 높이만큼 부풀어 overflow가 동작하지 않는다.
  * overscrollBehavior contain — 목록 끝에서 문서·상위로 스크롤이 연쇄되지 않게 한다.
  */
@@ -207,7 +207,7 @@ export function MotorDetailPage() {
 
   return (
     <>
-      {/* v2.8 고정 셸 — 헤더·차트·[측정]은 고정, 기록 목록만 스크롤한다 */}
+      {/* v2.8 고정 셸 — 헤더·상단 요약·[측정]은 고정, 그래프+기록 목록이 스크롤한다(R18) */}
       <Box sx={pageShellSx}>
         {/* [H] 화면 헤더 — [←] [h1 모터명] [ThemeToggle] [Avatar]
             v2.45(사용자): 수정·삭제 버튼 제거 — 모터 관리는 목록 화면 스와이프에서 수행한다. */}
@@ -269,7 +269,7 @@ export function MotorDetailPage() {
           </Box>
         ) : (
           <>
-            {/* ── 고정 영역: 알림 · 종류 칩 · 차트 (스크롤 대상 아님) ── */}
+            {/* ── 고정 영역: 알림 · 종류 칩 · 안정도 · 최근 파노 (스크롤 대상 아님 — R18: 차트는 스크롤 영역으로) ── */}
             <Box sx={fixedTopSx}>
               {/* 왕복 수집 실패 고지 (v2.5) — 성공 위장 금지. 닫기 = slot 파기(고지의 원천 제거) */}
               {measureFailed && (
@@ -302,7 +302,13 @@ export function MotorDetailPage() {
                   rpm={latestRecord.rpm}
                 />
               )}
+            </Box>
 
+            {/* ── 스크롤 영역: 파노 추세 그래프 + 기록 목록 (R18) ──
+              헤딩은 스크롤 안에 둔다 — 고정 영역에 두면 목록이 비었을 때도 남아
+              "기록 없음" 안내와 중복된 층이 생긴다 */}
+            <Box sx={scrollAreaSx}>
+              {/* R18(사용자): 그래프를 고정영역→스크롤영역으로 이동 — 그래프도 스크롤된다 */}
               {/* v2.14 섹션 구분 — 차트와 기록 목록이 서로 다른 덩어리임을 명시한다.
                 차트는 추세 보조(aria-hidden)라 헤딩은 장식(span) — 스크린리더 목차를 오염시키지 않고
                 canonical 데이터는 아래 기록 목록 텍스트가 담당한다. */}
@@ -318,14 +324,8 @@ export function MotorDetailPage() {
                   />
                 </>
               )}
-            </Box>
-
-            {/* ── 스크롤 영역: 기록 목록만 ──
-              헤딩은 스크롤 안에 둔다 — 고정 영역에 두면 목록이 비었을 때도 남아
-              "기록 없음" 안내와 중복된 층이 생긴다 */}
-            <Box sx={scrollAreaSx}>
               {records !== undefined && records.length > 0 && (
-                <Box sx={{mb: 0.5}}>
+                <Box sx={{mt: 2, mb: 0.5}}>
                   <SectionHeading meta={`${records.length}건`}>측정 기록</SectionHeading>
                 </Box>
               )}
