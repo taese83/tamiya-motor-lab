@@ -1914,3 +1914,38 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - typecheck·lint·test(98)·build 전부 exit 0.
 - 브라우저(로컬): 모터 행 실측 = 64px 높이·pl/pr 12px·py 10px → RaceMotorList가 동일 값(pl/pr 1.5=12px, gap 1=8px)으로 정렬(#1). 왕복 모드 진입(모터 상세→측정) 후 안내 스트립이 [모터로 돌아가기] 버튼 **바로 위**·페이지 상단은 비어 있음을 a11y 트리+스크린샷으로 확인(#2). 시드 모터 정리 완료.
 - #1 레이스 목록 실제 렌더는 로그인 게이트로 로컬 미표시 — 행 sx가 측정한 모터 행과 동일하므로 배포에서 동일 표시(DEPLOY 확인 권장).
+
+---
+
+# Iterate 라운드 로그 (라운드별 append — minimal-change-contract)
+
+> **프로세스 결함 소급 기록(2026-07-31)**: 아래 R1~R11은 각 라운드 시작 전에 append했어야 하나
+> 누락되어 커밋 이력 기준으로 소급 기재한다. R12부터 라운드 시작 전 append 원칙을 복원한다.
+
+## R1~R11 (2026-07-30 ~ 07-31, 소급 요약 — 상세는 각 커밋 메시지가 canonical)
+- R1 조용한 추세 + 최상 컨디션 기준선 DB 영속 (a7c2fd0) / R2 변동률 게이지 분리·파노 확대 (5c88b11)
+- R3 바늘 떨림 + 왕복 사각지대 (fc5e387) / R4 3s/5s 조정 (0bd2bb2, 38bc18b)
+- R5 왕복 재측정 즉시-확정 버그 + 쓰기 중 버튼 비활성 (1b1f7c2)
+- R6 모터 로그인 게이트 + 로그인 마이그레이션 제거 (49ae244) / R7 서버 DB 정본 통일 (d3a36a9)
+- R8 파노 지배피치 실험→원복, 옥타브·veto·fMax 진단 수정 시리즈 (e8d7120~529ea24)
+- R9 진단 계측 도입·제거 (5e954a9, ee46f6f) / R10 토스트 상단·탭 닫힘 (420968e) / R11 게이지 0~800 (e97c035)
+- 보존 계약: 엔진 회귀(engine.real-motors 4케이스)·rolling 20·기준선 병합·서버 best-effort 동기화
+- evidence: 각 라운드 CI=true pnpm typecheck·lint·test·build PASS / DEPLOY_ONLY(마이크·로그인 경로) — 사용자 위임으로 실기기 확인
+
+## R12 — 모터 길들이기 기능 (2026-07-31, 현행)
+- TARGET_BEHAVIOR: 노하우 레시피(사이클: 전압·구동시간·회전방향·휴식·캐미컬·세척·측정) 저장·재사용,
+  타이머 세션(구동/휴식 카운트다운·지시 단계·측정=왕복 origin 'break-in'), 완료 판정(정체 +1%×2 / 목표 파노).
+  세션 진행 상태 비영속(종료 시에만 기록 저장). 기획: `01_plan/break-in-feature-plan.md` v2.
+- ALLOWED_PATHS: shared/config/domain.ts(BREAK_IN_*) · shared/lib/persistence/**(IDB v3 additive) ·
+  entities/break-in/**(신규) · entities/motor/api/repository.ts(cascade) · features/break-in/**(신규) ·
+  features/race-measure-handoff/**(origin) · features/sync/** · app/SyncManager.tsx · app/routes/** ·
+  pages/motor-detail/** · pages/break-in/** · api/_lib/db.js · migrations/004_break_in.sql
+- PUBLIC_CONTRACTS_TO_PRESERVE: v2 데이터 보존(2→3 additive, drop 금지)·INV-11·rolling 20·기준선 병합·
+  왕복 3s/5s·resetAllRecords는 세션만 삭제(레시피=자산 유지)·cascade dangling 0건·서버 004 미실행에도 기존 동기화 무손상.
+- NON_GOALS: 레시피 공유·종류별 프리셋·백그라운드 알림·세션 새로고침 복원.
+- CHANGE_BUDGET: 커밋 2개(A 데이터 계층 / B 세션·UI). B는 **화면 구성 체크포인트 승인 후** 착수.
+- TEST_EVIDENCE: 스키마 경계·판정 유닛 테스트 + 기존 120 회귀 / LOCAL_VERIFIABLE: 레시피 CRUD·편집기 UI(프리뷰) /
+  DEPLOY_ONLY — 사용자 위임: 세션 실측정(마이크)·서버 동기화(로그인)·IDB v2→v3 실기기 업그레이드.
+
+> **R12 폐기(2026-07-31, 사용자 결정)** — 길들이기 기능 구현 중단. 소스 변경분 전량 원복(0 diff),
+> 프로세스 산출물(기획서·저널·본 로그)만 이력으로 보존. R13부터는 라운드 시작 전 append 원칙 적용.
