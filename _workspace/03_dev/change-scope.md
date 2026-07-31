@@ -2117,3 +2117,18 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - NON_GOALS: 미니 차트·완주 vs 이탈 대역 비교(M안, 2차) · 모터 간 비교 · /race 목록 확장 · 추천 로직 변경 · AI 분석.
 - CHANGE_BUDGET: 신규 5(파생+테스트, 카드 2+테스트) + 수정 2(index, RaceDetailPage). 커밋 1. ⚠️ selectAdviceWindow 추출은 동작 보존 회귀 테스트 선행.
 - TEST_EVIDENCE: LOCAL_VERIFIABLE — computeRaceInsight fixture F1~F7(0/1~2/혼재/미정/랩타임 일부/동일 전압/20+건) + 완주0 3+건·삭제 3→2 경계(plan-review 보강) + selectAdviceWindow 인라인 동일 회귀 + 카드 render(상태별). 게이트 4종 + check-iterate-scope. 실화면은 로그인 게이트 뒤 DEPLOY_ONLY.
+
+## R23 — recommend-voltage 인증 누락 수정 (2026-07-31, bug-fix/보안)
+- REQUEST: 기획(DL-027/D2) 중 발견 — `api/recommend-voltage.js`가 `requireSession` 미적용이라 **무인증 공개 POST 가능**.
+  서버 전용 ANTHROPIC_API_KEY를 태우는 denial-of-wallet 노출(배포 중인 실제 위험). AI 기능과 분리해 선제 수정.
+- OBSERVED_BASELINE: `api/data.js`는 `requireSession` 적용(선례). recommend-voltage만 누락. 클라 어댑터
+  `src/features/race-record/api/recommend-voltage.ts`는 `res.ok` 아니면 휴리스틱 폴백(401도 자연 수렴).
+- TARGET_BEHAVIOR: 비인증/무효 세션 POST → 401(업스트림 LLM 호출 없음). 로그인 사용자는 무변경(same-origin
+  fetch가 쿠키 기본 전송). 비로그인은 휴리스틱 추천으로 자연 수렴(추천 자체는 계속 동작).
+- ALLOWED_PATHS: api/recommend-voltage.js (import 1줄 + 가드 2줄).
+- PUBLIC_CONTRACTS_TO_PRESERVE: 요청/응답 계약·모델·max_tokens 300·temp 0·클램프(2.6~3.2/0.02)·프롬프트 전부 불변 ·
+  클라 어댑터 무변경(폴백 계약이 401을 이미 처리) · api/data.js 선례와 동일 패턴.
+- NON_GOALS: AI 분석 기능(별도 라운드) · rate limit 구현 · 프롬프트/모델 변경 · 클라 코드 변경.
+- CHANGE_BUDGET: 파일 1, 커밋 1.
+- TEST_EVIDENCE: 게이트 4종 + check-iterate-scope. 서버리스 401 실동작은 로컬에 함수 런타임이 없어
+  DEPLOY_ONLY — 사용자 위임(배포 후 비로그인 POST 401 확인). 클라 폴백 경로는 기존 계약(res.ok 분기)으로 보존 확인.

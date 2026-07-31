@@ -70,3 +70,10 @@
 - 위임: entity-query-builder(race-insight 파생+selectAdviceWindow 추출) → component-builder(RaceInsightCard·HelpDialog) → route-builder(RaceDetailPage 치환+배선) → test-writer(F1~F7+회귀+render). 전 subagent model:fable. 저널 hook 차단분 대필.
 - 직접 수정: src/features/race-record/ui/RaceInsightHelpDialog.test.tsx — 실패 1건(getByText가 본문+요약 2곳 '전체 완주 기록' 매칭) → getAllByText().length>0로 보정. 프로덕션 아님(카드/다이얼로그는 정상).
 - EVIDENCE: Node 22 게이트 typecheck·lint·test(183, 기존 156+신규 27)·build PASS + check-iterate-scope OK(source 9건=ALLOWED_PATHS). selectAdviceWindow 추출은 인라인 동치 회귀로 동작 보존 확인. 프리뷰(:8082) 측정 로드·레이스 라우트 200·콘솔 0. 카드 실화면은 로그인 게이트 뒤 DEPLOY_ONLY — 파생 유닛·render 테스트로 LOCAL 검증. D2 세분화(전압대=전체 완주/추세=최근 구간)·D3 제외 고지 반영.
+
+## 2026-07-31 R23 recommend-voltage 인증 누락 수정 — 직접 구현 (bug-fix/보안)
+- 배경: 레이스 AI 기획(Phase 1) 중 발견 — `api/recommend-voltage.js`에 `requireSession` 미적용으로 무인증 공개 POST 가능(배포 중 실제 denial-of-wallet 노출). 사용자 선택으로 AI 기능과 분리해 선제 수정(DL-027 소급 결정의 즉시 이행).
+- MODIFIED: api/recommend-voltage.js — `import {requireSession} from './_lib/authGuard.js'` + handler 메서드 체크 직후 가드 2줄(`const session = await requireSession(req, res); if (!session) return`). api/data.js 선례와 동일 패턴. 가드는 키 읽기(33행)·업스트림 fetch(81행)보다 앞(30행)이라 미인증 요청은 키를 소비하지 않는다.
+- 보존: 요청/응답 계약·모델(Haiku 4.5)·max_tokens 300·temp 0·클램프·프롬프트 전부 불변. 클라 어댑터 무변경 — `res.ok` 분기가 401을 이미 처리해 비로그인은 휴리스틱 폴백으로 자연 수렴(추천 기능 자체는 계속 동작).
+- 직접 구현 사유: 단일 파일 3줄, 기존 선례를 그대로 적용하는 기계적 보안 수정.
+- EVIDENCE: Node 22 게이트 typecheck·lint·test(183)·build PASS + check-iterate-scope OK(source 1건). 401 실동작은 로컬에 serverless 런타임이 없어 DEPLOY_ONLY — 배포 후 비로그인 POST 401 확인은 사용자 위임.

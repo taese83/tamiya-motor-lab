@@ -3,7 +3,10 @@
 // 클라이언트(features/race-record/api/recommend-voltage.ts)는 실패·비정상 응답 시 결정론적
 // 휴리스틱으로 폴백하므로, 이 함수는 키 없음·업스트림 오류·잘못된 출력이면 5xx로 응답만 하면 된다
 // (성공 위장 금지). 입력이 숫자+enum이라 프롬프트 인젝션 표면이 작고, 출력 전압은 여기서 클램프한다.
-// 단독 사용 전제라 denial-of-wallet은 max_tokens 상한·이력 20건 컷·짧은 처리로 보수적으로 방어한다.
+// R23(보안): **세션 필수**(authGuard) — 이전에는 무인증 공개 POST가 가능해 서버 키를 태울 수 있었다
+// (denial-of-wallet). api/data.js와 동일 패턴. 비로그인은 401이고, 클라 어댑터가 res.ok 아니면
+// 휴리스틱으로 폴백하므로 추천 기능 자체는 계속 동작한다. max_tokens 상한·이력 20건 컷은 그대로 유지.
+import {requireSession} from './_lib/authGuard.js'
 
 const VOLTAGE_MIN = 2.6 // 권장 대역 하한(입력 허용과 별개 — domain VOLTAGE_ADVICE_RANGE와 일치)
 const VOLTAGE_MAX = 3.2 // 권장 대역 상한(풀충 배터리 한계·배터리 부담)
@@ -23,6 +26,10 @@ export default async function handler(req, res) {
     res.status(405).json({error: 'method not allowed'})
     return
   }
+  // 세션 필수 — 키 소비(업스트림 호출) 전에 차단한다 (R23, api/data.js 선례)
+  const session = await requireSession(req, res)
+  if (!session) return // 401 이미 전송
+
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) {
     res.status(500).json({error: 'ANTHROPIC_API_KEY not set'})

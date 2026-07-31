@@ -114,3 +114,43 @@
 - D-R1 트리 확정(추가 섹션 없음), D-R2 UI 클리어, D-R3 말단 라벨 표시('그 외'는 섹션 병기), D-R4 단일 선택. D-R5 재귀 트리(기확정).
 - retire-reason-chipset.md = READY. 다음: /web-orchestrator Phase 3 iterate(existing-change, feature/M) — domain 트리·schema optional additive·RaceEntrySheet 드릴다운·RaceRecordRow 표시·테스트. AI 기능 제외(데이터 수집만).
 - 별개 트랙 race-insight(열람 요약 S안)는 D1~D3 확정(DL-012~014) 상태로 병존 — 두 라운드 순서는 사용자 선택.
+
+## 2026-07-31 레이스 AI 활용 기획
+
+### DL-021 — AI Phase 1 intake 확정 4건 (2026-07-31, 사용자 — 재질문 금지)
+
+- **결정**: ① AI 역할 4개 전부 채택(이탈 원인 진단·다음 세팅 코칭·기록 브리핑·이상 신호 감지) ② 개입은 버튼(on-demand)만 — 자동 호출 없음, R22 결정론 카드는 항상 무료·즉시·오프라인 ③ 자율성 L1(읽기 전용 제안만 — AI는 저장·수정 안 함, 고위험 행동 없음) ④ 단일 사용자 개인 도구 — tenant 분리 불필요, PII 사실상 없음.
+- **근거**: 사용자 intake 직접 답변. ②③이 상태·보안 설계를 크게 단순화한다(mutation 승인 흐름·자동 트리거 스케줄링 전부 범위 외).
+- **검증 방법**: planning-context(race-ai) Critical State Inventory가 이 확정과 정합한지 plan review에서 확인.
+
+### DL-022 — 결정론/AI 경계 원칙: 결정론이 이미 답하는 질문은 AI가 재수행하지 않는다
+
+- **일자/출처**: 2026-07-31, planning-facilitator 구조 해석 (코드 근거: race-insight.ts·domain.ts·voltage-advisor)
+- **결정**: R22(`computeRaceInsight` — 완주 전압대·스트릭·추세)·`resolveSpeedRelated`(전압 처방 가능 여부)·기존 전압 추천(`recommend-voltage` LLM+휴리스틱 폴백)이 이미 답하는 질문을 AI 4역할이 다시 계산·재진술하지 않는다. AI의 몫은 **교차 신호 종합**(사유 패턴×전압대×추세의 인과 가설, 비전압 처방, 자연어 서사)뿐이며, 결정론 파생값은 AI 입력(컨텍스트)으로 주입해 인용하게 한다. 코칭의 전압 숫자는 기존 advisor 결과를 인용하지 재발명하지 않는다.
+- **근거**: 결정론으로 충분한 걸 AI가 반복하면 비용·지연·비결정성만 늘고, R22 카드와 수치가 어긋나는 순간 신뢰가 무너진다(race-insight D2에서 확인된 "수치 불일치 = 불신" 동일 원리).
+- **검증 방법**: requirements에서 역할별 "답하는 질문"과 R22 경계 표를 유지하고, prototype 검토에서 AI 응답이 R22 수치를 모순 없이 인용하는지 fixture로 확인.
+
+### DL-023 — 기존 `api/recommend-voltage.js` 인증 부재 확인 (denial-of-wallet 리스크)
+
+- **일자/출처**: 2026-07-31, planning-facilitator 코드 직접 확인
+- **확인 사실**: `api/_lib/authGuard.js`(`requireSession` — v2.40 Phase B)가 존재하지만 `recommend-voltage.js`는 이를 import·호출하지 않는다 — 세션 없이 누구나 POST 가능. 방어는 max_tokens 300·짧은 입력뿐(주석 스스로 "단독 사용 전제 보수적 방어"라 명시).
+- **결정(기록)**: 신규 AI 분석 엔드포인트는 `requireSession` 적용을 전제 요구로 잡는다. 기존 recommend-voltage에 소급 적용할지는 NEEDS_DECISION(적용 시 클라이언트는 401 → 휴리스틱 폴백으로 자연 수렴하므로 비로그인 UX 손상 없음 — 이 폴백 경로 확인이 검증 포인트).
+- **검증 방법**: plan review에서 소급 적용 여부 사용자 확인, 적용 시 비로그인 상태에서 추천이 휴리스틱으로 동작하는지 확인.
+
+### DL-024 — 데이터 전략: mock — 기존 IndexedDB 읽기 파생 + AI 응답 fixture
+
+- **일자/출처**: 2026-07-31, planning-facilitator 판단 (planning-readiness-contract 전략 표)
+- **결정**: 전략은 `mock`. AI 입력은 기존 RaceRecord(+retireReason)·R22 파생값의 읽기 전용 직렬화 — 신규 엔티티·필드·migration 없음, production mutation 없음, AI 응답은 저장하지 않음(L1 정합). UI 검토는 AI 응답 mock fixture(정상/실패/근거 부족/긴 응답)로 수행하고, 실 LLM 호출은 recommend-voltage와 동일 패턴(Vercel serverless + 서버 전용 키)으로 배포 후 확인한다.
+- **검증 방법**: fixture 세트를 requirements에 전달. Mock→real 전환 = Vercel preview에서 실호출 1회 확인(owner: 사용자, 읽기 전용이라 전환 위험 없음).
+
+### DL-025 — 산출물 경로: race-ai/ 하위는 오케스트레이터 대필 (DL-011 동일 계열)
+
+- **결정**: `_workspace/01_plan/race-ai/planning-context.md`는 ownership hook이 하위 디렉터리 쓰기를 차단하므로 facilitator가 본문을 반환하고 오케스트레이터가 저장한다. decision-log append만 직접 수행.
+
+### DL-026~028 — 레이스 AI 우선 결정 확정 (2026-07-31, 사용자 Phase 1 체크포인트)
+- **DL-026 (D1 진입점)**: **단일 버튼 통합** 확정 — [AI 분석] 1개 + 엔드포인트 1개 + 섹션형 응답(4역할). 역할별 분리(W6) 최종 기각. A1 승격 확정.
+- **DL-027 (D2 인증 소급)**: **소급 적용** 확정 — 기존 `api/recommend-voltage.js`에도 `requireSession` 적용(무인증 denial-of-wallet 차단). 비로그인은 401 → 기존 클라 휴리스틱 폴백으로 자연 수렴(REQ-RAI-ST-002 fixture로 확인). ai-requirements REQ-AI-004의 MUST와 정합(C1 상충 해소).
+- **DL-028 (A2 전압 출처)**: **AI 추천 연쇄 호출** 확정 — 분석 시 기존 전압 추천을 함께 호출해 **최신 AI 추천값**을 코칭 섹션이 인용한다(권고안이던 휴리스틱 계산값 인용 대신 사용자 선택).
+  - ⚠️ 수용한 trade-off: 분석 1회 = **LLM 2회 호출** → 비용·지연 약 2배. 예산(월 상한)과 타임아웃 재산정 필요.
+  - Phase 2 설계 지시: ① 연쇄는 **서버 내부**에서 수행(analyze-race 핸들러가 추천 로직을 내부 호출) — 클라 2요청보다 왕복·원자성·인증 면에서 우수 ② 순차 2회 LLM 기준으로 클라 타임아웃(10s)·함수 maxDuration(30s) 재검토 ③ 추천 호출 실패 시 분석 전체를 실패시키지 말고 `advisorVoltage: null`로 강등해 분석은 계속(부분 실패 허용) ④ 두 호출의 max_tokens 합산 예산 갱신(tech-note F3 반영).
+- 잔여: D3(세션 캐시)는 기본값(유지 없음)으로 착수. 리뷰 발견 F1~F5(AC-7 문구 모순·evidence LLM echo·max_tokens stale·traceability 2건·근거부족 행 분리)는 Phase 2 입력 지시로 처리.
