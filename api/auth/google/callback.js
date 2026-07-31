@@ -1,6 +1,7 @@
 // GET /api/auth/google/callback — code→token 교환, id_token 검증, 세션 발급 후 / 로 복귀 (v2.39).
 import {createRemoteJWKSet, jwtVerify} from 'jose'
 
+import {isAllowedEmail} from '../../_lib/authGuard.js'
 import {upsertUser} from '../../_lib/db.js'
 import {readStateCookie, verifyState, clearStateCookie} from '../../_lib/oauth.js'
 import {signSession, buildSessionCookie, isSecureRequest} from '../../_lib/session.js'
@@ -80,6 +81,16 @@ export default async function handler(req, res) {
   if (claims.email_verified === false) {
     res.setHeader('Set-Cookie', clearStateCookie(secure))
     res.redirect(302, '/?auth_error=email_unverified')
+    return
+  }
+  // R24(보안) — 소유자 전용 앱. ALLOWED_EMAIL이 설정돼 있으면 그 계정에만 세션을 발급한다.
+  // 이전에는 임의 구글 계정이 로그인해 유효 세션을 얻었고, requireSession(R23)은 무인증만 막으므로
+  // 서버 키를 쓰는 엔드포인트(recommend-voltage 등)가 타인에게 열려 있었다(denial-of-wallet).
+  // 미설정이면 기존 동작을 유지한다(fail-open) — 배포 시점에 env가 없어 본인까지 잠기는 것을 피하기 위함이며,
+  // 이 경우 보호가 적용되지 않으므로 경고를 남긴다. 실제 적용은 Vercel env 설정이 완료 조건이다.
+  if (!isAllowedEmail(claims.email)) {
+    res.setHeader('Set-Cookie', clearStateCookie(secure))
+    res.redirect(302, '/?auth_error=not_allowed')
     return
   }
 

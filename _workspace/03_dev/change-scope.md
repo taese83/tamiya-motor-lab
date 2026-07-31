@@ -2132,3 +2132,26 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 파일 1, 커밋 1.
 - TEST_EVIDENCE: 게이트 4종 + check-iterate-scope. 서버리스 401 실동작은 로컬에 함수 런타임이 없어
   DEPLOY_ONLY — 사용자 위임(배포 후 비로그인 POST 401 확인). 클라 폴백 경로는 기존 계약(res.ok 분기)으로 보존 확인.
+
+## R24 — 이탈 사유 서버 동기화 유실 수정 + 로그인 소유자 제한 (2026-07-31, bug-fix/데이터·보안)
+- REQUEST: Phase 2 설계 중 발견된 2건 즉시 수정(사용자 지시 "지금 둘 다 먼저").
+  ① **데이터 유실**: R20이 IndexedDB에만 retireReason을 추가하고 서버 경로를 놓쳐, push 시 사유가 탈락하고
+     다음 로그인의 pull→replaceDomainSnapshot(SyncManager:41, 서버 우선 대체)에서 로컬 사유가 소실된다.
+     → AI 기획(옵션 B: 사유 수집) 전제 붕괴. 선례 `migrations/003_stability.sql`이 동일 유형을 이미 해결.
+  ② **보안**: `api/auth/google/callback.js`에 이메일 allowlist가 없어 임의 구글 계정이 유효 세션을 얻는다.
+     R23의 requireSession은 무인증만 차단 → denial-of-wallet 잔여(위협모델 T2①).
+- OBSERVED_BASELINE: race_records SELECT(db.js:39)·INSERT(95-96)에 retire_reason 없음. 003_stability.sql이 ALTER
+  TABLE ADD COLUMN IF NOT EXISTS 패턴 확립. callback.js는 email_verified만 검사(75-82행).
+- TARGET_BEHAVIOR: ① 사유가 서버에 저장·복원되어 기기 왕복·재로그인 후에도 보존 ② ALLOWED_EMAIL 설정 시
+  그 계정만 로그인·세션 유지, 타 계정은 거부. 미설정이면 기존 동작 유지(fail-open) + 서버 경고 로그.
+- ALLOWED_PATHS: migrations/004_retire_reason.sql(신규) · api/_lib/db.js(SELECT·매핑·INSERT 3곳) ·
+  api/auth/google/callback.js(allowlist 게이트) · api/_lib/authGuard.js(기발급 세션 재검증).
+- PUBLIC_CONTRACTS_TO_PRESERVE: DomainSnapshot 형태·IndexedDB 스키마·클라이언트 코드 전부 무변경 ·
+  retireReason은 optional(구 행 NULL=미보유, undefined 생략 규칙과 일치 — 003 선례) · 기존 로그인 사용자 무영향 ·
+  세션 쿠키 계약(HttpOnly/Lax/30일) 불변 · 다른 도메인 필드 동기화 경로 불변.
+- NON_GOALS: AI 분석 기능 구현 · rate limit · 세션 폐기 메커니즘 · 과거 유실 데이터 복구(사용자: "그냥 진행").
+- CHANGE_BUDGET: 파일 4, 커밋 1.
+- ⚠️ 배포 순서 의존: **마이그레이션(004)을 Neon에서 먼저 실행한 뒤 코드 배포**. 역순이면 INSERT가 없는 컬럼을
+  참조해 동기화 전체가 실패한다. 마이그레이션 실행은 사용자 승인·수행(harness는 SQL 작성만).
+- TEST_EVIDENCE: 게이트 4종 + check-iterate-scope. 서버 왕복(사유 저장·복원)·allowlist 401/403은 로컬에
+  serverless·DB 런타임이 없어 DEPLOY_ONLY — 마이그레이션 후 실기기 확인 위임.

@@ -36,7 +36,7 @@ export async function getUserData(userId) {
       FROM motors WHERE user_id = ${userId} ORDER BY sort_order ASC`,
     q`SELECT id, motor_id AS "motorId", pano_hz AS "panoHz", rpm, measured_at AS "measuredAt", stability_cv AS "stabilityCv"
       FROM measure_records WHERE user_id = ${userId} ORDER BY measured_at ASC`,
-    q`SELECT id, motor_id AS "motorId", pano_hz AS "panoHz", result, voltage, lap_time_ms AS "lapTimeMs", goal, created_at AS "createdAt"
+    q`SELECT id, motor_id AS "motorId", pano_hz AS "panoHz", result, voltage, lap_time_ms AS "lapTimeMs", goal, retire_reason AS "retireReason", created_at AS "createdAt"
       FROM race_records WHERE user_id = ${userId} ORDER BY created_at ASC`,
   ])
   return {
@@ -59,7 +59,7 @@ export async function getUserData(userId) {
       measuredAt: r.measuredAt,
       ...(r.stabilityCv != null ? {stabilityCv: Number(r.stabilityCv)} : {}),
     })),
-    // null 옵션 필드(result·lapTimeMs·goal)는 생략 — IndexedDB의 undefined 생략 규칙과 일치
+    // null 옵션 필드(result·lapTimeMs·goal·retireReason)는 생략 — IndexedDB의 undefined 생략 규칙과 일치
     races: raceRows.map(r => ({
       id: r.id,
       motorId: r.motorId,
@@ -69,6 +69,7 @@ export async function getUserData(userId) {
       ...(r.result != null ? {result: r.result} : {}),
       ...(r.lapTimeMs != null ? {lapTimeMs: Number(r.lapTimeMs)} : {}),
       ...(r.goal != null ? {goal: r.goal} : {}),
+      ...(r.retireReason != null ? {retireReason: r.retireReason} : {}), // R24 — 미보유(구 행)는 생략
     })),
   }
 }
@@ -92,8 +93,9 @@ export async function replaceUserData(userId, snapshot) {
              VALUES (${r.id}, ${userId}, ${r.motorId}, ${r.panoHz}, ${r.rpm}, ${r.measuredAt}, ${r.stabilityCv ?? null})`,
     ),
     ...races.map(
-      r => q`INSERT INTO race_records (id, user_id, motor_id, pano_hz, result, voltage, lap_time_ms, goal, created_at)
-             VALUES (${r.id}, ${userId}, ${r.motorId}, ${r.panoHz}, ${r.result ?? null}, ${r.voltage}, ${r.lapTimeMs ?? null}, ${r.goal ?? null}, ${r.createdAt})`,
+      // R24: retire_reason 추가 — 없으면 mirror push에서 사유가 탈락해 다음 pull에서 로컬까지 유실된다
+      r => q`INSERT INTO race_records (id, user_id, motor_id, pano_hz, result, voltage, lap_time_ms, goal, retire_reason, created_at)
+             VALUES (${r.id}, ${userId}, ${r.motorId}, ${r.panoHz}, ${r.result ?? null}, ${r.voltage}, ${r.lapTimeMs ?? null}, ${r.goal ?? null}, ${r.retireReason ?? null}, ${r.createdAt})`,
     ),
   ]
   await q.transaction(queries)

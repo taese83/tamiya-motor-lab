@@ -77,3 +77,16 @@
 - 보존: 요청/응답 계약·모델(Haiku 4.5)·max_tokens 300·temp 0·클램프·프롬프트 전부 불변. 클라 어댑터 무변경 — `res.ok` 분기가 401을 이미 처리해 비로그인은 휴리스틱 폴백으로 자연 수렴(추천 기능 자체는 계속 동작).
 - 직접 구현 사유: 단일 파일 3줄, 기존 선례를 그대로 적용하는 기계적 보안 수정.
 - EVIDENCE: Node 22 게이트 typecheck·lint·test(183)·build PASS + check-iterate-scope OK(source 1건). 401 실동작은 로컬에 serverless 런타임이 없어 DEPLOY_ONLY — 배포 후 비로그인 POST 401 확인은 사용자 위임.
+
+## 2026-07-31 R24 이탈 사유 동기화 유실 + 로그인 소유자 제한 — 직접 구현 (bug-fix/데이터·보안)
+- 배경: Phase 2(레이스 AI) 설계 중 2건 발견, 사용자 지시로 즉시 수정.
+  ① **데이터 유실(내 결함)**: R20이 IndexedDB에만 retireReason을 추가하고 서버 경로(테이블·SELECT·INSERT)를 놓침 → mirror push에서 사유 탈락 → 다음 로그인 pull에서 `replaceDomainSnapshot`(SyncManager:41, 서버 우선)이 로컬을 덮어써 사유 소실. `migrations/003_stability.sql`이 동일 유형(stabilityCv 유실)을 이미 고쳤던 선례 — 같은 실수 반복.
+  ② **보안**: `callback.js`에 이메일 allowlist 부재 → 임의 구글 계정이 유효 세션 획득 → R23의 requireSession 통과 → 서버 키 소비 가능(위협모델 T2①).
+- CREATED: migrations/004_retire_reason.sql — `ALTER TABLE race_records ADD COLUMN IF NOT EXISTS retire_reason TEXT`(003 패턴). 구 행 NULL=미보유.
+- MODIFIED: api/_lib/db.js — getUserData SELECT에 `retire_reason AS "retireReason"`, races 매핑에 조건부 필드(null 생략 규칙), replaceUserData INSERT에 컬럼·값 추가(3곳).
+- MODIFIED: api/_lib/authGuard.js — `isAllowedEmail(email)` 신설(ALLOWED_EMAIL 콤마 다중, 미설정 시 경고+fail-open) + requireSession에서 403 차단(allowlist 도입 **이전 발급 세션**이 30일 유효하므로 검증 측에도 필요).
+- MODIFIED: api/auth/google/callback.js — email_verified 검사 직후 allowlist 게이트(`/?auth_error=not_allowed`). upsertUser(99행)·signSession(104행)보다 앞(91행)이라 거부 계정은 DB 기록·세션 발급 모두 없음.
+- 보존: DomainSnapshot 형태·IndexedDB 스키마·클라이언트 코드 전부 무변경. 기존 로그인 사용자 무영향(fail-open + 본인 이메일 설정 시 통과). 세션 쿠키 계약 불변.
+- 직접 구현 사유: 서버 3파일+마이그레이션이 배포 순서로 묶여 단일 소유가 필요, 003 선례를 그대로 따르는 기계적 수정.
+- ⚠️ 배포 순서: **004 마이그레이션 실행 → 코드 배포**(역순이면 INSERT가 없는 컬럼 참조로 동기화 전체 실패). 마이그레이션 실행·ALLOWED_EMAIL env 설정은 사용자 몫.
+- EVIDENCE: Node 22 게이트 typecheck·lint·test(183)·build PASS + check-iterate-scope OK(source 4건). 서버 왕복·allowlist 401/403은 로컬에 serverless·DB 런타임 없어 DEPLOY_ONLY — 마이그레이션 후 확인 위임.
