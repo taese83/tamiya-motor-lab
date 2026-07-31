@@ -2104,3 +2104,16 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 파일 2, 커밋 1. 각 파일에서 16px 체크 슬롯 Box 제거 + CheckIcon import 제거 + 주석 정합(3중→2중+aria).
 - TEST_EVIDENCE: 기존 테스트는 aria-pressed 단언(체크 미단언)이라 무영향 — 게이트 4종 + check-iterate-scope.
   실화면(로그인 게이트 뒤)은 DEPLOY_ONLY — 프리뷰는 회귀(로드·콘솔) 확인. forced-colors 약화는 사용자 요청 트레이드오프로 보고.
+
+## R22 — 레이스 인사이트 S안 (파생 요약 카드) (2026-07-31, feature/existing-change)
+- REQUEST: 레이스 상세 상단에 저장 없는 파생 요약 카드 — 최근 완주 전압(강조)·완주 전압대·최근 결과 흐름·추세 방향·미정 제외 고지·[보는 법]. 기획 READY(project-brief, DL-012~014). 사용자 구성안 승인(이대로 진행).
+- OBSERVED_BASELINE: 레이스 상세는 목록만 — 회차 쌓여도 추세·비교 안 보임(스크롤·암산 필요). advisor 윈도우 로직은 RaceDetailPage:160-163 인라인.
+- TARGET_BEHAVIOR: 3+건이면 카드 노출(최근 완주 전압 단일 강조 + 완주 전압대 min~max + 결과 스트릭 + 추세 방향 + '미정 n건 제외' + [보는 법] 다이얼로그). 1~2건 축약('기록이 더 쌓이면', '추세' 단어 금지). 0건 미노출(기존 안내). 삭제/초기화 즉시 재계산.
+- DATA 계약(D2 세분화): 완주 전압대 = **전체 finished 회차** / 추세 = **advisor 윈도우(selectAdviceWindow)**. D3: result 미정·랩타임 결측은 제외+건수 고지. 저장·스키마·서버 sync 무변경(읽기 파생만).
+- ALLOWED_PATHS: src/entities/race-record/model/race-insight.ts(신규 — computeRaceInsight + selectAdviceWindow 추출) · src/entities/race-record/model/race-insight.test.ts(신규) · src/entities/race-record/index.ts(export) ·
+  src/features/race-record/ui/{RaceInsightCard,RaceInsightHelpDialog}.tsx(신규) · 동 index.ts · 동 *.test.tsx(신규) ·
+  src/pages/race-detail/ui/RaceDetailPage.tsx(인라인 윈도우→selectAdviceWindow 치환[동작 보존] + 카드 배선).
+- PUBLIC_CONTRACTS_TO_PRESERVE: RaceRecord 스키마·repository·racesQuery·전압 추천 흐름(adviceHistory/openWithGoal/requestAiVoltage) 불변 · selectAdviceWindow 추출은 인라인과 동일 결과(desc→최근 완주 포함 slice, 폴백 5) · 목록·정렬·[+ 기록]·초기화·왕복·삭제 무변경 · 고정 셸 스크롤 계약.
+- NON_GOALS: 미니 차트·완주 vs 이탈 대역 비교(M안, 2차) · 모터 간 비교 · /race 목록 확장 · 추천 로직 변경 · AI 분석.
+- CHANGE_BUDGET: 신규 5(파생+테스트, 카드 2+테스트) + 수정 2(index, RaceDetailPage). 커밋 1. ⚠️ selectAdviceWindow 추출은 동작 보존 회귀 테스트 선행.
+- TEST_EVIDENCE: LOCAL_VERIFIABLE — computeRaceInsight fixture F1~F7(0/1~2/혼재/미정/랩타임 일부/동일 전압/20+건) + 완주0 3+건·삭제 3→2 경계(plan-review 보강) + selectAdviceWindow 인라인 동일 회귀 + 카드 render(상태별). 게이트 4종 + check-iterate-scope. 실화면은 로그인 게이트 뒤 DEPLOY_ONLY.

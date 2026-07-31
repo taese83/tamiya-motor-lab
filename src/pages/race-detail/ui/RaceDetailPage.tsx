@@ -17,11 +17,18 @@ import {useNavigate, useOutletContext, useParams} from 'react-router'
 
 import {measureQueries} from '@entities/measure-record'
 import {motorQueries} from '@entities/motor'
-import {raceQueries} from '@entities/race-record'
+import {computeRaceInsight, raceQueries, selectAdviceWindow} from '@entities/race-record'
 import {AuthMenu, useSession} from '@features/auth'
 import {beginRaceMeasure, consumeRaceMeasureReturn} from '@features/race-measure-handoff'
 import {useRaceDeleteFlow, useRaceEntry, useResetRecordsFlow} from '@features/race-record/model'
-import {RaceEntrySheet, RaceGoalSheet, RaceRecordRow, ResetRecordsBlock} from '@features/race-record/ui'
+import {
+  RaceEntrySheet,
+  RaceGoalSheet,
+  RaceInsightCard,
+  RaceInsightHelpDialog,
+  RaceRecordRow,
+  ResetRecordsBlock,
+} from '@features/race-record/ui'
 import {layoutTokens} from '@shared/config/design-tokens'
 import {formatDateTimeShort} from '@shared/lib/format'
 import {assignExponentialWeights} from '@shared/lib/voltage-advisor'
@@ -151,16 +158,16 @@ export function RaceDetailPage() {
   // 첫 기록(과거 0건)은 근거로 삼을 정보가 없어 목표 없이 바로 시트를 연다.
   const races = racesQuery.data ?? []
   const [goalSheetOpen, setGoalSheetOpen] = useState(false)
+  // R22 레이스 인사이트 — racesQuery 파생(표시 전용, 새 행동 진입점 아님). 도움말 열림은 페이지 소유.
+  const insight = computeRaceInsight(races)
+  const [insightHelpOpen, setInsightHelpOpen] = useState(false)
   // v2.36 — 직전 기록에 결과(완주/이탈) 미입력 시 [+ 기록] 클릭에서 "입력하시겠습니까?" 확인
   const [incompleteTarget, setIncompleteTarget] = useState<RaceRecord | null>(null)
   const lastGoal: RaceGoal | null = races[0]?.goal ?? null
   // v2.34(사용자) — 추천 근거는 "현재→가장 최근 완주 기록까지"의 최근 구간(오래된 상태 드리프트 배제).
-  // races는 최신순(desc)이라 최근 완주 index까지 자르면 [최신…그 완주] 포함. 완주가 없으면
-  // 최근 RECENT_FALLBACK건으로 대체(추세선 학습 최소 표본 확보).
-  const RECENT_FALLBACK = 5
-  const lastFinishedIdx = races.findIndex(r => r.result === 'finished')
-  const windowRaces =
-    lastFinishedIdx >= 0 ? races.slice(0, lastFinishedIdx + 1) : races.slice(0, RECENT_FALLBACK)
+  // R22: 윈도우 규칙을 entity(selectAdviceWindow)로 추출 — 동작 동일(desc→최근 완주 포함 slice,
+  // 완주 없으면 최근 RECENT_FALLBACK=5건 폴백). 인사이트 카드와 같은 규칙을 공유한다.
+  const windowRaces = selectAdviceWindow(races)
   // v2.37 — 최근 구간에 지수 가중치 부여(가장 오래된=1, 최근일수록 큼). windowRaces는 최신순.
   const adviceHistory: VoltageAdviceRace[] = assignExponentialWeights(
     windowRaces.map(r => ({
@@ -378,25 +385,32 @@ export function RaceDetailPage() {
                   아직 레이스 기록이 없습니다 — [+ 기록]으로 첫 기록을 남기세요
                 </Typography>
               ) : (
-                // createdAt 역순(repository 보장 — 재정렬 금지). 회차 번호는 내림차순 부여 —
-                // 최신 행 = 총 건수 (R-2)
-                <Stack component="ol" spacing={1} sx={{listStyle: 'none', m: 0, p: 0}}>
-                  {races.map((record, arrayIndex) => (
-                    <Box component="li" key={record.id}>
-                      <RaceRecordRow
-                        record={record}
-                        index={races.length - arrayIndex}
-                        onEdit={entry.editRecord}
-                        onDelete={id =>
-                          deleteFlow.requestDelete(id, formatDateTimeShort(record.createdAt))
-                        }
-                        deletePending={deleteFlow.pendingId === record.id}
-                        swipeOpen={swipe.openId === record.id}
-                        onSwipeOpenChange={open => swipe.setOpen(record.id, open)}
-                      />
-                    </Box>
-                  ))}
-                </Stack>
+                <>
+                  {/* R22 인사이트 카드 — 스크롤 영역 상단, 회차 목록 바로 위(목록은 그 아래 스크롤).
+                      empty면 카드가 스스로 null 반환. loading/error/gate/notFound 경로 미렌더. */}
+                  <Box sx={{mb: 1}}>
+                    <RaceInsightCard insight={insight} onOpenHelp={() => setInsightHelpOpen(true)} />
+                  </Box>
+                  {/* createdAt 역순(repository 보장 — 재정렬 금지). 회차 번호는 내림차순 부여 —
+                      최신 행 = 총 건수 (R-2) */}
+                  <Stack component="ol" spacing={1} sx={{listStyle: 'none', m: 0, p: 0}}>
+                    {races.map((record, arrayIndex) => (
+                      <Box component="li" key={record.id}>
+                        <RaceRecordRow
+                          record={record}
+                          index={races.length - arrayIndex}
+                          onEdit={entry.editRecord}
+                          onDelete={id =>
+                            deleteFlow.requestDelete(id, formatDateTimeShort(record.createdAt))
+                          }
+                          deletePending={deleteFlow.pendingId === record.id}
+                          swipeOpen={swipe.openId === record.id}
+                          onSwipeOpenChange={open => swipe.setOpen(record.id, open)}
+                        />
+                      </Box>
+                    ))}
+                  </Stack>
+                </>
               )}
             </Box>
 
@@ -463,6 +477,9 @@ export function RaceDetailPage() {
         onSelect={handleGoalSelect}
         onClose={() => setGoalSheetOpen(false)}
       />
+
+      {/* R22 인사이트 [보는 법] 도움말 — 열림 상태는 페이지 소유(카드는 onOpenHelp만 호출) */}
+      <RaceInsightHelpDialog open={insightHelpOpen} onClose={() => setInsightHelpOpen(false)} />
 
       {/* 단건 삭제 confirm (RV-A3) — copy·pending·오류는 flow가 소유 (§3.1 스프레드 계약) */}
       <ConfirmDialog {...deleteFlow.dialogProps} />

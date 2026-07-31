@@ -25,3 +25,9 @@ EVIDENCE:
 - MODIFIED: src/features/race-record/ui/RaceRetireReasonSelect.tsx — leaf 칩 label을 체크 슬롯 없이 node.label만(.MuiChip-label 중앙정렬 + whiteSpace normal). CheckIcon import 삭제. 주석 갱신. aria-pressed·filled/outlined·재탭 해제·selected fontWeight 700·branch 칩·44px 불변.
 - 대상: ① 레이스 결과 토글 ② 이탈 사유 leaf 칩 ③ 모터 정렬(+레이스 정렬, 공유 SegmentControl). MotorKindSelect(종류)는 범위 밖 무변경.
 - EVIDENCE: Node 22 게이트 typecheck·lint·test(156, aria-pressed 단언이라 무영향)·build PASS + check-iterate-scope OK(2파일). 프리뷰 회귀 없음(콘솔 0). 실화면은 로그인 게이트 뒤 DEPLOY_ONLY. forced-colors 표식 약화는 사용자 요청 트레이드오프(fontWeight·aria 유지).
+
+## 2026-07-31 R22
+- 신규 RaceInsightCard.tsx — 인사이트 요약 카드(제어형 {insight,onOpenHelp}). empty=null, insufficient=축약('추세' 금지), ready=최근 완주 전압 강조(라임)+전압대+흐름(색+텍스트)+추세(non-null만)+미정 제외+[보는 법]. 완주0=조용히 "완주 기록 없음". formatVoltage 행 표기 일치. 표시 전용(탭 진입 없음).
+- 신규 RaceInsightHelpDialog.tsx — ConditionHelpDialog 패턴, D2 기준 2개(전압대=전체 완주/추세=최근 구간) 설명.
+- index.ts — 2컴포넌트 export.
+- EVIDENCE: 게이트 183 PASS. 실화면 로그인 뒤 DEPLOY_ONLY — render 테스트로 고정.

@@ -64,3 +64,9 @@
   - MODIFIED: src/features/race-measure-handoff/model/store.ts — RaceMeasureDraft에 optional retireReason(RetireReason import).
   - MODIFIED: src/pages/race-detail/ui/RaceDetailPage.tsx — toHandoffDraft/fromHandoffDraft에 retireReason 미러링(goal 동일 패턴). RaceEntryDraft required 필드 추가에 따른 필수 통합.
 - EVIDENCE: Node 22 pin CI=true pnpm typecheck·lint·test(156)·build 4종 PASS + check-iterate-scope OK(source 14건). 프리뷰(:8082) /race 로그인 게이트 정상 렌더·콘솔 에러 0(회귀 없음). 드릴다운 실입력은 로그인 뒤 DEPLOY_ONLY — 사용자 위임, 컴포넌트 계약은 render 테스트로 고정.
+
+## 2026-07-31 R22 레이스 인사이트 S — 오케스트레이션 (feature/existing-change)
+- 신규 위젯 하드 게이트: 인사이트 카드 구성안을 목업으로 제시·사용자 승인("이대로 진행") 후 파일 생성.
+- 위임: entity-query-builder(race-insight 파생+selectAdviceWindow 추출) → component-builder(RaceInsightCard·HelpDialog) → route-builder(RaceDetailPage 치환+배선) → test-writer(F1~F7+회귀+render). 전 subagent model:fable. 저널 hook 차단분 대필.
+- 직접 수정: src/features/race-record/ui/RaceInsightHelpDialog.test.tsx — 실패 1건(getByText가 본문+요약 2곳 '전체 완주 기록' 매칭) → getAllByText().length>0로 보정. 프로덕션 아님(카드/다이얼로그는 정상).
+- EVIDENCE: Node 22 게이트 typecheck·lint·test(183, 기존 156+신규 27)·build PASS + check-iterate-scope OK(source 9건=ALLOWED_PATHS). selectAdviceWindow 추출은 인라인 동치 회귀로 동작 보존 확인. 프리뷰(:8082) 측정 로드·레이스 라우트 200·콘솔 0. 카드 실화면은 로그인 게이트 뒤 DEPLOY_ONLY — 파생 유닛·render 테스트로 LOCAL 검증. D2 세분화(전압대=전체 완주/추세=최근 구간)·D3 제외 고지 반영.

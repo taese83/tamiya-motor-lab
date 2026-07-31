@@ -12,3 +12,7 @@
 - CREATED: src/features/race-record/ui/RaceRetireReasonSelect.test.tsx — 드릴다운 7건(최상위·branch 전환·세부 onChange·top-level·뒤로·value 복원·재탭 해제).
 - CREATED: src/features/race-record/ui/RaceRecordRow.test.tsx — 사유 suffix 표시 5건(이탈+사유·병기 없음·미표시 가드).
 - EVIDENCE: 게이트에서 156 통과(신규 +33). 프로덕션 무수정.
+
+## 2026-07-31 R22
+- CREATED: race-insight.test.ts(computeRaceInsight F1~F7 + 완주0 보강 + trend 방향 5% 경계 + selectAdviceWindow 인라인 동치 회귀), RaceInsightCard.test.tsx(3분기·[보는 법]·완주0·침묵), RaceInsightHelpDialog.test.tsx(접근명·세 요소·D2 분리·닫기).
+- EVIDENCE: 게이트 183 통과. (HelpDialog 테스트 1건 getByText→getAllByText 보정은 오케스트레이터 직접 수정 — claude.md 참조.)

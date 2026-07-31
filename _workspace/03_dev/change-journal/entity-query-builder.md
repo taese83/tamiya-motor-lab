@@ -14,3 +14,8 @@ EVIDENCE:
 - optional additive만 — 기존 필드·IndexedDB 스키마 버전·migration 무변경. 구 행 retireReason 부재로 corrupt 아님(read-lenient, goal 선례).
 - enum 출처 RETIRE_REASON_LEAF_KEYS 단일(키 중복 정의 없음). update는 put 통째 교체 + spread 생략 → patch 없으면 기존 값 제거.
 - 게이트: typecheck·lint·test(156 통과)·build PASS.
+
+## 2026-07-31 R22
+- 신규 src/entities/race-record/model/race-insight.ts — RaceRecord[](desc) → RaceInsight 순수 파생. selectAdviceWindow+RECENT_FALLBACK=5 추출(RaceDetailPage:160-163 동일 동작). computeRaceInsight: DL-013 세분화(band·lastFinishedVoltage=전체 finished / trend=advisor 윈도우), streak 최신순≤5(미정 제외), DL-014 excluded 항상 산출. trend 규칙: 표본<3→null, baseline=최신 제외 평균, |diff|<baseline×5%→steady.
+- src/entities/race-record/index.ts — computeRaceInsight·selectAdviceWindow·RECENT_FALLBACK·RaceInsight·TrendDir export(기존 무변경).
+- EVIDENCE: 게이트 typecheck·lint·test(183)·build PASS. 순수·O(n)·입력 불변.

@@ -10,6 +10,9 @@ export {
   voltageSchema,
 } from './model/schema'
 export type {CreateRaceRecordDraft, RaceRecord, UpdateRaceRecordPatch} from './model/types'
+// R22 — 레이스 인사이트 파생(순수 selector, DL-013·DL-014)
+export {computeRaceInsight, RECENT_FALLBACK, selectAdviceWindow} from './model/race-insight'
+export type {RaceInsight, TrendDir} from './model/race-insight'
 export {
   createRaceRecord,
   deleteRaceRecord,

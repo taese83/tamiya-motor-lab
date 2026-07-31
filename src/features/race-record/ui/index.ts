@@ -24,3 +24,9 @@ export type {RaceGoalSheetProps} from './RaceGoalSheet'
 // 테스트 공개 표면)
 export {RaceRetireReasonSelect} from './RaceRetireReasonSelect'
 export type {RaceRetireReasonSelectProps} from './RaceRetireReasonSelect'
+// R22 — 레이스 인사이트 요약 카드 + [보는 법] 다이얼로그(순수 제어형, insight는 페이지가
+// computeRaceInsight로 주입 — 배선은 RaceDetailPage 소유)
+export {RaceInsightCard} from './RaceInsightCard'
+export type {RaceInsightCardProps} from './RaceInsightCard'
+export {RaceInsightHelpDialog} from './RaceInsightHelpDialog'
+export type {RaceInsightHelpDialogProps} from './RaceInsightHelpDialog'
