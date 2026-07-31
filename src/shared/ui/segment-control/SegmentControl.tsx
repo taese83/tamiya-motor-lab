@@ -1,6 +1,5 @@
 import {Box, ToggleButton, ToggleButtonGroup} from '@mui/material'
 import {layoutTokens} from '@shared/config/design-tokens'
-import {CheckIcon} from '@shared/ui/icons'
 
 export interface SegmentOption<T extends string> {
   value: T
@@ -35,8 +34,8 @@ export interface SegmentControlProps<T extends string> {
 
 /**
  * 세그먼트 컨트롤 (component-spec §3.3) — ToggleButtonGroup exclusive fullWidth(theme 기본).
- * 선택 상태 3중 표시: 배경(blue700, theme)+fontWeight 700(theme)+check 아이콘 병행
- * (forced-colors·색각 대응). 비선택은 동일 폭 투명 placeholder — 폭 흔들림 금지.
+ * 선택 상태 표시: 배경(blue700, theme)+fontWeight 700(theme)+aria 상태
+ * (체크 아이콘 제거 — R21 사용자 요청). 색 단독 구분 아님(fontWeight·aria 병행).
  */
 export function SegmentControl<T extends string>({
   options,
@@ -105,24 +104,12 @@ export function SegmentControl<T extends string>({
           sx={[
             // v2.10: 폼 공통 높이 고정(고정값 — 1줄 라벨이므로 늘어날 이유가 없다).
             // 이전에는 아이콘+패딩으로 52px가 되어 같은 폼의 입력(48)과 어긋났다
-            {gap: 0.5, height: layoutTokens.formControlHeight},
+            {height: layoutTokens.formControlHeight},
             wrap === '2x2' && {
               flex: '1 1 40%',
               '@media (max-width: 399px)': {fontSize: '0.8125rem'},
             },
           ]}>
-          <Box
-            component="span"
-            aria-hidden="true"
-            sx={{
-              width: 16,
-              height: 16,
-              display: 'inline-flex',
-              alignItems: 'center',
-              flexShrink: 0,
-            }}>
-            {value === option.value && <CheckIcon size={16} />}
-          </Box>
           <Box component="span" sx={{whiteSpace: 'nowrap'}}>
             {option.label}
           </Box>

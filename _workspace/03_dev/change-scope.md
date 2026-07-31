@@ -2091,3 +2091,16 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - ALLOWED_PATHS 추가: src/features/race-measure-handoff/model/store.ts(RaceMeasureDraft에 optional retireReason) ·
   src/pages/race-detail/ui/RaceDetailPage.tsx(toHandoffDraft/fromHandoffDraft 2함수 — goal 미러링).
 - 직접 구현(오케스트레이터): mechanical goal-mirror 3지점, 왕복 계약 단일 응집 — 저널 claude.md 기록.
+
+## R21 — 세그먼트·이탈 사유 체크 아이콘 제거 + 텍스트 중앙정렬 (2026-07-31, ui-change)
+- TARGET_BEHAVIOR: 선택 표시의 체크 아이콘(✓)을 제거하고 라벨을 가운데 정렬한다. 대상:
+  ① 레이스 결과 토글(완주/이탈) ② 이탈 사유 칩(RaceRetireReasonSelect leaf) ③ 모터 정렬(+레이스 정렬 — 같은 공유 컨트롤).
+  선택 구분은 채움색 + fontWeight 700 + aria(pressed/selected)로 유지(색 단독 아님).
+- ALLOWED_PATHS: src/shared/ui/segment-control/SegmentControl.tsx(공유 — 결과·모터정렬·레이스정렬 공용) ·
+  src/features/race-record/ui/RaceRetireReasonSelect.tsx(이탈 사유 leaf 칩).
+- PUBLIC_CONTRACTS_TO_PRESERVE: SegmentControl/칩 공개 props·동작·onChange·aria-pressed 상태 불변 ·
+  44px 터치 타깃 · 선택 시 fontWeight 700 유지 · MotorKindSelect(종류 선택)는 범위 밖 무변경 · branch 칩('점프 ›') 무변경.
+- NON_GOALS: 정렬 대상·옵션 변경, 색/배경 변경, 다른 아이콘 제거, MotorKindSelect 체크 제거.
+- CHANGE_BUDGET: 파일 2, 커밋 1. 각 파일에서 16px 체크 슬롯 Box 제거 + CheckIcon import 제거 + 주석 정합(3중→2중+aria).
+- TEST_EVIDENCE: 기존 테스트는 aria-pressed 단언(체크 미단언)이라 무영향 — 게이트 4종 + check-iterate-scope.
+  실화면(로그인 게이트 뒤)은 DEPLOY_ONLY — 프리뷰는 회귀(로드·콘솔) 확인. forced-colors 약화는 사용자 요청 트레이드오프로 보고.

@@ -17,3 +17,11 @@ MODIFIED:
 
 EVIDENCE:
 - additive만 — 기존 공개 API·result/goal 배선·스타일 무변경. 게이트: typecheck·lint·test(RaceRetireReasonSelect.test·RaceRecordRow.test 포함 156 통과)·build PASS. 실입력 흐름은 로그인 게이트 뒤 DEPLOY_ONLY — 컴포넌트 계약은 render 테스트로 고정.
+
+## 2026-07-31 R21
+
+- SCOPE: ui-change — 선택 표시 체크 아이콘(✓) 제거 + 라벨 중앙정렬(외형만, 동작·onChange·aria 불변).
+- MODIFIED: src/shared/ui/segment-control/SegmentControl.tsx — CheckIcon import·16px 체크 슬롯 Box 삭제, ToggleButton `gap:0.5` 제거(자식 1개→기본 justify-content center로 라벨 자동 중앙정렬). 주석 "3중"→"배경+fontWeight 700+aria(체크 제거 R21)". 공개 props·rounded/borderless/error/wrap·44/48 높이 불변.
+- MODIFIED: src/features/race-record/ui/RaceRetireReasonSelect.tsx — leaf 칩 label을 체크 슬롯 없이 node.label만(.MuiChip-label 중앙정렬 + whiteSpace normal). CheckIcon import 삭제. 주석 갱신. aria-pressed·filled/outlined·재탭 해제·selected fontWeight 700·branch 칩·44px 불변.
+- 대상: ① 레이스 결과 토글 ② 이탈 사유 leaf 칩 ③ 모터 정렬(+레이스 정렬, 공유 SegmentControl). MotorKindSelect(종류)는 범위 밖 무변경.
+- EVIDENCE: Node 22 게이트 typecheck·lint·test(156, aria-pressed 단언이라 무영향)·build PASS + check-iterate-scope OK(2파일). 프리뷰 회귀 없음(콘솔 0). 실화면은 로그인 게이트 뒤 DEPLOY_ONLY. forced-colors 표식 약화는 사용자 요청 트레이드오프(fontWeight·aria 유지).

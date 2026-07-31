@@ -3,7 +3,6 @@ import {useEffect, useId, useRef, useState} from 'react'
 
 import {RETIRE_REASON_TREE} from '@shared/config/domain'
 import {layoutTokens} from '@shared/config/design-tokens'
-import {CheckIcon} from '@shared/ui/icons'
 
 import type {RetireReason, RetireReasonNode} from '@shared/config/domain'
 
@@ -181,25 +180,8 @@ export function RaceRetireReasonSelect({value, onChange}: RaceRetireReasonSelect
         // 트리 계약: children 없는 노드의 key = 저장 가능한 leaf(RetireReason).
         // domain의 assertAllRetireReasonLeafKeys가 컴파일 타임에 정합을 보장하므로 안전한 단언이다.
         onClick={() => onChange(selected ? null : (node.key as RetireReason))}
-        label={
-          // 선택 3중 표시(SegmentControl 관례): 채움색 + check + fontWeight — 색 단독 구분 금지.
-          // check 자리는 상시 예약해 선택 토글로 칩 폭이 흔들리지 않게 한다(wrap 행 재배치 방지)
-          <Box component="span" sx={{display: 'inline-flex', alignItems: 'center', gap: 0.5}}>
-            <Box
-              component="span"
-              aria-hidden="true"
-              sx={{
-                width: 16,
-                height: 16,
-                display: 'inline-flex',
-                alignItems: 'center',
-                flexShrink: 0,
-              }}>
-              {selected && <CheckIcon size={16} />}
-            </Box>
-            {node.label}
-          </Box>
-        }
+        // 선택 표시: 채움색(filled) + fontWeight 700 + aria-pressed(체크 제거 — R21). 색 단독 아님
+        label={node.label}
         sx={[reasonChipSx, selected && {fontWeight: 700}]}
       />
     )
