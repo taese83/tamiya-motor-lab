@@ -2063,3 +2063,31 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - STATUS(확정, 사용자 "확정"): 수락 → R19 커밋. 최종 changed source 2건 —
   `MotorDetailPage.tsx`(히어로 2열 space-between), `ConditionSummary.tsx`(세로 스택·우측 정렬·보는 법 아래-오른쪽·추세 별도 줄·keep-all·버튼 높이 축소).
   ALLOWED_PATHS 일치. EVIDENCE: Node22 게이트 4종 PASS(123)·check-iterate-scope OK·프리뷰(:8082,375×812) 일반/추세경고 양 케이스 실측·가로 넘침 0·콘솔 에러 0.
+
+## R20 — 이탈 사유 수집 (2026-07-31, feature/existing-change)
+- REQUEST: RaceRecord에 이탈 사유(retireReason, optional additive) 추가 — result='retired'일 때 재귀 트리
+  드릴다운으로 수집. AI 분석 전제 데이터 수집만(AI 기능 없음). 기획: _workspace/01_plan/race-insight/retire-reason-chipset.md (READY, DL-015~020).
+- OBSERVED_BASELINE: result 완주/이탈 2택만 존재(왜 이탈인지 미기록). goal이 optional enum end-to-end 선례.
+- TARGET_BEHAVIOR: 입력 시트에서 이탈 선택 시 섹션 칩(코너·점프·다운·웨이브·레인체인지·파츠·멈춤·기타) 1탭,
+  점프는 세부(비거리 김·공중 자세·착지 후 튐·그 외) 2탭. 저장은 말단 key 하나. 목록 이탈 행에 사유 표시.
+  완주로 바꾸면 사유 자동 클리어. 수정 시 사유 보존.
+- ALLOWED_PATHS: src/shared/config/domain.ts(RETIRE_REASON_TREE·파생) · src/entities/race-record/model/schema.ts ·
+  src/entities/race-record/api/repository.ts(create+update 영속) · src/features/race-record/ui/{RaceRetireReasonSelect(신규),RaceEntrySheet,RaceRecordRow,index} ·
+  src/features/race-record/model/use-race-entry.ts · 각 index/barrel · 관련 테스트.
+- PUBLIC_CONTRACTS_TO_PRESERVE: RaceRecord 기존 필드·스키마 무변경(retireReason는 additive optional, read-lenient) ·
+  goal/result/voltage/lapTimeMs 기존 배선 불변 · IndexedDB 스키마 버전 불변(optional additive, migration 없음) ·
+  서버 동기화 계약 additive · RaceEntryDraft 타입은 additive · 전압 추천 흐름 무변경.
+- NON_GOALS: AI 분석·처방 UI(별도 라운드) · 라인 번호 · result 모델 변경(코스아웃/멈춤 분리) · 다중 선택 · race-insight 열람 요약(별개 라운드).
+- CHANGE_BUDGET: 파일 ~9(신규 1 컴포넌트 + 수정 6 + 테스트). 커밋 1개. ⚠️ 데이터 무결성: **수정 patch가 retireReason를
+  실어야 이탈 기록 수정 시 사유 유실 없음**(goal과 달리 편집 대상 — repository update가 patch에서 취함).
+- TEST_EVIDENCE: LOCAL_VERIFIABLE — 트리 파생(leaf 평탄화·reasonPath·speedRelated 상속) unit + 스키마 경계(optional·enum) +
+  RaceRetireReasonSelect 드릴다운 render + RaceRecordRow 표시 + **편집 사유 보존 회귀** + 게이트 4종 + check-iterate-scope.
+  프리뷰(:8082) 실측: 이탈 선택 시 드릴다운 노출·점프 세부·완주 전환 시 클리어. 실측정 왕복·서버 sync는 DEPLOY_ONLY.
+
+### R20 scope 확장 (2026-07-31) — [측정] 왕복 사유 보존
+- 사유: RaceEntryDraft에 required retireReason 추가 → 왕복 handoff 변환부가 컴파일·데이터상 필수 수정.
+  goal이 이미 왕복 보존(toHandoffDraft/fromHandoffDraft)되는 선례와 동일하게 retireReason도 보존해야
+  이탈 사유 선택 후 [측정] 왕복 시 사유가 유실되지 않는다(baseline 보존).
+- ALLOWED_PATHS 추가: src/features/race-measure-handoff/model/store.ts(RaceMeasureDraft에 optional retireReason) ·
+  src/pages/race-detail/ui/RaceDetailPage.tsx(toHandoffDraft/fromHandoffDraft 2함수 — goal 미러링).
+- 직접 구현(오케스트레이터): mechanical goal-mirror 3지점, 왕복 계약 단일 응집 — 저널 claude.md 기록.

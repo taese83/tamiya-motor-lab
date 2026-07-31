@@ -1,6 +1,6 @@
 import {Box, Paper, Typography} from '@mui/material'
 
-import {RACE_RESULT_LABELS} from '@shared/config/domain'
+import {RACE_RESULT_LABELS, retireReasonRowLabel} from '@shared/config/domain'
 import {numericTypography} from '@shared/config/design-tokens'
 import {
   formatDateTimeShort,
@@ -53,8 +53,15 @@ export function RaceRecordRow({
   const dateTimeLabel = formatDateTimeShort(record.createdAt)
   // v2.31 result 옵션 — 미정이면 '미정' 표시(결과를 아직 안 넣은 세팅 기록)
   const resultLabel = record.result !== undefined ? RACE_RESULT_LABELS[record.result] : '미정'
-  // 보조 줄 — 결과·전압(·랩타임). 파노는 우측 주값으로 빠졌다(다른 목록과 동일 축)
-  const detailLine = `${resultLabel} · ${formatVoltage(record.voltage)}${
+  // R20 — 이탈 행에만 사유 라벨을 결과 직후에 잇는다(예: '이탈 · 비거리 김 · 3.2V').
+  // 축약 규칙(D-R3: 말단 라벨, '그 외' 계열은 경로 병기)은 retireReasonRowLabel(domain)이 소유.
+  // 완주·미정 행과 사유 없는 이탈 행은 무변경. rowLabel(aria)도 detailLine을 그대로 써서 일치.
+  const retireReasonSuffix =
+    record.result === 'retired' && record.retireReason !== undefined
+      ? ` · ${retireReasonRowLabel(record.retireReason)}`
+      : ''
+  // 보조 줄 — 결과(·사유)·전압(·랩타임). 파노는 우측 주값으로 빠졌다(다른 목록과 동일 축)
+  const detailLine = `${resultLabel}${retireReasonSuffix} · ${formatVoltage(record.voltage)}${
     record.lapTimeMs !== undefined ? ` · ${formatLapTimeSec(record.lapTimeMs)}` : ''
   }`
   const rowLabel = `${index}회차, ${dateTimeLabel}, ${detailLine}, 파노 ${formatFanoHz(record.panoHz)}`

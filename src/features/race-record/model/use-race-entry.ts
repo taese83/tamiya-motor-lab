@@ -44,6 +44,7 @@ export const createInitialRaceEntryDraft = (): RaceEntryDraft => ({
   voltageRaw: '',
   lapTimeRaw: '',
   goal: null,
+  retireReason: null, // R20 — retired일 때만 유의미(D-R2), 초기값 미선택
 })
 
 // 정수 또는 소수 표기만 — 부호·지수·'.5' 시작 표기는 비수치 취급 (record-entry 규칙 승계)
@@ -138,6 +139,10 @@ function validateRaceEntry(
     ...(draft.result !== null ? {result: draft.result} : {}), // v2.31 result 옵션
     ...(lapTimeMs !== undefined ? {lapTimeMs} : {}),
     ...(draft.goal !== null ? {goal: draft.goal} : {}), // v2.31 — 목표 팝업 선택값
+    // R20 — 이탈+사유일 때만 포함(D-R2: 이탈이 아니면 사유를 아예 싣지 않음)
+    ...(draft.result === 'retired' && draft.retireReason !== null
+      ? {retireReason: draft.retireReason}
+      : {}),
   }
 
   // command와 동일 스키마 최종 게이트 — UI 검증에만 의존 금지 (AD-7 스키마 공유)
@@ -326,6 +331,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
       voltageRaw: String(record.voltage),
       lapTimeRaw: record.lapTimeMs !== undefined ? String(record.lapTimeMs / 1000) : '',
       goal: record.goal ?? null, // 기존 목표 보존(수정 시 추천은 재실행하지 않음 — 값 그대로)
+      retireReason: record.retireReason ?? null, // R20 — 수정 시 기존 이탈 사유 복원
     })
     setJustMeasured(false)
     setFieldErrors({})
@@ -340,7 +346,12 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
   }
 
   const onDraftChange = (patch: Partial<RaceEntryDraft>): void => {
-    setDraft(prev => ({...prev, ...patch}))
+    setDraft(prev => {
+      const next = {...prev, ...patch}
+      // D-R2 — result가 'retired'가 아니게 되면 이탈 사유는 무의미 → 클리어(고아 방지)
+      if ('result' in patch && patch.result !== 'retired') next.retireReason = null
+      return next
+    })
     setJustMeasured(false) // sr 고지 1회 — 사용자 조작 시 해제(§6.3 상위 소유)
     setFieldErrors(prev => {
       const next = {...prev}
@@ -374,7 +385,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     void (async () => {
       try {
         if (editingTarget !== null) {
-          // edit — panoHz·구조 필드는 command가 보존, patch는 편집 3필드만(commandDraft에서 추출)
+          // edit — panoHz·구조 필드는 command가 보존, patch는 편집 4필드만(commandDraft에서 추출)
           await updateRaceRecord.mutateAsync({
             id: editingTarget,
             patch: {
@@ -384,6 +395,11 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
                 : {}),
               ...(validation.commandDraft.lapTimeMs !== undefined
                 ? {lapTimeMs: validation.commandDraft.lapTimeMs}
+                : {}),
+              // R20 — patch가 retireReason 소유(repository는 생략 시 필드 제거). commandDraft가
+              // 이탈+사유일 때만 담으므로 완주 전환 수정은 자동으로 사유 제거(D-R2 정합).
+              ...(validation.commandDraft.retireReason !== undefined
+                ? {retireReason: validation.commandDraft.retireReason}
                 : {}),
             },
           })

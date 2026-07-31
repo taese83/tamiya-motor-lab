@@ -20,3 +20,7 @@ export type {ResetRecordsBlockProps} from './ResetRecordsBlock'
 // v2.31 — 목표 선택 팝업(2번째+ 입력 진입점)
 export {RaceGoalSheet} from './RaceGoalSheet'
 export type {RaceGoalSheetProps} from './RaceGoalSheet'
+// R20 — 이탈 사유 재귀 드릴다운 칩셋(retire-reason-chipset D-R5, RaceEntrySheet 내부 소비 +
+// 테스트 공개 표면)
+export {RaceRetireReasonSelect} from './RaceRetireReasonSelect'
+export type {RaceRetireReasonSelectProps} from './RaceRetireReasonSelect'

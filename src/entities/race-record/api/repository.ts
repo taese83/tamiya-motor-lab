@@ -14,7 +14,8 @@ import type {CreateRaceRecordDraft, RaceRecord, UpdateRaceRecordPatch} from '../
 import type {Result} from '@shared/lib/result'
 
 // RaceRecord command 3건 + query 1건 (api-schema v2 §0·§4.4·§5 — F6-R).
-// v2.3(INV-05 완화): update command 추가 — result·voltage·lapTimeMs만 편집, 측정값·구조 필드는 보존.
+// v2.3(INV-05 완화): update command 추가 — result·voltage·lapTimeMs·retireReason(R20)만 편집,
+// 측정값·구조 필드는 보존.
 // motors store 접근은 entity 코드 import가 아닌 shared/lib/persistence 경유 store 접근이다
 // (state-contract 위임 계약 5). store·index 이름은 state-contract v2 표기(raceRecords·by-motorId).
 
@@ -48,6 +49,7 @@ export async function createRaceRecord(draft: CreateRaceRecordDraft): Promise<Re
     ...(parsed.data.result !== undefined ? {result: parsed.data.result} : {}), // v2.31 옵션
     ...(parsed.data.lapTimeMs !== undefined ? {lapTimeMs: parsed.data.lapTimeMs} : {}),
     ...(parsed.data.goal !== undefined ? {goal: parsed.data.goal} : {}), // v2.31 목표
+    ...(parsed.data.retireReason !== undefined ? {retireReason: parsed.data.retireReason} : {}), // R20
     createdAt: new Date().toISOString(),
   }
 
@@ -64,7 +66,7 @@ export async function createRaceRecord(draft: CreateRaceRecordDraft): Promise<Re
 
 /**
  * command: updateRaceRecord (v2.3 — 오입력 정정, INV-05 완화).
- * result·voltage·lapTimeMs만 갱신하고 panoHz·motorId·createdAt은 기존 행 값을 그대로 보존한다
+ * result·voltage·lapTimeMs·retireReason(R20)만 갱신하고 panoHz·motorId·createdAt은 기존 행 값을 그대로 보존한다
  * (측정값·정렬 키 불변 — 수정해도 리스트 순서가 바뀌지 않는다). lapTimeMs 생략은 필드 제거.
  * raceRecords 단일 트랜잭션에서 get→검증→put. 대상 부재 시 not-found throw(abort로 무변경) —
  * 삭제와 달리 멱등 성공이 아니다(존재하지 않는 기록의 "수정 성공"은 성공 위장이므로).
@@ -98,6 +100,10 @@ export async function updateRaceRecord(
       ...(patchParsed.data.lapTimeMs !== undefined ? {lapTimeMs: patchParsed.data.lapTimeMs} : {}),
       // v2.31 goal은 수정 patch 대상 아님 — 기존 값 보존(생성 시 선택된 목표 유지)
       ...(current.goal !== undefined ? {goal: current.goal} : {}),
+      // R20 retireReason은 편집 대상(patch 소유) — 생략 시 필드 제거(완주 전환 시 UI가 클리어, D-R2)
+      ...(patchParsed.data.retireReason !== undefined
+        ? {retireReason: patchParsed.data.retireReason}
+        : {}),
     }
     await store.put(next) // put — 기존 키 갱신
     return next

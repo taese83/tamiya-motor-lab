@@ -9,7 +9,9 @@ import {FormField} from '@shared/ui/form-field'
 import {SegmentControl} from '@shared/ui/segment-control'
 import {VoltageStepper} from '@shared/ui/voltage-stepper'
 
-import type {RaceGoal, RaceResult} from '@shared/config/domain'
+import {RaceRetireReasonSelect} from './RaceRetireReasonSelect'
+
+import type {RaceGoal, RaceResult, RetireReason} from '@shared/config/domain'
 import type {FormEvent, KeyboardEvent} from 'react'
 
 // ── 공개 폼 타입 (component-spec §6.3 — 이 파일이 canonical 정의처) ──────────────
@@ -34,6 +36,11 @@ export interface RaceEntryDraft {
   lapTimeRaw: string
   /** v2.31 목표(완주/안정/속도) — 2번째+ 입력 시 팝업에서 선택. 미선택(첫 기록·수정)이면 null */
   goal: RaceGoal | null
+  /**
+   * R20 이탈 사유(옵션·단일, retire-reason-chipset) — result='retired'일 때만 유의미.
+   * 완주/미정 전환 시 클리어(D-R2)는 상위(useRaceEntry) 소유 — 여기는 렌더+콜백만.
+   */
+  retireReason: RetireReason | null
 }
 
 export type RaceEntryField = 'result' | 'voltage' | 'lapTime'
@@ -90,7 +97,7 @@ const fieldRowSx = {mb: 2} as const
  * 완전 제어형 폼 — draft·pano·오류 전부 상위(useRaceEntry) 소유, 여기는 순수 렌더+콜백.
  * mode=create: 파노 [측정] 왕복 + [입력]. mode=edit(v2.3): panoHz 읽기전용([측정] 미노출),
  * result·voltage·lapTimeMs만 편집 + [저장]. focus order(layout §6.3):
- * (create) 파노 [측정] → 결과 → 전압 → 랩타임 → [입력] → [취소].
+ * (create) 파노 [측정] → 결과 → (이탈 시 사유, R20) → 전압 → 랩타임 → [입력] → [취소].
  * 상태 전수: editing(auto/measured/none) / validating-error / pending / submit-error /
  * just-measured / closed.
  */
@@ -221,6 +228,22 @@ export function RaceEntrySheet({
             />
           </FormField>
         </Box>
+
+        {/*
+          ②-b 이탈 사유 (R20, retire-reason-chipset) — result='retired'일 때만 노출되는 옵션
+          필드. 무검증이라 오류 결속이 없다(FormField 기본 helper 슬롯은 행 리듬 유지용으로 유지).
+          재귀 트리 드릴다운·선택 상태는 RaceRetireReasonSelect가, 값 소유는 상위 draft가 가진다.
+        */}
+        {draft.result === 'retired' && (
+          <Box sx={fieldRowSx}>
+            <FormField label="이탈 사유 · 옵션">
+              <RaceRetireReasonSelect
+                value={draft.retireReason}
+                onChange={next => onDraftChange({retireReason: next})}
+              />
+            </FormField>
+          </Box>
+        )}
 
         {/*
           ③ 전압 (필수) — 오류 슬롯은 FormField가 소유(스테퍼 내장 슬롯은 끈다).

@@ -57,3 +57,10 @@
 - 보존: LatestPanoHero(R17)·PanoLineChart(R18)·그래프+리스트 스크롤 셸(R18)·측정 왕복·밀어서 삭제·분기·[측정] 고정 전부 무변경.
 - EVIDENCE: Node22 게이트 4종 PASS(typecheck·lint·test 123·build) + check-iterate-scope OK(소스 2건=ALLOWED_PATHS).
   프리뷰(:8082, 375×812, IndexedDB fixture) 실측 2케이스: 일반(안정도 좋음·0.42% 1줄+보는 법 아래) / 추세경고 inspect(2.0배·점검 권장, keep-all 단어단위 줄바꿈, 보는 법 아래-오른쪽). 버튼 48→29px, 가로 넘침 0, 콘솔 에러 0.
+
+## 2026-07-31 R20 이탈 사유 수집 — 오케스트레이션 (feature/existing-change)
+- 위임: shared-foundation-builder(domain 트리) → entity-query-builder(schema·repository)∥component-builder(드릴다운 UI 3파일) → form-state-builder(use-race-entry) → test-writer. 전 subagent model:fable. 저널 Write hook 차단분은 반환 원문 대필(component-builder는 반환 잘려 검증 상태로 재구성).
+- 직접 편집(scope 확장, mechanical goal-mirror): [측정] 왕복 사유 보존 —
+  - MODIFIED: src/features/race-measure-handoff/model/store.ts — RaceMeasureDraft에 optional retireReason(RetireReason import).
+  - MODIFIED: src/pages/race-detail/ui/RaceDetailPage.tsx — toHandoffDraft/fromHandoffDraft에 retireReason 미러링(goal 동일 패턴). RaceEntryDraft required 필드 추가에 따른 필수 통합.
+- EVIDENCE: Node 22 pin CI=true pnpm typecheck·lint·test(156)·build 4종 PASS + check-iterate-scope OK(source 14건). 프리뷰(:8082) /race 로그인 게이트 정상 렌더·콘솔 에러 0(회귀 없음). 드릴다운 실입력은 로그인 뒤 DEPLOY_ONLY — 사용자 위임, 컴포넌트 계약은 render 테스트로 고정.

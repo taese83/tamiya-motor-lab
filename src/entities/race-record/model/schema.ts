@@ -1,12 +1,18 @@
 import {z} from 'zod'
 
-import {LAP_TIME_MAX_MS, RACE_GOALS, RACE_RESULTS, VOLTAGE_RANGE} from '@shared/config/domain'
+import {
+  LAP_TIME_MAX_MS,
+  RACE_GOALS,
+  RACE_RESULTS,
+  RETIRE_REASON_LEAF_KEYS,
+  VOLTAGE_RANGE,
+} from '@shared/config/domain'
 import {DOMAIN_ERROR_MESSAGES, DomainError} from '@shared/lib/errors'
 import {panoHzStoredSchema} from '@shared/lib/schema/pano'
 
 // RaceRecord 엔티티 zod 스키마 단일 정의 (api-schema v2 §2.4 canonical, AD-7).
-// v2.3(INV-05 완화): 생성·개별 삭제(RV-A3)에 더해 **수정 command** 존재 — result·voltage·lapTimeMs만
-// 편집 가능. panoHz(측정값)·motorId·id·createdAt(정렬 키)은 불변(수정 대상 아님, 측정 신뢰성 보호).
+// v2.3(INV-05 완화): 생성·개별 삭제(RV-A3)에 더해 **수정 command** 존재 — result·voltage·lapTimeMs·
+// retireReason(R20)만 편집 가능. panoHz(측정값)·motorId·id·createdAt(정렬 키)은 불변(수정 대상 아님, 측정 신뢰성 보호).
 // persisted 데이터는 외부 입력 취급 — type assertion 금지 (INV-16).
 //
 // panoHz가 write에도 stored(완화) 스키마인 이유(AR-2): 출처가 항상 기존 MeasureRecord 인용
@@ -19,6 +25,11 @@ export const raceResultSchema = z.enum(RACE_RESULTS) // R-3 — 상수 1곳 참�
 // v2.31 — 이번 주행 목표(완주/안정/속도). optional: 기존 데이터·목표 미선택 입력은 goal 없음.
 // read-lenient(SC-A8 동일 원칙): optional이라 구 행이 goal 부재로 corrupt 판정되지 않는다.
 export const raceGoalSchema = z.enum(RACE_GOALS)
+
+// R20 — 이탈 사유(재귀 트리의 가장 구체적으로 고른 노드 key 하나 저장, D-R1·D-R5). optional additive:
+// 구 데이터·미선택 입력은 retireReason 없음 — read-lenient(goal과 동일 원칙, corrupt 판정 안 됨).
+// result='retired'일 때만 유의미 — 강제는 스키마 refine이 아니라 UI 클리어(D-R2, 엣지 데이터 거부 회피).
+export const retireReasonSchema = z.enum(RETIRE_REASON_LEAF_KEYS)
 
 // A5: 0.1~9.9 V, 소수 최대 2자리 — float 안전 검사(×100 후 정수 근접 비교, `% 1` 직접 비교 금지)
 export const voltageSchema = z
@@ -45,6 +56,7 @@ export const raceRecordSchema = z.object({
   voltage: voltageSchema,
   lapTimeMs: lapTimeMsSchema.optional(), // 옵션 — undefined는 저장하지 않음
   goal: raceGoalSchema.optional(), // v2.31 목표(완주/안정/속도) — 옵션(구 데이터·미선택 시 부재)
+  retireReason: retireReasonSchema.optional(), // R20 이탈 사유 — 옵션(retired일 때만 유의미, D-R2)
   createdAt: z.iso.datetime(), // 구조 필드 — 최신순 정렬 키
 })
 export type RaceRecord = z.infer<typeof raceRecordSchema>
@@ -57,16 +69,20 @@ export const createRaceRecordDraftSchema = z.object({
   voltage: voltageSchema,
   lapTimeMs: lapTimeMsSchema.optional(),
   goal: raceGoalSchema.optional(), // v2.31 — 목표 팝업 선택값(미선택 시 생략)
+  retireReason: retireReasonSchema.optional(), // R20 — 드릴다운 선택 leaf key(미선택 시 생략)
 })
 export type CreateRaceRecordDraft = z.input<typeof createRaceRecordDraftSchema>
 
-// 수정 patch (v2.3) — 편집 가능한 3필드 전체를 매 수정마다 제공한다(부분 patch 아님).
+// 수정 patch (v2.3, R20 확장) — 편집 가능한 4필드 전체를 매 수정마다 제공한다(부분 patch 아님).
 // lapTimeMs 생략 = 랩타임 미측정으로 설정(기존 값 제거) — §2.1 null vs 생략 규칙 준수.
 // panoHz·motorId·id·createdAt은 이 스키마에 없다 — command가 기존 값을 보존한다.
 export const updateRaceRecordPatchSchema = z.object({
   result: raceResultSchema.optional(), // v2.31 — 옵션(미정 유지·해제 허용)
   voltage: voltageSchema,
   lapTimeMs: lapTimeMsSchema.optional(),
+  // R20 — goal과 달리 retireReason은 **편집 대상**(result·voltage·lapTimeMs와 함께 patch가 소유).
+  // 생략 = 필드 제거(result를 완주/미정으로 바꾸면 UI가 클리어, D-R2) — §2.1 null vs 생략 규칙.
+  retireReason: retireReasonSchema.optional(),
 })
 export type UpdateRaceRecordPatch = z.input<typeof updateRaceRecordPatchSchema>
 

@@ -102,6 +102,7 @@ function toHandoffDraft(draft: RaceEntryDraft): RaceMeasureDraft {
     ...(voltageRaw !== '' && Number.isFinite(voltage) ? {voltage} : {}),
     ...(lapTimeRaw !== '' && Number.isFinite(lapTimeSec) ? {lapTimeSec} : {}),
     ...(draft.goal !== null ? {goal: draft.goal} : {}), // v2.31 목표 보존
+    ...(draft.retireReason !== null ? {retireReason: draft.retireReason} : {}), // R20 이탈 사유 보존
   }
 }
 
@@ -112,6 +113,7 @@ function fromHandoffDraft(draft: RaceMeasureDraft): RaceEntryDraft {
     voltageRaw: draft.voltage !== undefined ? String(draft.voltage) : '',
     lapTimeRaw: draft.lapTimeSec !== undefined ? String(draft.lapTimeSec) : '',
     goal: draft.goal ?? null, // v2.31 — 왕복 복귀 시 목표 복원
+    retireReason: draft.retireReason ?? null, // R20 — 왕복 복귀 시 이탈 사유 복원
   }
 }
 

@@ -53,6 +53,136 @@ export const RACE_GOAL_LABELS: Record<RaceGoal, string> = {
   speed: '속도',
 }
 
+// ── 이탈 사유 taxonomy (retire-reason-chipset Phase 1 — DL-015~020, D-R1·D-R5 확정)
+// 재귀 트리(섹션→세부, n단 확장 가능). 저장은 항상 **가장 구체적으로 고른 leaf key 하나** —
+// 트리가 그 key로 경로·인과 메타(speedRelated·causal)를 복원한다. key는 **append-only 안정
+// 식별자**(리네임·삭제 금지) — 과거 저장 데이터가 항상 유효해야 한다. 섹션이 leaf→branch로
+// 자라면 기존 leaf key는 그 섹션의 "그 외" leaf로 살아남는다(growth 규칙).
+
+/** 이탈 사유 트리 노드 — children 있으면 branch(저장 불가), 없으면 leaf(저장 가능) */
+export interface RetireReasonNode {
+  readonly key: string
+  readonly label: string // 드릴다운 표시용(섹션/세부)
+  readonly speedRelated?: boolean // AI: 전압 처방 가능 여부. 미지정 시 부모 상속
+  readonly causal?: string // AI 힌트
+  readonly children?: readonly RetireReasonNode[] // 있으면 branch(저장 불가), 없으면 leaf(저장 가능)
+}
+
+// 현재 트리 인스턴스 (D-R1 확정 — 속도형 5섹션 + 기계형 2 + escape 1. 현재는 점프만 2단).
+// as const로 리터럴 타입을 유지해 leaf key 유니온을 타입 수준에서 파생하고,
+// satisfies로 노드 구조를 검증한다(design-tokens.ts와 같은 관례).
+export const RETIRE_REASON_TREE = [
+  {key: 'corner', label: '코너 이탈', speedRelated: true, causal: '속도 과다'},
+  {
+    key: 'jump',
+    label: '점프',
+    speedRelated: true,
+    children: [
+      {key: 'jump_overshoot', label: '비거리 김', causal: '순수 속도 → 전압↓ 1순위'},
+      {key: 'jump_attitude', label: '공중 자세 무너짐', causal: '밸런스/댐퍼(속도 약함)'},
+      {key: 'jump_rebound', label: '착지 후 튐', causal: '속도+댐퍼'},
+      {key: 'jump_other', label: '그 외 점프', causal: '미상'},
+    ],
+  },
+  {key: 'down_step', label: '다운 한칸 실패', speedRelated: true, causal: '속도 or 밸런스'},
+  {key: 'wave', label: '웨이브 이탈', speedRelated: true, causal: '속도 or 댐퍼'},
+  {key: 'lane_change', label: '레인체인지 실패', speedRelated: true, causal: '속도 과다'},
+  {key: 'parts', label: '파츠 이탈·파손', speedRelated: false, causal: '전압 무관'},
+  {key: 'stall', label: '멈춤', speedRelated: false, causal: '전압 무관'},
+  {key: 'other', label: '기타·기억 안 남', speedRelated: false, causal: '미상'},
+] as const satisfies readonly RetireReasonNode[]
+
+// (내부 타입 유틸) 트리 리터럴에서 leaf key 유니온을 재귀 추출 —
+// children 있으면 branch(자기 key 제외, 하위로 재귀), 없으면 leaf(자기 key 채택).
+type RetireReasonLeafKeyOf<N> = N extends {readonly children: readonly (infer C)[]}
+  ? RetireReasonLeafKeyOf<C>
+  : N extends {readonly key: infer K extends string}
+    ? K
+    : never
+type RetireReasonTreeLeafKey = RetireReasonLeafKeyOf<(typeof RETIRE_REASON_TREE)[number]>
+
+// (내부) leaf key 튜플 ↔ 트리 정합을 컴파일 타임에 양방향 검사하는 항등 헬퍼.
+//  ① K extends readonly RetireReasonTreeLeafKey[] — 오타·branch key(jump 등) 차단
+//  ② [RetireReasonTreeLeafKey] extends [K[number]] — 누락 차단(누락 시 에러 타입에 빠진 key 표시)
+// 트리에 leaf를 추가하면 아래 튜플에도 추가해야 컴파일된다(단일 출처는 트리, 튜플은 검증된 사본).
+function assertAllRetireReasonLeafKeys<K extends readonly RetireReasonTreeLeafKey[]>(
+  keys: K &
+    ([RetireReasonTreeLeafKey] extends [K[number]]
+      ? unknown
+      : ['RETIRE_REASON_TREE leaf 누락:', Exclude<RetireReasonTreeLeafKey, K[number]>]),
+): K {
+  return keys
+}
+
+// 저장 가능한 leaf key 튜플(트리 순회 순서) — retireReason enum·검증의 입력(z.enum).
+// 리터럴 튜플이어야 스키마가 리터럴 유니온을 얻는다(런타임 트리 순회 파생은 리터럴 타입을 잃어
+// string[]으로 넓어짐) → 직접 나열 + 위 헬퍼로 트리와의 정합을 컴파일 타임에 보장한다.
+// key는 append-only 안정 식별자(리네임·삭제 금지) — 과거 저장 데이터의 rehydrate가 항상 통과.
+export const RETIRE_REASON_LEAF_KEYS = assertAllRetireReasonLeafKeys([
+  'corner',
+  'jump_overshoot',
+  'jump_attitude',
+  'jump_rebound',
+  'jump_other',
+  'down_step',
+  'wave',
+  'lane_change',
+  'parts',
+  'stall',
+  'other',
+] as const)
+export type RetireReason = (typeof RETIRE_REASON_LEAF_KEYS)[number]
+
+// (내부) 트리 깊이 우선 탐색으로 루트→leaf 노드 경로를 찾는다. branch key는 매칭하지 않는다 —
+// 저장 대상은 leaf뿐이고, leaf였던 섹션이 branch로 자라 기존 key가 하위 "그 외" leaf로 이동해도
+// 경로 탐색이 자연히 새 위치를 찾는다(growth 규칙과 정합).
+function findRetireReasonNodePath(
+  nodes: readonly RetireReasonNode[],
+  key: string,
+): readonly RetireReasonNode[] | null {
+  for (const node of nodes) {
+    if (node.children) {
+      const childPath = findRetireReasonNodePath(node.children, key)
+      if (childPath) return [node, ...childPath]
+      continue
+    }
+    if (node.key === key) return [node]
+  }
+  return null
+}
+
+function retireReasonNodePath(key: RetireReason): readonly RetireReasonNode[] {
+  const path = findRetireReasonNodePath(RETIRE_REASON_TREE, key)
+  // RetireReason ⊆ 트리 leaf 집합이 컴파일 타임에 보장되므로 실제로는 도달 불가(방어선)
+  if (!path) throw new Error(`RETIRE_REASON_TREE에 없는 이탈 사유 leaf key: ${key}`)
+  return path
+}
+
+/** 루트→leaf 라벨 경로 — 드릴다운 breadcrumb·행 표시용(예: ['점프', '비거리 김']) */
+export function reasonPath(key: RetireReason): readonly string[] {
+  return retireReasonNodePath(key).map(node => node.label)
+}
+
+/**
+ * 목록 행 표시 라벨 (D-R3) — branch 하위 leaf는 섹션 문맥 병기('점프 · 비거리 김'),
+ * top-level leaf는 라벨 그대로('코너 이탈'). n단으로 자라도 전체 경로를 ' · '로 잇는다.
+ */
+export function retireReasonRowLabel(key: RetireReason): string {
+  return reasonPath(key).join(' · ')
+}
+
+/**
+ * AI 계약: leaf부터 부모로 올라가며 speedRelated 첫 정의값 반환(미지정 시 부모 상속).
+ * 경로 전체에 정의가 없으면 false(전압 처방 제외가 안전한 기본). 이번 라운드 UI 미사용.
+ */
+export function resolveSpeedRelated(key: RetireReason): boolean {
+  const path = retireReasonNodePath(key)
+  for (const node of [...path].reverse()) {
+    if (node.speedRelated !== undefined) return node.speedRelated
+  }
+  return false
+}
+
 // ── 측정 기록 rolling 상한 (T-3·INV-20: 모터당 최대 N건, 초과 시 최고령(最古) 자동 삭제)
 // v2.21(사용자): 10 → 20으로 상향. rolling·eviction 로직은 상수만 참조하므로 값 변경으로 족하다
 // (INV-20의 "N건 유지·초과 시 최고령 삭제" 불변식 자체는 불변, 경계값만 20).
