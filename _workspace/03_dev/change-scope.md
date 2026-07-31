@@ -1961,3 +1961,15 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 커밋 1개, 파일 ≤5.
 - TEST_EVIDENCE: LOCAL_VERIFIABLE — sticky 계산 스타일·스크린샷(프리뷰). 실스크롤 체감(로그인 뒤 목록)은
   DEPLOY_ONLY — 사용자 위임. 게이트: typecheck·lint·test·build + check-iterate-scope.
+
+## R14 — 종류 필터 단일 선택(탭 형식) 전환 (2026-07-31, ui-change)
+- TARGET_BEHAVIOR: 모터·레이스의 종류 필터를 다중선택 칩 → **단일 선택 탭**으로 변경.
+  [전체] 탭 + 존재 종류 탭(건수 표기), 하나만 활성. 두 화면 공유·영속(localStorage) 계약 유지.
+- ALLOWED_PATHS: features/motor-management/model/{kind-filter-store,use-motor-kind-filter}.ts ·
+  features/motor-management/ui/MotorKindFilter.tsx · pages/{motors,race}/ui(prop 배선만)
+- PUBLIC_CONTRACTS_TO_PRESERVE: 화면 간 공유 + 영속(기존 저장 배열과 하위 호환 — 다중 잔존값은
+  첫 항목만 채택) · 0건 빈 상태 탈출 경로([전체]) · 44px 터치 타깃 · 색 단독 구분 금지(a11y).
+- NON_GOALS: 정렬 SegmentControl·필터 대상 확장 변경 없음.
+- CHANGE_BUDGET: 커밋 1개, 파일 ≤5.
+- TEST_EVIDENCE: LOCAL_VERIFIABLE — 프리뷰 탭 렌더·단일 선택 동작(로그인 게이트로 목록은 제한적) /
+  게이트 4종 + check-iterate-scope. 실데이터 필터링 체감은 DEPLOY_ONLY — 사용자 위임.

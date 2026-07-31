@@ -212,8 +212,8 @@ export function MotorsPage() {
           {/* 종류 필터 — 모터가 1건 이상일 때만 노출(빈 목록에 죽은 컨트롤 금지) */}
           <MotorKindFilter
             options={kindFilter.options}
-            active={kindFilter.active}
-            onToggle={kindFilter.toggle}
+            selectedKind={kindFilter.selectedKind}
+            onSelect={kindFilter.select}
             onClear={kindFilter.clear}
           />
 

@@ -39,9 +39,14 @@ export const normalizeKinds = (value: unknown): ReadonlyArray<MotorKind> => {
 }
 
 interface KindFilterState {
-  /** 선택된 종류 — 빈 배열이면 전체(필터 없음). 항상 MOTOR_KINDS 순서 */
+  /**
+   * 선택된 종류 — 빈 배열이면 전체(필터 없음).
+   * v2.x(사용자): **단일 선택(탭 형식)** — 배열은 저장 형태 하위 호환용이고 항상 0~1개다.
+   * 구버전 다중 잔존값은 rehydrate 정규화 후 소비 훅이 첫 항목만 채택한다.
+   */
   selected: ReadonlyArray<MotorKind>
-  toggle: (kind: MotorKind) => void
+  /** 탭 선택 — 해당 종류 하나만 활성(다중 불가). 같은 종류 재선택은 유지(해제는 clear) */
+  select: (kind: MotorKind) => void
   clear: () => void
 }
 
@@ -49,13 +54,7 @@ export const useKindFilterStore = create<KindFilterState>()(
   persist(
     set => ({
       selected: [],
-      toggle: kind =>
-        set(state => ({
-          selected: state.selected.includes(kind)
-            ? state.selected.filter(item => item !== kind)
-            : // 추가는 MOTOR_KINDS 순서로 다시 깔아 선택 순서가 표시에 새지 않게 한다
-              MOTOR_KINDS.filter(item => item === kind || state.selected.includes(item)),
-        })),
+      select: kind => set({selected: [kind]}),
       clear: () => set({selected: []}),
     }),
     {

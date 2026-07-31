@@ -157,8 +157,8 @@ export function RacePage() {
           */}
           <MotorKindFilter
             options={kindFilter.options}
-            active={kindFilter.active}
-            onToggle={kindFilter.toggle}
+            selectedKind={kindFilter.selectedKind}
+            onSelect={kindFilter.select}
             onClear={kindFilter.clear}
           />
 

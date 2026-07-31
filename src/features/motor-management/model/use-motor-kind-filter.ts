@@ -7,7 +7,7 @@ import {useKindFilterStore} from './kind-filter-store'
 import type {MotorSummary} from '@entities/motor'
 import type {MotorKind} from '@shared/config/domain'
 
-// 종류 필터 상태 훅 (v2.4 도입 — 종류 칩 다중선택).
+// 종류 필터 상태 훅 (v2.4 칩 다중선택 → v2.x 단일 선택 탭, 사용자 확정).
 //
 // v2.17: 선택 상태의 소유가 URL search param → **공유 영속 store**로 바뀌었다.
 // 사용자 결정 2건 때문이다: ① 모터 탭과 레이스 탭이 하나의 필터를 공유한다
@@ -23,23 +23,23 @@ import type {MotorKind} from '@shared/config/domain'
 
 export interface MotorKindFilterOption {
   kind: MotorKind
-  /** 해당 종류의 모터 수 — 칩 라벨 보조 표시(0건 종류는 옵션에서 제외된다) */
+  /** 해당 종류의 모터 수 — 탭 라벨 보조 표시(0건 종류는 옵션에서 제외된다) */
   count: number
   selected: boolean
 }
 
 export interface MotorKindFilter {
-  /** 선택된 종류 — 빈 배열이면 전체(필터 없음). MOTOR_KINDS 순서로 정규화됨 */
-  selected: ReadonlyArray<MotorKind>
-  /** 선택이 1개 이상이면 true — DnD 정렬 잠금·안내 문구·해제 버튼 표시 판정 */
+  /** 선택된 종류 — null이면 전체(필터 없음). v2.x: 단일 선택(탭 형식, 사용자 확정) */
+  selectedKind: MotorKind | null
+  /** 선택이 있으면 true — 안내 문구·해제 버튼 표시 판정 */
   active: boolean
-  /** 실제 목록에 존재하는 종류만(건수 포함) — 죽은 칩을 만들지 않는다 */
+  /** 실제 목록에 존재하는 종류만(건수 포함) — 죽은 탭을 만들지 않는다 */
   options: ReadonlyArray<MotorKindFilterOption>
-  /** 필터 적용 결과 — 선택 0개면 입력 배열 그대로(참조 동일, 재정렬 없음) */
+  /** 필터 적용 결과 — 선택 없으면 입력 배열 그대로(참조 동일, 재정렬 없음) */
   filtered: ReadonlyArray<MotorSummary>
-  /** 칩 탭 — 선택/해제 토글 */
-  toggle: (kind: MotorKind) => void
-  /** [전체] 탭·[필터 해제] — 선택 전체 비움 */
+  /** 종류 탭 선택 — 하나만 활성(교체). 해제는 clear([전체] 탭) */
+  select: (kind: MotorKind) => void
+  /** [전체] 탭·[필터 해제] — 선택 비움 */
   clear: () => void
 }
 
@@ -50,8 +50,11 @@ export function useMotorKindFilter(summaries: ReadonlyArray<MotorSummary>): Moto
   // 개별 셀렉터로 구독한다 — store 객체 전체를 반환하면 매 렌더 새 참조가 되어
   // 두 화면이 동시에 구독할 때 불필요한 재렌더가 번진다.
   const selected = useKindFilterStore(state => state.selected)
-  const toggle = useKindFilterStore(state => state.toggle)
+  const select = useKindFilterStore(state => state.select)
   const clear = useKindFilterStore(state => state.clear)
+
+  // 단일 선택(v2.x) — 저장 형태는 배열(하위 호환), 구버전 다중 잔존값은 첫 항목만 채택
+  const selectedKind = selected[0] ?? null
 
   const options = useMemo<ReadonlyArray<MotorKindFilterOption>>(() => {
     const counts = new Map<MotorKind, number>()
@@ -60,16 +63,15 @@ export function useMotorKindFilter(summaries: ReadonlyArray<MotorSummary>): Moto
     }
     // 존재하는 종류만 MOTOR_KINDS 순서로. 선택했지만 0건이 된 종류(동시 삭제 등)도
     // 해제 경로를 남기기 위해 포함한다 — 그래야 사용자가 빈 결과에서 빠져나올 수 있다.
-    return MOTOR_KINDS.filter(kind => (counts.get(kind) ?? 0) > 0 || selected.includes(kind)).map(
-      kind => ({kind, count: counts.get(kind) ?? 0, selected: selected.includes(kind)}),
+    return MOTOR_KINDS.filter(kind => (counts.get(kind) ?? 0) > 0 || kind === selectedKind).map(
+      kind => ({kind, count: counts.get(kind) ?? 0, selected: kind === selectedKind}),
     )
-  }, [summaries, selected])
+  }, [summaries, selectedKind])
 
   const filtered = useMemo<ReadonlyArray<MotorSummary>>(() => {
-    if (selected.length === 0) return summaries
-    const allowed = new Set(selected)
-    return summaries.filter(summary => allowed.has(summary.motor.kind))
-  }, [summaries, selected])
+    if (selectedKind === null) return summaries
+    return summaries.filter(summary => summary.motor.kind === selectedKind)
+  }, [summaries, selectedKind])
 
-  return {selected, active: selected.length > 0, options, filtered, toggle, clear}
+  return {selectedKind, active: selectedKind !== null, options, filtered, select, clear}
 }

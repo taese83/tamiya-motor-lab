@@ -29,34 +29,33 @@ describe('normalizeKinds — 영속 값 정규화', () => {
   })
 })
 
-describe('useKindFilterStore — 공유 선택 상태', () => {
+describe('useKindFilterStore — 공유 선택 상태 (v2.x 단일 선택 탭)', () => {
   beforeEach(() => {
     useKindFilterStore.setState({selected: []})
   })
 
-  it('toggle이 선택을 켜고 끈다', () => {
-    const {toggle} = useKindFilterStore.getState()
+  it('select는 항상 하나만 활성 — 다른 종류 선택 시 교체된다(다중 불가)', () => {
+    const {select} = useKindFilterStore.getState()
 
-    toggle('rev')
+    select('rev')
     expect(useKindFilterStore.getState().selected).toEqual(['rev'])
 
-    toggle('rev')
-    expect(useKindFilterStore.getState().selected).toEqual([])
+    select('torque')
+    expect(useKindFilterStore.getState().selected).toEqual(['torque'])
   })
 
-  it('추가 선택도 MOTOR_KINDS 순서로 유지된다 — 고른 순서가 표시에 새지 않는다', () => {
-    const {toggle} = useKindFilterStore.getState()
+  it('같은 종류 재선택은 유지된다 — 해제는 clear([전체] 탭)만', () => {
+    const {select} = useKindFilterStore.getState()
 
-    toggle('mach_dash')
-    toggle('m130')
+    select('rev')
+    select('rev')
 
-    expect(useKindFilterStore.getState().selected).toEqual(['m130', 'mach_dash'])
+    expect(useKindFilterStore.getState().selected).toEqual(['rev'])
   })
 
-  it('clear가 전체 선택을 비운다', () => {
-    const {toggle, clear} = useKindFilterStore.getState()
-    toggle('rev')
-    toggle('torque')
+  it('clear가 선택을 비운다([전체])', () => {
+    const {select, clear} = useKindFilterStore.getState()
+    select('rev')
 
     clear()
 
@@ -67,7 +66,7 @@ describe('useKindFilterStore — 공유 선택 상태', () => {
     // 모터 화면이 고른 값을 레이스 화면이 그대로 읽는 구조를 store 레벨에서 고정한다.
     // (화면별 독립 상태였다면 이 단정이 깨진다)
     const motorsScreen = useKindFilterStore.getState()
-    motorsScreen.toggle('hyper_dash')
+    motorsScreen.select('hyper_dash')
 
     const raceScreen = useKindFilterStore.getState()
     expect(raceScreen.selected).toEqual(['hyper_dash'])

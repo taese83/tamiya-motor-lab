@@ -20,3 +20,13 @@
   보존: h 56px(env=0 시 layout shift 0)·h1 계약·모터 상세 고정 셸과 무해 공존
 - EVIDENCE: 프리뷰 computed style(position sticky·top 0·z 1100·opaque bg) + 600px 스크롤 시
   header top 0 유지 실측 / 게이트 4종 PASS + check-iterate-scope OK
+
+## 2026-07-31 R14 종류 필터 단일 선택 탭 (ui-change)
+- MODIFIED: model/kind-filter-store.ts — toggle→select(단일 교체). 저장 배열 형태 유지(하위 호환)
+- MODIFIED: model/use-motor-kind-filter.ts — selectedKind(단일)·select 공개, 다중 잔존값은 첫 항목 채택
+- MODIFIED: ui/MotorKindFilter.tsx — 칩 행 → MUI Tabs scrollable([전체]+종류, 44px, indicator 이중화)
+- MODIFIED: pages/{motors,race} — prop 배선(selectedKind/onSelect)
+- CREATED: ui/MotorKindFilter.test.tsx — 탭 렌더·단일 aria-selected·onSelect/onClear 계약
+- MODIFIED: model/kind-filter-store.test.ts — 단일 선택 의미로 갱신
+- EVIDENCE: 게이트 4종 PASS(123 tests) + check-iterate-scope OK / 실화면은 로그인 게이트로
+  DEPLOY_ONLY — 사용자 위임(컴포넌트 계약은 렌더 테스트로 고정)
