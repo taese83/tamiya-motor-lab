@@ -16,3 +16,17 @@
 - EVIDENCE: 상수(STABILITY_LEVEL_LABELS 등)·판정 함수·색 체계·레이아웃 무변경(텍스트 노드만 교체).
   잔존 '변동' grep 3건 전부 코드 주석(ConditionSummary L22·L32, ConditionHelpDialog L30).
   게이트 4종·프리뷰 문구 실측은 오케스트레이터 게이트 담당.
+
+## 2026-07-31 R17 모터 상세 '최근 파노' 강조 (ui-change)
+- CREATED: src/features/motor-management/ui/LatestPanoHero.tsx — 모터 상세 '파노 추세' 차트 위
+  히어로 표현 컴포넌트. 공개 API `LatestPanoHeroProps {panoHz, measuredAt, rpm}`. 세로 스택
+  (overline '최근 파노' → BigNumber size="guide" 라임 primary.main "Hz" → 'MM-DD HH:mm · N,NNN rpm').
+  재사용: BigNumber(@shared/ui/big-number), formatPanoValue·formatDateTimeShort·formatRpm(@shared/lib/format).
+  실제 콘텐츠(aria-hidden 아님) — 차트(aria-hidden)와 달리 최신값 라벨된 요약. 고정 높이·margin 없음(소비 측 gap 소유).
+- MODIFIED: src/features/motor-management/ui/index.ts — barrel에 LatestPanoHero value/type export 2줄
+  추가(ConditionSummary와 MotorFormSheet 사이, 알파벳). 기존 export 무변경.
+- 보존: PanoLineChart·ConditionSummary·기존 feature ui 공개 API 무변경. 하드코딩 포맷 없음(전부 format 유틸 경유).
+- 위임: 계약 선고정 병렬(component-builder∥route-builder). subagent 저널 Write는 hook 차단 → 반환 원문 대필.
+- EVIDENCE: Node 22 pin(CI=true pnpm) typecheck·lint·test(123/123)·build 4종 PASS + check-iterate-scope OK.
+  프리뷰(:8082) 실측: 히어로 값 computed fontSize 45px(guide clamp)·weight 800·Oxanium·color rgb(216,245,66)=primary.main(라임),
+  라이트 모드 rgb(86,110,0)로 자동 적응(대비 확보). 값 309.0==차트 마지막 점==목록 최신행 일치. 콘솔 에러 0.

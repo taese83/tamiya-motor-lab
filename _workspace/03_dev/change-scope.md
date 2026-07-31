@@ -1998,3 +1998,25 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - 추정 원인: 사용자 관측은 R13(c7eec3c, 오늘 push) 이전 배포본 또는 브라우저/PWA 캐시.
   재배포·강력 새로고침 후 재확인 요청. 재현되면 기기·화면 스크린샷 필요.
 - 경계: verifier(오케스트레이터)는 source를 수정하지 않음 — src diff는 R15 문구 변경분만 존재.
+
+## R17 — 모터 상세 '최근 파노 수치' 강조 (2026-07-31, ui-change)
+- CHANGE_MODE: existing-change
+- REQUEST: 모터 상세에서 가장 최근 파노 수치를 가시적으로 잘 보이게 처리.
+- OBSERVED_BASELINE: 최근 파노 값이 (1) PanoLineChart 마지막 점(장식·aria-hidden), (2) 기록 목록
+  맨 위 행(listValue 0.9375rem)에만 노출 — 단독 강조 영역 없음. owner: pages/motor-detail
+  (MotorDetailPage.tsx), features/motor-management/ui.
+- TARGET_BEHAVIOR: '파노 추세' 차트 **바로 위**에 '최근 파노' 히어로 블록 신설 — 라벨('최근 파노')
+  + 최근 파노 값(BigNumber size="guide", 라임 primary.main, 단위 "Hz", formatPanoValue 경유)
+  + 보조행('측정일시 · N,NNN rpm', formatDateTimeShort·formatRpm 경유). records ≥1건일 때만 렌더
+  (차트와 동일 가드). 최근 = measuredAt asc 배열의 **마지막 원소**. 사용자 확정: 차트 위 히어로 · 값만(delta 미표시).
+- ALLOWED_PATHS:
+  - src/features/motor-management/ui/LatestPanoHero.tsx (신규 — component-builder)
+  - src/features/motor-management/ui/index.ts (barrel export 추가 — component-builder)
+  - src/pages/motor-detail/ui/MotorDetailPage.tsx (fixedTop 배선 — route-builder)
+- PUBLIC_CONTRACTS_TO_PRESERVE: 기록 목록(canonical 텍스트 채널)·차트 aria-hidden 계약·고정 셸
+  레이아웃(pageShellSx/fixedTopSx/scrollAreaSx/footerSx)·측정 왕복(v2.5)·기록 밀어서 삭제(v2.38)·
+  컨디션 요약·not-found/error/corrupted 분기·표시 포맷 단일화(@shared/lib/format, 하드코딩 금지).
+- NON_GOALS: delta/추세 화살표, 차트·기록 행 변경, 새 route/시트, 데이터 계층·쿼리·schema 변경, 새 dependency.
+- CHANGE_BUDGET: 파일 3, 신규 컴포넌트 1, dependency 0, 커밋 1. 위임: component-builder∥route-builder(계약 선고정 병렬).
+- TEST_EVIDENCE: LOCAL_VERIFIABLE — Node22 pnpm typecheck·lint·test·build PASS + 프리뷰(:8082)
+  모터 상세 실측(히어로 값 == 목록 최신행 값, 라임 대형, 차트 위 배치, 기록 0건 모터 미렌더).

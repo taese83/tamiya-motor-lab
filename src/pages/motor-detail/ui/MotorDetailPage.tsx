@@ -8,7 +8,7 @@ import {baselineFromBestCvs, computeStabilityBaseline, measureQueries} from '@en
 import {MotorKindChip, motorQueries} from '@entities/motor'
 import {AuthMenu} from '@features/auth'
 import {useDeleteMeasureRecord} from '@features/measure-management'
-import {ConditionHelpDialog, ConditionSummary, PanoLineChart} from '@features/motor-management/ui'
+import {ConditionHelpDialog, ConditionSummary, LatestPanoHero, PanoLineChart} from '@features/motor-management/ui'
 import {
   beginMotorMeasure,
   cancelRaceMeasure,
@@ -191,6 +191,8 @@ export function MotorDetailPage() {
 
   const notFound = !corrupted && motorQuery.isSuccess && motor === null
   const records = recordsQuery.data
+  // R17 — 가장 최근 측정(measuredAt asc 배열의 마지막 원소). 히어로 강조용 파생.
+  const latestRecord = records !== undefined && records.length > 0 ? records[records.length - 1] : undefined
 
   // 컨디션 기준선 (v2.x 개정 3 — 최상 컨디션 영속): 모터 행의 역대 최상 CV 3건 중앙값이 정본
   // (rolling eviction과 무관 — 사용자 확정). 아직 영속 표본이 없는 모터(지표 도입 직후)만
@@ -288,6 +290,16 @@ export function MotorDetailPage() {
                   records={records}
                   baseline={stabilityBaseline}
                   onOpenHelp={() => setHelpOpen(true)}
+                />
+              )}
+
+              {/* R17 — 최근 파노 히어로: 가장 최근 측정값을 차트 위에 크게 강조(라임 대형, 값만).
+                  차트/기록 목록은 그대로 유지 — 이 블록은 최신 값 요약의 라벨된 실콘텐츠다. */}
+              {latestRecord !== undefined && (
+                <LatestPanoHero
+                  panoHz={latestRecord.panoHz}
+                  measuredAt={latestRecord.measuredAt}
+                  rpm={latestRecord.rpm}
                 />
               )}
 
