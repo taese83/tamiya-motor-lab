@@ -190,7 +190,7 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
         }}>
         {level !== null && cv !== null ? (
           <>
-            변동{' '}
+            안정도{' '}
             <Box component="span" sx={{color: LEVEL_COLOR[level], fontWeight: 700}}>
               {STABILITY_LEVEL_LABELS[level]}
             </Box>
@@ -198,9 +198,9 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
             {(cv * 100).toFixed(2)}% · ±{formatRpm(Math.max(1, Math.round(cv * rpm)))} rpm
           </>
         ) : measuring ? (
-          '변동률 측정 중…'
+          '안정도 측정 중…'
         ) : (
-          '변동률'
+          '안정도'
         )}
       </Typography>
     </Box>

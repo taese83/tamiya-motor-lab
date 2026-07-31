@@ -1973,3 +1973,28 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 커밋 1개, 파일 ≤5.
 - TEST_EVIDENCE: LOCAL_VERIFIABLE — 프리뷰 탭 렌더·단일 선택 동작(로그인 게이트로 목록은 제한적) /
   게이트 4종 + check-iterate-scope. 실데이터 필터링 체감은 DEPLOY_ONLY — 사용자 위임.
+
+## R15 — 안정도 용어 통일 (2026-07-31, ui-change)
+- TARGET_BEHAVIOR: 측정(S1 안정도 게이지 캡션)과 모터 상세(컨디션 요약 1줄·도움말 다이얼로그)의
+  사용자 노출 문구에서 '변동'/'변동률'을 **'안정도'**로 통일. 문구만 변경 — 수치·등급 판정·색·
+  레이아웃·상수 불변. 조사(은/는)는 한국어 문법에 맞게 조정.
+- ALLOWED_PATHS: features/measure-session/ui/StabilityGauge.tsx · 동 .test.tsx(캡션 단언 동기화) ·
+  features/motor-management/ui/{ConditionSummary,ConditionHelpDialog}.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: STABILITY_LEVEL_LABELS 등 도메인 상수·판정 함수 무변경 ·
+  캡션 고정 1줄 레이아웃 · 등급색 체계 · 스크린리더 경로(텍스트 교체만).
+- NON_GOALS: 코드 주석·변수명·파일명의 용어 정리(사용자 노출 문구 아님) · 등급 라벨('좋음' 등) 변경.
+- CHANGE_BUDGET: 파일 ≤4, R16과 커밋 분리 또는 합산은 게이트 후 결정.
+- TEST_EVIDENCE: LOCAL_VERIFIABLE — StabilityGauge 캡션 unit 단언 갱신 + 게이트 4종 +
+  check-iterate-scope + 프리뷰 문구 실측.
+
+## R16 — 레이스·측정 헤더 고정 요청 (2026-07-31, verification-only 판정)
+- REQUEST: 레이스·측정 페이지 헤더를 모터 페이지와 동일하게 고정.
+- 판정: **소스 변경 없음** — 현재 코드가 이미 요청 상태를 충족함을 read-only로 검증.
+  - /race: R13에서 sticky 전환된 공유 PageHeader 사용(모터 목록과 동일 컴포넌트). 프리뷰 실측
+    (데스크톱·모바일 375px): 400~600px 스크롤 후에도 header top 0 · position sticky · z 1100 유지.
+  - / (측정): PageHeader 없는 S1 자체 레이아웃. 375×667·375×812 실측 결과 docScrollHeight ==
+    viewport(스크롤 자체가 없는 flex 압축 레이아웃) — 떠내려갈 헤더/클러스터가 없음.
+  - 레이스 상세·모터 상세: v2.24/v2.8 자체 고정 셸(내부 overflowY) — 기존부터 고정.
+- 추정 원인: 사용자 관측은 R13(c7eec3c, 오늘 push) 이전 배포본 또는 브라우저/PWA 캐시.
+  재배포·강력 새로고침 후 재확인 요청. 재현되면 기기·화면 스크린샷 필요.
+- 경계: verifier(오케스트레이터)는 source를 수정하지 않음 — src diff는 R15 문구 변경분만 존재.

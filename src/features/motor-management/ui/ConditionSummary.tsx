@@ -58,7 +58,7 @@ export function ConditionSummary({records, baseline, onOpenHelp}: ConditionSumma
     <Box sx={{display: 'flex', alignItems: 'center', gap: 1, minHeight: 32}}>
       {latestCv !== null && absLevel !== null ? (
         <Typography variant="body2" sx={{fontVariantNumeric: 'tabular-nums lining-nums'}}>
-          변동{' '}
+          안정도{' '}
           <Box component="span" sx={{color: ABS_COLOR[absLevel], fontWeight: 700}}>
             {STABILITY_LEVEL_LABELS[absLevel]}
           </Box>

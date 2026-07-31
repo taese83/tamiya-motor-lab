@@ -36,12 +36,12 @@ export function ConditionHelpDialog({open, onClose}: ConditionHelpDialogProps) {
       <DialogTitle id="condition-help-title">컨디션 보는 법</DialogTitle>
       <DialogContent>
         <Typography variant="body2" sx={{mb: 1.5}}>
-          <strong>변동률(±rpm)</strong>은 모터가 얼마나 <strong>고르게</strong> 도는지예요. 값이
+          <strong>안정도(±rpm)</strong>는 모터가 얼마나 <strong>고르게</strong> 도는지예요. 값이
           작을수록 회전이 일정합니다. 브러시·정류자·베어링이 마모되면 이 값이 점점 커집니다.
         </Typography>
 
         <Typography variant="body2" sx={{mb: 0.5}}>
-          <strong>① 변동 — 지금 상태가 괜찮은가</strong> (변동률 자체의 구간)
+          <strong>① 안정도 — 지금 상태가 괜찮은가</strong> (안정도 자체의 구간)
         </Typography>
         <Box component="ul" sx={{m: 0, mb: 1.5, pl: 2.5, '& li': {mb: 0.5}}}>
           <Typography component="li" variant="body2">

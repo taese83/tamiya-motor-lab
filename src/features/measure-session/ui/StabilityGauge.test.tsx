@@ -61,10 +61,10 @@ describe('StabilityGauge', () => {
     ])
   })
 
-  it('캡션: 측정+CV면 등급·%·±rpm, cv 없으면 측정 중, 비측정이면 변동률', () => {
+  it('캡션: 측정+CV면 등급·%·±rpm, cv 없으면 측정 중, 비측정이면 안정도', () => {
     expect(render(<StabilityGauge view={measuring(0.004, 18000)} />).container.textContent).toContain('좋음')
     expect(render(<StabilityGauge view={measuring(0.004, 18000)} />).container.textContent).toContain('0.40%')
     expect(render(<StabilityGauge view={measuring(null)} />).container.textContent).toContain('측정 중')
-    expect(render(<StabilityGauge view={{status: 'awaiting-gesture'}} />).container.textContent).toContain('변동률')
+    expect(render(<StabilityGauge view={{status: 'awaiting-gesture'}} />).container.textContent).toContain('안정도')
   })
 })

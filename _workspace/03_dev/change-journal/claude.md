@@ -30,3 +30,18 @@
 - MODIFIED: model/kind-filter-store.test.ts — 단일 선택 의미로 갱신
 - EVIDENCE: 게이트 4종 PASS(123 tests) + check-iterate-scope OK / 실화면은 로그인 게이트로
   DEPLOY_ONLY — 사용자 위임(컴포넌트 계약은 렌더 테스트로 고정)
+
+## 2026-07-31 R15 안정도 용어 통일 — 오케스트레이션 (ui-change)
+- 위임: component-builder×2(measure-session/motor-management) + test-writer 병렬 3건 — 소스 편집은
+  전부 subagent 수행. subagent 저널 Write가 enforce-agent-ownership hook에 차단되어 반환 원문을
+  오케스트레이터가 각 저널 파일에 대필 기록.
+- EVIDENCE: Node 22 pin(CI=true pnpm) typecheck·lint·test(123/123)·build 4종 PASS +
+  check-iterate-scope OK(소스 4건 = ALLOWED_PATHS 일치) + 프리뷰 실측(측정 S1 캡션 '안정도' 스크린샷).
+  run-quality-gates.mjs는 기존 profile 이슈("external ingestion markers not covered")로 fail-closed —
+  R15와 무관, 별도 과제로 분리.
+
+## 2026-07-31 R16 레이스·측정 헤더 고정 — verification-only
+- NO_SOURCE_CHANGE: 프리뷰 실측으로 요청 상태가 현재 코드에 이미 충족됨을 확인 —
+  /race sticky header top 0 유지(데스크톱·모바일 375px, 400~600px 스크롤), /(측정) 375×667·375×812
+  모두 docScrollHeight==viewport(스크롤 없음), 상세 2종은 자체 고정 셸. 추정 원인은 R13 이전
+  배포본/캐시 관측 — change-scope.md R16 항목 참조.
