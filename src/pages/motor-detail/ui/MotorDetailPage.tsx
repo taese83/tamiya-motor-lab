@@ -282,26 +282,38 @@ export function MotorDetailPage() {
                 <MotorKindChip kind={motor.kind} />
               </Box>
 
-              {/* 컨디션 요약 (v2.x — 절대 등급 + 조용한 추세, Portescap baseline 모니터링 방식).
-                  기준선 = 역대 최상 CV 3건 중앙값(모터 행 영속 — rolling 삭제와 무관).
-                  추세는 최상 대비 비율(watch/inspect)일 때만 발화한다. */}
-              {records !== undefined && records.length > 0 && (
-                <ConditionSummary
-                  records={records}
-                  baseline={stabilityBaseline}
-                  onOpenHelp={() => setHelpOpen(true)}
-                />
-              )}
-
-              {/* R17 — 최근 파노 히어로: 가장 최근 측정값을 차트 위에 크게 강조(라임 대형, 값만).
-                  차트/기록 목록은 그대로 유지 — 이 블록은 최신 값 요약의 라벨된 실콘텐츠다. */}
-              {latestRecord !== undefined && (
-                <LatestPanoHero
-                  panoHz={latestRecord.panoHz}
-                  measuredAt={latestRecord.measuredAt}
-                  rpm={latestRecord.rpm}
-                />
-              )}
+              {/* R19(프로토타입, 미커밋 — 사용자 검토용): 히어로 영역을 가로 2단으로 나눠
+                  좌=최근 파노 히어로(R17), 우 끝=안정도 요약(ConditionSummary)로 배치한다.
+                  컴포넌트 내용·로직은 그대로 두고 **위치만** 이동(space-between). 원배치는
+                  안정도 줄(위) → 히어로(아래) 세로 스택이었다. 컨디션 요약 근거는 아래 ConditionSummary 참조. */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 1.5,
+                }}>
+                {/* 좌: 최근 파노 히어로 — 대형 수치 유지(축소 금지) */}
+                <Box sx={{flexShrink: 0}}>
+                  {latestRecord !== undefined && (
+                    <LatestPanoHero
+                      panoHz={latestRecord.panoHz}
+                      measuredAt={latestRecord.measuredAt}
+                      rpm={latestRecord.rpm}
+                    />
+                  )}
+                </Box>
+                {/* 우 끝: 안정도 요약 — 좁은 폭에서 줄바꿈 허용(minWidth 0) */}
+                {records !== undefined && records.length > 0 && (
+                  <Box sx={{minWidth: 0, flexShrink: 1}}>
+                    <ConditionSummary
+                      records={records}
+                      baseline={stabilityBaseline}
+                      onOpenHelp={() => setHelpOpen(true)}
+                    />
+                  </Box>
+                )}
+              </Box>
             </Box>
 
             {/* ── 스크롤 영역: 파노 추세 그래프 + 기록 목록 (R18) ──

@@ -45,3 +45,15 @@
   /race sticky header top 0 유지(데스크톱·모바일 375px, 400~600px 스크롤), /(측정) 375×667·375×812
   모두 docScrollHeight==viewport(스크롤 없음), 상세 2종은 자체 고정 셸. 추정 원인은 R13 이전
   배포본/캐시 관측 — change-scope.md R16 항목 참조.
+
+## 2026-07-31 R19 모터 상세 히어로 영역 2분할 — 안정도 우측 배치 (ui-change, 직접 구현·프로토타입→확정)
+- 실행: 라이브(HMR) 프로토타입 반복 — 오케스트레이터 직접 구현(단일 화면 레이아웃·프리뷰 시각 튜닝 반복이라 위임 대신 직접, change-scope R19 사유). 사용자 "확정"으로 수락.
+- MODIFIED: src/pages/motor-detail/ui/MotorDetailPage.tsx — fixedTop에서 ConditionSummary(안정도 줄)+LatestPanoHero(히어로)를
+  하나의 2열 flex(justify space-between, alignItems center)로 통합. 좌=히어로(flexShrink 0, 크기 유지), 우 끝=ConditionSummary(minWidth 0). 컴포넌트 내용·로직 무변경(위치만).
+- MODIFIED: src/features/motor-management/ui/ConditionSummary.tsx — 가로 1줄 flex → 세로 스택(flexDirection column, alignItems flex-end):
+  ① 텍스트 우측 정렬(textAlign right) ② 보는 법 버튼을 안정도 아래-오른쪽으로(ml auto 제거, mr -1) ③ 추세/기준선경고 문구를
+  block으로 분리해 한 줄 띄고 별도 줄(mt 0.5) ④ word-break keep-all(한글 단어 단위 줄바꿈) ⑤ 버튼 강제 minHeight 48px 해제(minHeight 0, py 0.25 → 실측 29px).
+  판정 함수·상수·색 체계·표시 데이터 무변경(레이아웃/줄바꿈만). ConditionSummary는 모터 상세 전용 소비처(테스트 0) — 타 화면 영향 없음.
+- 보존: LatestPanoHero(R17)·PanoLineChart(R18)·그래프+리스트 스크롤 셸(R18)·측정 왕복·밀어서 삭제·분기·[측정] 고정 전부 무변경.
+- EVIDENCE: Node22 게이트 4종 PASS(typecheck·lint·test 123·build) + check-iterate-scope OK(소스 2건=ALLOWED_PATHS).
+  프리뷰(:8082, 375×812, IndexedDB fixture) 실측 2케이스: 일반(안정도 좋음·0.42% 1줄+보는 법 아래) / 추세경고 inspect(2.0배·점검 권장, keep-all 단어단위 줄바꿈, 보는 법 아래-오른쪽). 버튼 48→29px, 가로 넘침 0, 콘솔 에러 0.

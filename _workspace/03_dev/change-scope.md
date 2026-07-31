@@ -2042,3 +2042,24 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 파일 2, 신규 0, dependency 0, 커밋 1. 위임: component-builder∥route-builder(독립 슬라이스 병렬).
 - TEST_EVIDENCE: LOCAL_VERIFIABLE — Node22 게이트 4종 + 프리뷰(:8082) 짧은 뷰포트(375×667)에서 리스트 스크롤 동작·
   그래프가 스크롤과 함께 이동·그래프 높이 140·헤더/[측정] 고정 실측.
+
+## R19 — 히어로 영역 가로 2분할(안정도 우측 이동) — 프로토타입/미커밋 (2026-07-31, ui-change)
+- CHANGE_MODE: existing-change (**PROTOTYPE** — 사용자 "커밋하지 말고 위치만 이동해서 보여줘")
+- REQUEST: 안정도 정보를 최근 파노 히어로 영역과 가로 2단으로 나눠 오른쪽 끝에 표시하는 안을 **위치만 이동**해 보여주기. 커밋 보류.
+- OBSERVED_BASELINE: fixedTop에 ConditionSummary(안정도 줄) → LatestPanoHero(히어로) 세로 스택. owner: pages/motor-detail.
+- TARGET_BEHAVIOR: fixedTop에서 두 블록을 하나의 2열 flex(space-between)로 — 좌 LatestPanoHero(크기 유지, flexShrink 0),
+  우 끝 ConditionSummary. **컴포넌트 내용·로직 무변경(위치만)**. 프리뷰로 시각 확인 후 사용자 결정 대기.
+- ALLOWED_PATHS: src/pages/motor-detail/ui/MotorDetailPage.tsx (레이아웃만 — 직접 구현)
+- PUBLIC_CONTRACTS_TO_PRESERVE: LatestPanoHero·ConditionSummary 컴포넌트 무변경, 그래프·리스트·측정 왕복·삭제·분기·[측정] 고정.
+- NON_GOALS: 커밋, ConditionSummary/LatestPanoHero 내부 수정, 그래프·리스트 변경, 새 컴포넌트.
+- CHANGE_BUDGET: 파일 1, 커밋 0(보류). 직접 구현(단일 파일 프로토타입, 프리뷰 시각 튜닝 반복).
+- TEST_EVIDENCE: LOCAL_VERIFIABLE — typecheck·lint + 프리뷰(:8082) 375/wider 실측 스크린샷. **커밋 전 사용자 검토.**
+- STATUS: 프로토타입 적용 → 사용자 검토 대기(수락 시 저널·커밋 finalize / 거절 시 revert 후 종결 표기).
+- REFINEMENT(라이브, 사용자): 우측 안정도 열에서 '보는 법' 버튼을 안정도 텍스트 **아래쪽 오른쪽 끝**으로 정렬.
+  → ALLOWED_PATHS에 `src/features/motor-management/ui/ConditionSummary.tsx` 추가(모터 상세 전용 소비처·테스트 없음 —
+  가로 1줄 flex → 세로 스택 alignItems flex-end로 레이아웃 조정). 여전히 미커밋 프로토타입.
+- 라이브 조정 누적(사용자, HMR): ① 보는 법을 안정도 아래-오른쪽 정렬 ② 추세 문구를 한 줄 띄고 별도 줄로 분리
+  ③ `word-break: keep-all`(한글 단어 중간 끊김 방지) ④ 보는 법 버튼 강제 minHeight 48→해제(py 0.25, 실측 29px).
+- STATUS(확정, 사용자 "확정"): 수락 → R19 커밋. 최종 changed source 2건 —
+  `MotorDetailPage.tsx`(히어로 2열 space-between), `ConditionSummary.tsx`(세로 스택·우측 정렬·보는 법 아래-오른쪽·추세 별도 줄·keep-all·버튼 높이 축소).
+  ALLOWED_PATHS 일치. EVIDENCE: Node22 게이트 4종 PASS(123)·check-iterate-scope OK·프리뷰(:8082,375×812) 일반/추세경고 양 케이스 실측·가로 넘침 0·콘솔 에러 0.

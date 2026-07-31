@@ -55,9 +55,11 @@ export function ConditionSummary({records, baseline, onOpenHelp}: ConditionSumma
   const ratio = latestCv !== null && baseline !== null && baseline > 0 ? latestCv / baseline : null
 
   return (
-    <Box sx={{display: 'flex', alignItems: 'center', gap: 1, minHeight: 32}}>
+    <Box sx={{display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 0.25, minHeight: 32}}>
       {latestCv !== null && absLevel !== null ? (
-        <Typography variant="body2" sx={{fontVariantNumeric: 'tabular-nums lining-nums'}}>
+        <Typography
+          variant="body2"
+          sx={{fontVariantNumeric: 'tabular-nums lining-nums', textAlign: 'right', wordBreak: 'keep-all'}}>
           안정도{' '}
           <Box component="span" sx={{color: ABS_COLOR[absLevel], fontWeight: 700}}>
             {STABILITY_LEVEL_LABELS[absLevel]}
@@ -68,25 +70,19 @@ export function ConditionSummary({records, baseline, onOpenHelp}: ConditionSumma
           </Box>
           {baselineUntrusted ? (
             // 1) 기준선 신뢰 경고 — 최상 3건조차 high 구간 = 좋았던 기록이 없다
-            <>
-              <Box component="span" sx={{color: 'text.secondary'}}>
-                {' · '}
-              </Box>
+            <Box component="span" sx={{display: 'block', mt: 0.5}}>
               <Box component="span" sx={{color: 'warning.main', fontWeight: 700}}>
                 좋았던 기록이 없어요
               </Box>
               <Box component="span" sx={{color: 'text.secondary'}}>
                 {' — 조용한 곳에서 다시 재보세요'}
               </Box>
-            </>
+            </Box>
           ) : (
             // 2) 조용한 추세 — watch/inspect일 때만 발화(ok·수집 중엔 침묵)
             (trendLevel === 'watch' || trendLevel === 'inspect') &&
             ratio !== null && (
-              <>
-                <Box component="span" sx={{color: 'text.secondary'}}>
-                  {' · '}
-                </Box>
+              <Box component="span" sx={{display: 'block', mt: 0.5}}>
                 <Box
                   component="span"
                   sx={{
@@ -101,17 +97,21 @@ export function ConditionSummary({records, baseline, onOpenHelp}: ConditionSumma
                     {CONDITION_LEVEL_LABELS.inspect}
                   </Box>
                 )}
-              </>
+              </Box>
             )
           )}
         </Typography>
       ) : (
         // 안정도 보유 기록 없음 — 판단하지 않는다
-        <Typography variant="body2" sx={{color: 'text.secondary'}}>
+        <Typography variant="body2" sx={{color: 'text.secondary', textAlign: 'right', wordBreak: 'keep-all'}}>
           측정을 기록하면 컨디션이 표시돼요
         </Typography>
       )}
-      <Button size="small" variant="text" onClick={onOpenHelp} sx={{ml: 'auto', flexShrink: 0}}>
+      <Button
+        size="small"
+        variant="text"
+        onClick={onOpenHelp}
+        sx={{flexShrink: 0, mr: -1, minHeight: 0, py: 0.25}}>
         보는 법
       </Button>
     </Box>
