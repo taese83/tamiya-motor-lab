@@ -1949,3 +1949,15 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 
 > **R12 폐기(2026-07-31, 사용자 결정)** — 길들이기 기능 구현 중단. 소스 변경분 전량 원복(0 diff),
 > 프로세스 산출물(기획서·저널·본 로그)만 이력으로 보존. R13부터는 라운드 시작 전 append 원칙 적용.
+
+## R13 — 페이지 헤더 고정 + 컨텐츠만 스크롤 (2026-07-31, ui-change)
+- TARGET_BEHAVIOR: 모든 페이지에서 헤더(PageHeader)는 뷰포트 상단에 고정되고 콘텐츠 영역만 스크롤된다.
+  스크롤 시 콘텐츠가 헤더 뒤로 지나가도 비치지 않는다(불투명 배경). 하단 탭 바 고정은 기존 유지.
+- ALLOWED_PATHS: src/shared/ui/page-header/** · 필요 시 src/app/routes/**(셸 여백) ·
+  src/pages/{motors,race,race-detail,motor-detail}/**(중복 스크롤 충돌 조정만)
+- PUBLIC_CONTRACTS_TO_PRESERVE: 모터 상세 v2.8 고정 셸(자체 스크롤) 무해 공존 · 측정 페이지 고정
+  레이아웃 불변 · safe-area(top) 계약 · WCAG 대비 · layout shift 0(고정 높이 계약).
+- NON_GOALS: 헤더 축소/블러 등 스크롤 연동 효과, 탭 바 변경.
+- CHANGE_BUDGET: 커밋 1개, 파일 ≤5.
+- TEST_EVIDENCE: LOCAL_VERIFIABLE — sticky 계산 스타일·스크린샷(프리뷰). 실스크롤 체감(로그인 뒤 목록)은
+  DEPLOY_ONLY — 사용자 위임. 게이트: typecheck·lint·test·build + check-iterate-scope.

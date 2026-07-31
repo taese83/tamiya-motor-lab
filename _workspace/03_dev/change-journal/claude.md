@@ -14,3 +14,9 @@
 - REVERTED: src/shared/config/domain.ts · persistence/schema.ts · persistence/db.ts — git restore로 HEAD 원복(0 diff)
 - MODIFIED: _workspace/01_plan/break-in-feature-plan.md — 폐기 표기 (문서는 이력으로 보존)
 - EVIDENCE: git status src 클린 + CI=true pnpm typecheck·test PASS (아래 게이트)
+
+## 2026-07-31 R13 헤더 고정 (ui-change)
+- MODIFIED: src/shared/ui/page-header/PageHeader.tsx — sticky top + 불투명 배경 + safe-top 커버.
+  보존: h 56px(env=0 시 layout shift 0)·h1 계약·모터 상세 고정 셸과 무해 공존
+- EVIDENCE: 프리뷰 computed style(position sticky·top 0·z 1100·opaque bg) + 600px 스크롤 시
+  header top 0 유지 실측 / 게이트 4종 PASS + check-iterate-scope OK

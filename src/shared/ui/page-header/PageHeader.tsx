@@ -18,12 +18,28 @@ export interface PageHeaderProps {
 
 /**
  * 전 화면 공통 헤더 [H] (component-spec §3.9) — h 56px(rem 기반), AppBar 미사용(장식 배제).
+ * v2.x(사용자): **헤더 고정 + 콘텐츠만 스크롤** — sticky top. 문서 스크롤 구조는 유지하고
+ * 헤더만 뷰포트 상단에 붙는다(불투명 배경 — 스크롤 콘텐츠가 뒤로 비치지 않음).
+ * safe-area(top)는 헤더가 패딩으로 덮는다 — 노치 기기에서 고정 시 status bar 영역까지 배경이
+ * 이어지고, env=0 환경(데스크톱 등)에서는 기존과 동일 높이(56px)라 layout shift가 없다.
+ * 모터 상세의 자체 고정 셸(내부 스크롤) 안에서는 스크롤 조상이 없어 무해하게 공존한다.
  */
 export function PageHeader({title, onBack, actions, action}: PageHeaderProps) {
   return (
     <Box
       component="header"
-      sx={{height: '3.5rem', display: 'flex', alignItems: 'center', gap: 0.5, px: 1}}>
+      sx={{
+        position: 'sticky',
+        top: 0,
+        zIndex: theme => theme.zIndex.appBar,
+        backgroundColor: 'background.default',
+        pt: 'var(--mml-safe-top, 0px)',
+        height: 'calc(3.5rem + var(--mml-safe-top, 0px))',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.5,
+        px: 1,
+      }}>
       {onBack !== undefined && (
         <IconButton aria-label="뒤로" onClick={onBack} sx={{width: '3rem', height: '3rem'}}>
           <ChevronLeftIcon />
