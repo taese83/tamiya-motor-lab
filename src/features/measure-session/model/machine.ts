@@ -8,7 +8,7 @@
 // - awaiting-gesture 신설 — 자동 시작이 제스처 부재로 거부된 iOS fallback (오류 아님, M-1).
 // - insecure는 phase가 아니라 secureContext 필드의 최우선 투영 — 권한 문구와 혼용 금지(D-4).
 
-import type {DisplayEstimate} from '@shared/lib/audio-analysis'
+import type {DisplayEstimate, WeakReason} from '@shared/lib/audio-analysis'
 
 import type {MeasureView} from './view'
 
@@ -51,7 +51,7 @@ export type EngineFrameView =
       /** 순간 편차(바늘 실시간 떨림용) — 매 프레임 갱신. 창 미충족이면 null. 기록·등급 비관여 */
       microCv: number | null
     }
-  | {kind: 'weak-signal'}
+  | {kind: 'weak-signal'; reason?: WeakReason}
 
 export interface MachineSnapshot {
   readonly phase: SessionPhase
@@ -104,7 +104,7 @@ export function toMeasureView(snapshot: MachineSnapshot): MeasureView {
             stabilityCv: snapshot.frame.stabilityCv,
             microCv: snapshot.frame.microCv,
           }
-        : {status: 'weak-signal'}
+        : {status: 'weak-signal', ...(snapshot.frame.reason !== undefined && {reason: snapshot.frame.reason})}
     case 'awaiting-gesture':
       return {status: 'awaiting-gesture'}
     case 'no-permission':
@@ -154,7 +154,7 @@ export function toEngineFrame(estimate: DisplayEstimate, measuredMs: number): En
       microCv: estimate.microVariation,
     }
   }
-  return {kind: 'weak-signal'}
+  return {kind: 'weak-signal', ...(estimate.weakReason !== undefined && {reason: estimate.weakReason})}
 }
 
 /**

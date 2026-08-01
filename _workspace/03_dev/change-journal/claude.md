@@ -111,3 +111,19 @@
 - EVIDENCE: Node 22 게이트 typecheck·lint·test(213)·build PASS + check-iterate-scope OK(source 1건).
   ⚠️ **프롬프트 품질 자체는 LOCAL 검증 불가** — 실 LLM 응답으로만 확인 가능(eval-plan §3 S1~S7). 표면 PASS로 보고하지 않음. 3결함 수정은 코드 리딩 근거의 가설이며 실사용 관찰로 검증 필요.
 - 프로세스 note: change-scope append가 cwd 리셋으로 1회 실패(잘못된 경로 생성) → 올바른 경로에 재기록 후 편집 착수. append 선행 원칙은 유지됨.
+
+## 2026-08-02 R27 모터 소리 인식률 개선 — 직접 구현 (feature/existing-change)
+- 배경: 측정 로직 심층 분석 요청 → false-negative를 합성신호로 실측 → 최적안 탐색. **실측으로 무효 판명**: 스펙트럼 subtraction(병목이 시간영역 pYIN/voicing이라 무효), 프레임 확대(0프레임 회복), 시간영역 denoise(리스크 큼). **효과 확인된 3레버만** 구현.
+- MODIFIED: src/shared/lib/audio-analysis/types.ts — ① `proximityRms 0.004→0.003`(P2) ② `gateVoicingThreshold 0.15→0.08`(P3) ③ `WeakReason='too-quiet'|'no-pitch'` type + `DisplayEstimate.weakReason?` additive(P1). SNR8dB·고조파2·순음15dB 게이트는 불변(voicing만 완화).
+- MODIFIED: src/shared/lib/audio-analysis/track.ts — weakEstimate가 weakReason 수용, weak 진입 시 `rms<proximityRms?'too-quiet':'no-pitch'` 산출.
+- MODIFIED: src/shared/lib/audio-analysis/index.ts — WeakReason type export.
+- MODIFIED: src/features/measure-session/model/machine.ts — EngineFrameView weak variant `reason?` + toEngineFrame·toMeasureView가 조건부 spread로 전달(exactOptionalPropertyTypes 대응).
+- MODIFIED: src/features/measure-session/ui/measure-view.ts — MeasureView weak variant `reason?` additive.
+- MODIFIED: src/features/measure-session/ui/MeasureFigures.tsx — messageFor weak-signal: too-quiet면 "더 가까이 대주세요"(종전 침묵 정책은 no-pitch에 한정 유지).
+- 보존: INV-13(weak⇒수치 null)·수치 계약·worker 프로토콜(자동 전달)·측정 왕복·announcement·기존 DisplayEstimate/MeasureView 필드 전부 불변(전부 optional additive).
+- 실행 사유: engine→view 단일 계약 체인·순차 의존·audio 서브시스템 심층 편집이라 위임 부적합 → 직접(execution-contract §10).
+- EVIDENCE: Node22 게이트 typecheck·lint·test(**213 무회귀** = engine fixture가 voicing0.08 안전 보증)·build PASS.
+  합성 실측: peak0.009 모터 회수(구0.004면 탈락) / 조용→weakReason 'too-quiet' / 잡음(피치X)→ 'no-pitch' / 정상 무영향.
+  탐색 근거(실측 폐기): 스펙트럼 subtraction A/B 0프레임 회복·프레임0.2→0.4 무효·voicing만 2dB에서 0→39 회복+순수잡음 오검출 0.
+  ⚠️ 실 마이크 인식률 체감·"더 가까이" UI 라이브 트리거는 DEPLOY_ONLY(실기기) — 표면 PASS로 보고 안 함. voicing 완화는 실기기 재검증 권장.
+- 라운드 번호 note: 동시 세션이 R25·R26 사용 → 본 라운드는 R27(코드 주석도 R27로 정정).

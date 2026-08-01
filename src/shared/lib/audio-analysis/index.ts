@@ -35,5 +35,6 @@ export type {
   ResolvedEngineOptions,
   ScoredCandidate,
   TrackCandidate,
+  WeakReason,
 } from './types'
 export type {EngineWorkerRequest, EngineWorkerResponse} from './protocol'

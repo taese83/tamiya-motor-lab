@@ -13,6 +13,12 @@ export type MeasureStatus =
 
 export type EngineStatus = Extract<MeasureStatus, 'measuring' | 'stable' | 'weak-signal'>
 
+/**
+ * weak-signal 세부 사유 (R27) — 표시 계층이 사용자 안내를 분기하는 데 쓴다.
+ * 'too-quiet': 입력이 근접 게이트 미만 → "더 가까이" / 'no-pitch': 레벨은 충분하나 명확한 피치 없음(잡음·간섭).
+ */
+export type WeakReason = 'too-quiet' | 'no-pitch'
+
 /** pYIN 후보 (estimateFrame 출력) — f0는 [fMin, fMax] 대역 내, ÷3·÷6 확장 반영 후 */
 export interface FrameCandidate {
   f0: number
@@ -45,6 +51,8 @@ export interface DisplayEstimate {
    * 않는다(바늘 시각 효과 전용 — 기록값에 딜레이·잡음을 더하지 않기 위함).
    */
   microVariation: number | null
+  /** weak-signal 시 세부 사유 (R27) — measuring/stable이면 미설정. UI 안내 분기용(수치 계약과 무관). */
+  weakReason?: WeakReason
 }
 
 /** 고조파별 스펙트럼 계측 (comb 점수·일치도 검사 입력) */
@@ -228,13 +236,17 @@ export const DEFAULT_TUNING: EngineTuning = {
   gateSnrDb: 8,
   gateStrongSnrDb: 15,
   gateMinHarmonics: 2,
-  gateVoicingThreshold: 0.15,
+  // R27(실측): 0.15→0.08 — 잡음 하 인식률↑(합성 2dB에서 0→회복). SNR·고조파 게이트는 그대로라
+  // 순수잡음은 계속 거부됨(오검출 0 실측). voicing만 완화하므로 "틀린 값 통과" 위험 낮음.
+  gateVoicingThreshold: 0.08,
   silenceRms: 1e-5,
   // v2.29(사용자: 너무 가까이 대야만 검출됨) — 근접 게이트를 0.008→0.004로 완화.
   // RMS는 거리에 반비례(음압 ∝ 1/거리)라 하한 절반 ≈ 검출 거리 2배. 원거리 잡음 <0.005와
   // 근접하므로 먼 모터를 간헐 포착할 수 있으나, comb 채점이 최강(=가장 크게 들리는) 후보를
   // 채택하므로 가까운 모터가 우선된다. 실기기 튜닝 대상 — 더 넓히려면 0.003/0.002로.
-  proximityRms: 0.004,
+  // R27(실측): 0.004→0.003 — 더 먼/조용한 모터를 회수(음압 ∝ 1/거리라 하한↓ ≈ 검출거리↑).
+  // 넓은대역 잡음은 이 하한을 넘어도 comb·SNR 게이트가 계속 거부(실측 확인). 근접 미달은 weakReason 'too-quiet'로 고지.
+  proximityRms: 0.003,
 
   viterbiLag: 5,
   driftCostWeight: 4,

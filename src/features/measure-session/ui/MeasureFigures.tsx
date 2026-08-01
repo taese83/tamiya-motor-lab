@@ -40,7 +40,9 @@ function messageFor(view: MeasureView): string | null {
     case 'awaiting-gesture':
       return '탭하여 측정을 시작하세요' // 오류 어휘 금지 — 중립 톤 (M-1)
     case 'weak-signal':
-      return null // 실기기 피드백: 안내 문구 제거 — 게이지 dim + "—"가 상태를 전달한다
+      // R27: 너무 조용/멀면 "더 가까이" 안내(사용자가 스스로 해결 — #1 실패 원인이 거리).
+      // 그 외(레벨은 있으나 피치 없음 = 잡음·간섭)는 종전대로 침묵(게이지 dim + "—"가 상태 전달).
+      return view.reason === 'too-quiet' ? '더 가까이 대주세요' : null
     case 'no-permission':
       return view.permanent
         ? '브라우저 설정에서 마이크 권한을 허용해야 합니다'

@@ -8,6 +8,7 @@ import type {
   FrameAnalysis,
   ResolvedEngineOptions,
   TrackCandidate,
+  WeakReason,
 } from './types'
 
 export interface Tracker {
@@ -26,7 +27,7 @@ const KALMAN_ACCEL_STD = 400 // Hz/s² — 스핀업(150 Hz/s) 추종 여유
 const KALMAN_MEASUREMENT_VAR = 0.25 // (0.5 Hz)² — VP 프레임 추정 분산 상한
 const KALMAN_RELOCK_OCTAVES = 0.25 // Viterbi 출력이 이 이상 점프하면 재잠금
 
-function weakEstimate(confidence: number): DisplayEstimate {
+function weakEstimate(confidence: number, weakReason: WeakReason): DisplayEstimate {
   // weak-signal이면 f0/rpm은 반드시 null — 무음에서 0 RPM·임의 값 반환 금지 (REQ-ST-003)
   return {
     f0: null,
@@ -35,6 +36,7 @@ function weakEstimate(confidence: number): DisplayEstimate {
     status: 'weak-signal',
     stabilityCv: null,
     microVariation: null,
+    weakReason,
   }
 }
 
@@ -220,7 +222,9 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
         }
         clearTrack()
         lastConfidence = Math.min(0.2, 0.2 * analysis.voicedProb)
-        return weakEstimate(lastConfidence)
+        // R27: 근접 게이트 미만이면 'too-quiet'(더 가까이), 레벨은 있으나 피치 없음이면 'no-pitch'(잡음·간섭)
+        const weakReason: WeakReason = analysis.rms < options.proximityRms ? 'too-quiet' : 'no-pitch'
+        return weakEstimate(lastConfidence, weakReason)
       }
 
       missCount = 0

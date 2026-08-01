@@ -12,6 +12,8 @@
 // [소유권 handoff] canonical 소유는 features/measure-session/model/view.ts(useMeasureView 셀렉터).
 // model owner가 v2 store를 구현하면 이 정의를 model로 이동하고 여기서는 재수출로 교체한다 —
 // 중복 정의 금지. (현재 model/view.ts가 이 파일을 재수출하는 방향 — v1 handoff 계약 승계.)
+import type {WeakReason} from '@shared/lib/audio-analysis'
+
 export type MeasureView =
   | {status: 'starting'} // 자동 시작 시도·권한 프롬프트 중 — 게이지 dim, "—"
   | {status: 'insecure'} // isSecureContext === false — HTTPS 안내 전용
@@ -29,6 +31,7 @@ export type MeasureView =
       // 순간 편차(바늘 실시간 떨림용) — 매 프레임 갱신, 창 미충족이면 null. 기록·등급 비관여.
       microCv: number | null
     } // 연속 갱신 ≥10Hz — 잠금 없음
-  | {status: 'weak-signal'} // 수치 없음 — 타입으로 강제 (INV-13)
+  // reason(R27): weak-signal 세부 사유 — too-quiet면 "더 가까이" 안내. 수치 계약(INV-13)은 불변.
+  | {status: 'weak-signal'; reason?: WeakReason} // 수치 없음 — 타입으로 강제 (INV-13)
   | {status: 'no-permission'; permanent: boolean; settingsHelpOpen: boolean} // F-2
   | {status: 'suspended'} // 실행 중 세션의 오디오 중단 — [탭하여 다시 시작]

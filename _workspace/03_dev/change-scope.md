@@ -2191,3 +2191,21 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - TEST_EVIDENCE: 게이트 4종 + check-iterate-scope(프롬프트는 문자열이라 기존 테스트에 무영향 — 서버 검증·
   스키마 불변 확인이 회귀 기준). ⚠️ **프롬프트 품질 자체는 LOCAL 검증 불가** — 실 LLM 응답으로만 확인
   가능(eval-plan §3 S1~S7). DEPLOY_ONLY로 명시하고 표면 PASS로 보고하지 않는다.
+
+## R27 — 모터 소리 인식률 개선 (근접 완화·voicing 완화·거리 피드백) (2026-08-02, feature/existing-change)
+- CHANGE_MODE: existing-change
+- REQUEST: 모터 소리를 더 잘 받아들이도록 인식률 개선. (측정 로직 심층 분석·false-negative 실측·최적안 탐색 후 확정)
+- OBSERVED_BASELINE: 측정 실패의 주원인 = ① 거리·음량 부족(근접 게이트 rms<0.004) ② 시끄러운 환경(잡음 하 voicing 게이트 0.15).
+  실측 판명: 스펙트럼 subtraction·프레임 확대·시간영역 denoise는 무효(병목이 시간영역 pYIN/voicing). owner: shared/lib/audio-analysis, features/measure-session.
+- TARGET_BEHAVIOR (실측 기반 3레버):
+  - P2: `proximityRms 0.004→0.003` — 더 먼/조용한 모터 회수(실측 peak0.009 rms~0.003대 회수). 넓은대역 잡음은 comb·SNR 게이트가 계속 거부.
+  - P3: `gateVoicingThreshold 0.15→0.08` — 잡음 하 인식률↑(합성 2dB 0→회복). SNR·고조파 게이트 불변이라 순수잡음 오검출 0(실측).
+  - P1: 엔진 `DisplayEstimate.weakReason`('too-quiet'|'no-pitch') additive → view까지 전달. weak-signal이 'too-quiet'면 MeasureFigures가 "더 가까이 대주세요" 표시(#1 실패 원인 자가해결), 그 외는 종전대로 침묵.
+- ALLOWED_PATHS: src/shared/lib/audio-analysis/{types.ts,track.ts,index.ts}, src/features/measure-session/model/machine.ts, src/features/measure-session/ui/{measure-view.ts,MeasureFigures.tsx}
+- PUBLIC_CONTRACTS_TO_PRESERVE: INV-13(weak-signal⇒수치 null)·수치 계약·게이트 SNR8dB/고조파2/순음15dB 불변(voicing만 완화)·
+  DisplayEstimate 기존 필드·MeasureView 기존 variant(weakReason optional additive)·worker 프로토콜(자동 전달)·측정 왕복·announcement.
+- NON_GOALS: SNR 게이트 완화, fMax 상향, 스펙트럼/시간영역 denoise(실측 무효 판명), 새 화면, 데이터 계층 변경.
+- CHANGE_BUDGET: 소스 6파일, 신규 0, dependency 0, 커밋 1. 실행: 직접(engine→view 단일 계약 체인·순차 의존·서브시스템 심층).
+- TEST_EVIDENCE: LOCAL — Node22 게이트 4종 PASS(typecheck·lint·test 213 — engine fixture 무회귀=voicing 안전) +
+  합성 실측(peak0.009 회수 / 조용→weakReason 'too-quiet' / 잡음→ 'no-pitch' / 정상 무영향).
+  ⚠️ 실제 마이크 인식률 체감과 "더 가까이" UI 라이브 트리거는 DEPLOY_ONLY(실기기) — 표면 PASS로 보고 안 함.
