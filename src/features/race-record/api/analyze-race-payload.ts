@@ -1,4 +1,4 @@
-import {RACE_WEIGHT_GROWTH} from '@shared/config/domain'
+import {ANALYZE_WEIGHT_GROWTH} from '@shared/config/domain'
 
 import type {RaceInsight, RaceRecord} from '@entities/race-record'
 
@@ -34,13 +34,14 @@ export function buildAnalyzeRacePayload(
   let excludedNoReason = 0
 
   for (const [j, race] of sliced.entries()) {
-    // weight: assignExponentialWeights(voltage-advisor v2.37)와 **동일 규칙** —
-    // 최신순 index j → 오래된 기준 rank = n-1-j, weight = GROWTH^rank(소수 2자리 반올림,
-    // 슬라이스 내 가장 오래된 건 = 1). 함수를 재사용하지 않는 근거: 그 함수는 `{...race, weight}`
-    // spread로 조립해 governance §2의 spread 금지를 만족할 수 없고(금지 필드가 그대로 통과),
-    // 반환 타입 VoltageAdviceRace에는 createdAt·retireReason이 없어 assertion 없이는
-    // AnalyzeRaceItem으로 복귀할 수 없다 — 규칙만 미러하고 상수는 동일 출처를 쓴다.
-    const weight = Math.round(RACE_WEIGHT_GROWTH ** (n - 1 - j) * 100) / 100
+    // weight: assignExponentialWeights(voltage-advisor)와 **같은 형태**(rank = n-1-j, GROWTH^rank,
+    // 소수 2자리 반올림, 슬라이스 내 가장 오래된 건 = 1)이되 **계수는 분석 전용**이다(R28/DL-032):
+    // 추천기 계수(1.5)를 20건에 쓰면 2217:1로 벌어져 과거 기록이 무의미해지고, 이 기능의 핵심인
+    // 회차 간 반복 사유 패턴 탐지가 죽는다. ANALYZE_WEIGHT_GROWTH(1.1)로 20건 ≈ 6:1을 유지한다.
+    // 함수를 재사용하지 않는 근거: 그 함수는 `{...race, weight}` spread로 조립해 governance §2의
+    // spread 금지를 만족할 수 없고(금지 필드가 그대로 통과), 반환 타입 VoltageAdviceRace에는
+    // createdAt·retireReason이 없어 assertion 없이는 AnalyzeRaceItem으로 복귀할 수 없다.
+    const weight = Math.round(ANALYZE_WEIGHT_GROWTH ** (n - 1 - j) * 100) / 100
 
     // 명시적 field-pick — §1.1의 8필드만. optional은 있을 때만 키를 넣는다(undefined 미전송).
     const item: AnalyzeRaceItem = {

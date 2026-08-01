@@ -2219,3 +2219,26 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - NON_GOALS: 스키마 변경 · 모델·토큰 변경 · UI 변경 · eval-plan 문서 갱신(별도).
 - CHANGE_BUDGET: 파일 1, 커밋 1.
 - TEST_EVIDENCE: 게이트 4종 + check-iterate-scope + **신규 서버 단위 테스트 없음(api/는 vitest 대상 밖)** — 대신 순수 함수 로직을 프롬프트·검사부 주석으로 고정하고, 실제 동작은 배포 후 로그(`code` 부재=성공)로 확인. DEPLOY_ONLY로 명시.
+
+## R28 — 분석 가중치 스케일 완화 + 결과 기반 초점 규칙 (2026-08-01, bug-fix+feature)
+- REQUEST: DL-032 — 20건에서 2217:1로 벌어진 가중치가 패턴 탐지를 무력화. 스케일 완화 + "완주 있으면 완주에, 없으면 이탈에 집중" 규칙 명시.
+- OBSERVED_BASELINE: analyze-race-payload.ts가 `RACE_WEIGHT_GROWTH(1.5)` 재사용 → n=20에서 최신 2216.84. 프롬프트에 결과 기반 초점 지시 없음.
+- TARGET_BEHAVIOR: ① 분석 payload weight가 20건에서 약 6:1 ② 프롬프트가 완주 유무에 따라 분석 초점을 다르게 잡도록 지시.
+- ALLOWED_PATHS: src/shared/config/domain.ts(ANALYZE_WEIGHT_GROWTH 신설) · src/features/race-record/api/analyze-race-payload.ts(상수 교체) · 동 .test.ts(기대값 갱신) · api/analyze-race.js(프롬프트 2곳).
+- PUBLIC_CONTRACTS_TO_PRESERVE: **RACE_WEIGHT_GROWTH·assignExponentialWeights·전압 추천 경로 전부 불변**(추천 품질 보존) · payload 스키마·필드 구성 불변(weight 값만 변경) · 서버 검증(weight 유한 양수)·응답 스키마·안전 규칙 불변.
+- NON_GOALS: 추천 가중치 변경 · payload 필드 추가 · 스키마 변경 · UI 변경.
+- CHANGE_BUDGET: 파일 4, 커밋 1. 직접 구현 사유: 단일 의미 변경이 4파일에 원자적으로 걸쳐 분할 시 테스트 불일치 중간 상태 발생.
+- TEST_EVIDENCE: 기존 payload 테스트의 weight 기대값 갱신(n=3 [1.21,1.1,1]) + 20건 비율 검증 + 게이트 4종 + scope. 프롬프트 효과는 DEPLOY_ONLY(로그 verdict·실응답 관찰).
+
+## R29 — 로그인 메뉴에 타미야 경기 일정 외부 링크 (2026-08-02, feature/existing-change)
+- CHANGE_MODE: existing-change
+- REQUEST: 로그인 상태이면 계정 메뉴(AuthMenu)에 "타미야 경기 일정" 항목을 노출하고, 클릭 시 https://tamiya-race-app-br4o.vercel.app/ 로 이동.
+- OBSERVED_BASELINE: AuthMenu(src/features/auth/ui/AuthMenu.tsx) — 로그인 시 계정 메뉴 [사용자 정보 · Divider · 로그아웃]. 비로그인은 아바타 클릭이 바로 구글 로그인 진입(메뉴 없음).
+- TARGET_BEHAVIOR: 로그인 메뉴에 '타미야 경기 일정' MenuItem 추가(사용자 정보와 로그아웃 사이, Divider로 그룹 분리). 실제 링크(component="a" href) + target=_blank + rel="noopener noreferrer"(tabnabbing 방지) + 클릭 시 메뉴 close. 비로그인은 메뉴 자체가 없어 노출 안 됨(기존 분기 재사용).
+- ALLOWED_PATHS: src/features/auth/ui/AuthMenu.tsx · src/features/auth/ui/AuthMenu.test.tsx(신규 render 테스트)
+- PUBLIC_CONTRACTS_TO_PRESERVE: 비로그인 즉시 로그인 진입·아바타/aria 계약·로그아웃 흐름·useSession 계약 전부 불변. 순수 additive 메뉴 항목.
+- NON_GOALS: 라우팅 방식 변경(외부 URL은 새 탭), 아이콘 추가, 세션 로직 변경, 앱 내부 라우트 신설.
+- CHANGE_BUDGET: 파일 2(소스 1 + 테스트 1), 신규 route/dependency 0, 커밋 1. 직접 구현 사유: 단일 컴포넌트 additive 메뉴 항목.
+- TEST_EVIDENCE: LOCAL — Node22 게이트 4종 + AuthMenu render 테스트(로그인 시 항목·href/target/rel 고정 / 비로그인 미표시).
+  ⚠️ 실화면(계정 메뉴)은 서버리스 세션 로그인 게이트라 로컬 미표시 — 라이브 노출·이동은 DEPLOY_ONLY(로그인 후 실기기). 컴포넌트 계약은 render 테스트로 LOCAL 고정.
+- 프로세스 note: 동시 세션이 change-scope.md를 미커밋 수정 중이라 R29 소스 커밋에는 change-scope.md를 포함하지 않고 저널(claude.md)로 기록. change-scope R29는 working-tree 문서로 남긴다(엉킴 방지).

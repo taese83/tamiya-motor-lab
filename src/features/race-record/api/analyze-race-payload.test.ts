@@ -5,7 +5,7 @@ import {buildAnalyzeRacePayload} from './analyze-race-payload'
 import type {RaceInsight, RaceRecord} from '@entities/race-record'
 
 // R25 payload 직렬화기 (eval-plan race-ai §2 D7 — api-schema §1.1, data-governance §2).
-// 순수 함수 계약을 고정한다: ≤20건 컷(재정렬 없음), weight 지수 규칙(가장 오래된=1),
+// 순수 함수 계약을 고정한다: ≤20건 컷(재정렬 없음), weight 지수 규칙(분석 전용 계수, 가장 오래된=1),
 // retireReasonKeys 등장 순 중복 제거, excludedNoReason 계수, 그리고 **화이트리스트 외 필드
 // 구조적 부재**(motorId·id 등) — governance §2의 핵심을 unit test가 assert한다.
 
@@ -82,14 +82,14 @@ describe('buildAnalyzeRacePayload — 20건 컷·슬라이스 범위 집계 (D7)
   })
 })
 
-describe('buildAnalyzeRacePayload — weight 규칙 (D7, voltage-advisor v2.37 미러)', () => {
-  it('weight = 1.5^rank(소수 2자리) — 슬라이스 내 가장 오래된 건이 정확히 1', () => {
+describe('buildAnalyzeRacePayload — weight 규칙 (D7, R28: 분석 전용 계수 1.1)', () => {
+  it('weight = 1.1^rank(소수 2자리) — 슬라이스 내 가장 오래된 건이 정확히 1', () => {
     const races = racesDesc([{}, {}, {}]) // 최신 → 오래된
 
     const payload = buildAnalyzeRacePayload(races, INSIGHT)
 
-    // n=3: 최신(rank 2)=1.5²=2.25, 중간(rank 1)=1.5, 가장 오래된(rank 0)=1
-    expect(payload.races.map(r => r.weight)).toEqual([2.25, 1.5, 1])
+    // n=3: 최신(rank 2)=1.1²=1.21, 중간(rank 1)=1.1, 가장 오래된(rank 0)=1
+    expect(payload.races.map(r => r.weight)).toEqual([1.21, 1.1, 1])
   })
 
   it('25건 입력에서도 슬라이스(20건) 내 가장 오래된 항목의 weight가 1이고 최신으로 갈수록 커진다', () => {
@@ -98,6 +98,9 @@ describe('buildAnalyzeRacePayload — weight 규칙 (D7, voltage-advisor v2.37 �
     const weights = buildAnalyzeRacePayload(races, INSIGHT).races.map(r => r.weight)
 
     expect(weights[19]).toBe(1)
+    // R28/DL-032 — 20건 비율은 약 6:1이어야 한다(추천 계수 1.5면 2217:1로 벌어져 패턴 탐지가 죽는다)
+    expect(weights[0] ?? Number.NaN).toBeCloseTo(1.1 ** 19, 1)
+    expect(weights[0] ?? Number.NaN).toBeLessThan(10)
     for (let j = 1; j < weights.length; j += 1) {
       expect(weights[j - 1]).toBeGreaterThan(weights[j] ?? Number.NaN)
     }
