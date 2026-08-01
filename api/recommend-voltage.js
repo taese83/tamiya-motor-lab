@@ -6,7 +6,7 @@
 // R23(보안): **세션 필수**(authGuard) — 이전에는 무인증 공개 POST가 가능해 서버 키를 태울 수 있었다
 // (denial-of-wallet). api/data.js와 동일 패턴. 비로그인은 401이고, 클라 어댑터가 res.ok 아니면
 // 휴리스틱으로 폴백하므로 추천 기능 자체는 계속 동작한다. max_tokens 상한·이력 20건 컷은 그대로 유지.
-import {requireSession} from './_lib/authGuard.js'
+import {requireAllowedSession} from './_lib/authGuard.js'
 
 const VOLTAGE_MIN = 2.6 // 권장 대역 하한(입력 허용과 별개 — domain VOLTAGE_ADVICE_RANGE와 일치)
 const VOLTAGE_MAX = 3.2 // 권장 대역 상한(풀충 배터리 한계·배터리 부담)
@@ -26,9 +26,11 @@ export default async function handler(req, res) {
     res.status(405).json({error: 'method not allowed'})
     return
   }
-  // 세션 필수 — 키 소비(업스트림 호출) 전에 차단한다 (R23, api/data.js 선례)
-  const session = await requireSession(req, res)
-  if (!session) return // 401 이미 전송
+  // 세션+소유자 allowlist 필수 — 키 소비(업스트림 호출) 전에 차단한다 (R23 → R25 DL-030:
+  // requireAllowedSession 교체. ALLOWED_EMAIL 미설정 503 fail-closed·allowlist 밖 403이 추가되나
+  // 클라 어댑터는 res.ok 아니면 휴리스틱 폴백이라 무해 — api-schema §2)
+  const session = await requireAllowedSession(req, res)
+  if (!session) return // 401/403/503 이미 전송
 
   const key = process.env.ANTHROPIC_API_KEY
   if (!key) {

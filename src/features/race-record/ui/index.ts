@@ -30,3 +30,7 @@ export {RaceInsightCard} from './RaceInsightCard'
 export type {RaceInsightCardProps} from './RaceInsightCard'
 export {RaceInsightHelpDialog} from './RaceInsightHelpDialog'
 export type {RaceInsightHelpDialogProps} from './RaceInsightHelpDialog'
+// R25 U5 — AI 분석 응답 카드(제어형 순수 렌더). view 사상·펼침 상태·재시도 배선은
+// RaceDetailPage + useRaceAnalysis 소유. RaceAnalysisView가 훅→카드 사이 공개 계약.
+export {RACE_ANALYSIS_MESSAGES, RaceAnalysisCard} from './RaceAnalysisCard'
+export type {RaceAnalysisCardProps, RaceAnalysisView} from './RaceAnalysisCard'

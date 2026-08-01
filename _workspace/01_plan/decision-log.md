@@ -161,3 +161,10 @@
 - 효과: ① LLM 호출 1회로 복귀 — 비용·지연 2배 해소, 타임아웃(클라 10s)·maxDuration(30s)·토큰 예산 원안 유지 ② 서버측 전압 클램프 검증 불필요(전압 수치 출력 자체가 없음) ③ 결정론/AI 경계가 더 선명 — "수치는 결정론·추천, 해석과 비전압 처방은 AI" ④ 과전압 제안 리스크(risk-matrix 최상위 실물 손해) 구조적 제거.
 - 프롬프트 요구 추가: "전압 수치를 제안하지 마라 — 전압은 별도 기능이 담당한다. 전압을 바꾸라는 취지가 필요하면 방향(낮춤/유지)까지만 언급하고 숫자는 쓰지 않는다."
 - 영향 문서: race-ai/{requirements(A2·REQ-RAI-002), feature-plan(payload·스키마·U2·U4), project-brief, tech-note(§5 클램프)} — Phase 2 설계에 반영해 갱신.
+
+### DL-030 — AI 기능은 ALLOWED_EMAIL 전용(fail-closed) (2026-07-31, 사용자)
+- 결정: **AI 엔드포인트는 소유자 계정만 사용**. `ALLOWED_EMAIL` 미설정이면 AI를 **비활성**(fail-closed)한다 — R24의 fail-open은 일반 인증에만 적용하고 AI에는 적용하지 않는다.
+- 근거: AI만이 외부 키 비용을 발생시키는 경로다. 로그인·동기화를 fail-closed로 하면 env 누락 시 앱 전체가 잠기지만, AI만 잠그면 **앱은 정상 동작하고 비용 표면만 닫힌다**. R24가 남긴 "env 설정 전까지 보호 비활성" 구멍을 AI 한정으로 제거.
+- 설계: `api/_lib/authGuard.js`에 **`requireAllowedSession(req,res)`** 신설 — ① 세션 없음 401 ② allowlist 미설정 **503 `ai_disabled`**(fail-closed) ③ 미허용 계정 403. AI 엔드포인트(`recommend-voltage`, 신규 `analyze-race`)는 이 가드를 쓴다. 일반 엔드포인트(`data.js`)는 기존 `requireSession`(fail-open) 유지.
+- 클라 영향: 전압 추천은 기존 폴백 계약대로 휴리스틱으로 수렴(무해). AI 분석은 계약대로 실패 상태 표시(REQ-RAI-005 — 성공 위장 금지). 세션 응답에 `aiEnabled` 플래그를 실어 버튼을 사전 비활성화하는 방식은 **2차 확장**으로 남긴다(1차는 실패 상태로 충분).
+- 반영 대상: api-schema(가드 계약)·Phase 3 구현(authGuard·recommend-voltage·analyze-race)·위협모델 T2① 체크리스트 1번 갱신.

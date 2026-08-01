@@ -17,11 +17,22 @@ import {useNavigate, useOutletContext, useParams} from 'react-router'
 
 import {measureQueries} from '@entities/measure-record'
 import {motorQueries} from '@entities/motor'
-import {computeRaceInsight, raceQueries, selectAdviceWindow} from '@entities/race-record'
+import {
+  computeRaceInsight,
+  raceQueries,
+  selectAdviceWindow,
+  selectRaceAnalysisGate,
+} from '@entities/race-record'
 import {AuthMenu, useSession} from '@features/auth'
 import {beginRaceMeasure, consumeRaceMeasureReturn} from '@features/race-measure-handoff'
-import {useRaceDeleteFlow, useRaceEntry, useResetRecordsFlow} from '@features/race-record/model'
 import {
+  useRaceAnalysis,
+  useRaceDeleteFlow,
+  useRaceEntry,
+  useResetRecordsFlow,
+} from '@features/race-record/model'
+import {
+  RaceAnalysisCard,
   RaceEntrySheet,
   RaceGoalSheet,
   RaceInsightCard,
@@ -40,9 +51,9 @@ import {RecoveryPanel} from '@shared/ui/recovery-panel'
 import {ThemeToggle} from '@shared/ui/theme-toggle'
 import {useToast} from '@shared/ui/toast'
 
-import type {RaceRecord} from '@entities/race-record'
+import type {RaceAnalysisGateReason, RaceRecord} from '@entities/race-record'
 import type {RaceMeasureDraft} from '@features/race-measure-handoff'
-import type {RaceEntryDraft, RaceEntryPano} from '@features/race-record/ui'
+import type {RaceAnalysisView, RaceEntryDraft, RaceEntryPano} from '@features/race-record/ui'
 import type {RaceGoal} from '@shared/config/domain'
 import type {VoltageAdviceRace} from '@shared/lib/voltage-advisor'
 import type {PersistenceStatus} from '@shared/lib/persistence'
@@ -124,6 +135,14 @@ function fromHandoffDraft(draft: RaceMeasureDraft): RaceEntryDraft {
   }
 }
 
+// R25 U6 — 게이트 사유 → [AI 분석] 비활성 caption(component-spec race-ai §5, 문구 소유는 UI측).
+// empty는 인사이트 카드 자체가 null(미노출)이라 이 문구에는 도달하지 않는다 — 방어 매핑만 유지.
+const ANALYZE_GATE_MESSAGES: Record<RaceAnalysisGateReason, string | null> = {
+  empty: null,
+  insufficient: '기록 3건부터 분석할 수 있어요',
+  no_retire_reasons: '이탈 사유를 입력하면 분석할 수 있어요',
+}
+
 export function RaceDetailPage() {
   const {motorId = ''} = useParams()
   const navigate = useNavigate()
@@ -161,6 +180,34 @@ export function RaceDetailPage() {
   // R22 레이스 인사이트 — racesQuery 파생(표시 전용, 새 행동 진입점 아님). 도움말 열림은 페이지 소유.
   const insight = computeRaceInsight(races)
   const [insightHelpOpen, setInsightHelpOpen] = useState(false)
+  // R25 U6 — AI 분석: 결정론 게이트(호출 차단) + 상태기계 훅 + 카드 뷰 사상(배선만 페이지 소유)
+  const analysisGate = selectRaceAnalysisGate(races, insight)
+  const analysis = useRaceAnalysis()
+  // 버튼 disabled와 이중 게이트 — 탭 시점 파생값으로 방어 재확인 후 최신 races·insight로 요청
+  const handleAnalyze = (): void => {
+    if (!analysisGate.eligible) return
+    analysis.analyze({races, insight})
+  }
+  const analyzeDisabledReason = analysisGate.eligible
+    ? null
+    : ANALYZE_GATE_MESSAGES[analysisGate.reason]
+  // 훅 상태 → RaceAnalysisCard 뷰(§5) — success는 verdict로 분기, idle·첫 loading은 null(미렌더)
+  const analysisView: RaceAnalysisView | null =
+    analysis.state.phase === 'success'
+      ? analysis.state.data.verdict === 'ok'
+        ? {kind: 'success', data: analysis.state.data}
+        : {
+            kind: 'insufficient',
+            reason: analysis.state.data.reason,
+            evidence: analysis.state.data.evidence,
+          }
+      : analysis.state.phase === 'error'
+        ? {kind: 'error', reason: analysis.state.reason}
+        : null
+  // [다시 시도]·재분석 pending — refreshing(성공 후)·retrying(오류 후) 공통
+  const analysisRetryPending =
+    (analysis.state.phase === 'success' && analysis.state.refreshing) ||
+    (analysis.state.phase === 'error' && analysis.state.retrying)
   // v2.36 — 직전 기록에 결과(완주/이탈) 미입력 시 [+ 기록] 클릭에서 "입력하시겠습니까?" 확인
   const [incompleteTarget, setIncompleteTarget] = useState<RaceRecord | null>(null)
   const lastGoal: RaceGoal | null = races[0]?.goal ?? null
@@ -389,7 +436,30 @@ export function RaceDetailPage() {
                   {/* R22 인사이트 카드 — 스크롤 영역 상단, 회차 목록 바로 위(목록은 그 아래 스크롤).
                       empty면 카드가 스스로 null 반환. loading/error/gate/notFound 경로 미렌더. */}
                   <Box sx={{mb: 1}}>
-                    <RaceInsightCard insight={insight} onOpenHelp={() => setInsightHelpOpen(true)} />
+                    <RaceInsightCard
+                      insight={insight}
+                      onOpenHelp={() => setInsightHelpOpen(true)}
+                      onAnalyze={handleAnalyze}
+                      analyzeDisabledReason={analyzeDisabledReason}
+                      analyzePending={analysis.pending}
+                      onCancelAnalyze={analysis.cancel}
+                    />
+                  </Box>
+                  {/* R25 U6 — AI 분석 응답 슬롯: aria-live 래퍼는 상시 렌더(빈 상태 0px — 라이브
+                      리전은 DOM 선존재해야 낭독), 카드는 success·insufficient·error일 때만(§2).
+                      펼침 자동 스크롤은 이번 라운드 생략 — 카드 자체 scrollMarginTop 유지. */}
+                  <Box aria-live="polite">
+                    {analysisView !== null && (
+                      <Box sx={{mb: 1}}>
+                        <RaceAnalysisCard
+                          view={analysisView}
+                          expanded={analysis.expanded}
+                          onToggleExpand={analysis.toggleExpanded}
+                          onRetry={handleAnalyze}
+                          retryPending={analysisRetryPending}
+                        />
+                      </Box>
+                    )}
                   </Box>
                   {/* createdAt 역순(repository 보장 — 재정렬 금지). 회차 번호는 내림차순 부여 —
                       최신 행 = 총 건수 (R-2) */}

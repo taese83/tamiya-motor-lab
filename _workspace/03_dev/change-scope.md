@@ -2155,3 +2155,19 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   참조해 동기화 전체가 실패한다. 마이그레이션 실행은 사용자 승인·수행(harness는 SQL 작성만).
 - TEST_EVIDENCE: 게이트 4종 + check-iterate-scope. 서버 왕복(사유 저장·복원)·allowlist 401/403은 로컬에
   serverless·DB 런타임이 없어 DEPLOY_ONLY — 마이그레이션 후 실기기 확인 위임.
+
+## R25 — 레이스 AI 분석 구현 (2026-08-01, feature/existing-change)
+- REQUEST: Phase 1~2 설계 완료된 on-demand AI 분석 구현. 설계 canonical: `_workspace/02_design/race-ai/{api-schema,component-spec,layout-spec,ai-architecture,ai-threat-model,data-governance,eval-plan,cost-latency-budget}.md`, 결정 DL-021~030.
+- TARGET_BEHAVIOR: 레이스 상세 R22 카드 하단 [AI 분석] 1탭 → 서버가 Haiku 4.5 1회 호출 → 4섹션 구조화 응답(진단·이상·브리핑·다음 판)을 접힘 카드로 표시. 근거 부족이면 버튼 비활성(호출 0회), 실패는 표면화(폴백 금지), 응답 비저장. **AI는 ALLOWED_EMAIL 전용 fail-closed**(DL-030).
+- ALLOWED_PATHS:
+  · api/analyze-race.js(신규) · api/_lib/authGuard.js(requireAllowedSession 추가) · api/_lib/retire-reason-tree.js(신규 미러) · api/recommend-voltage.js(가드 1줄 교체) · vercel.json(maxDuration)
+  · src/features/race-record/api/{analyze-race.ts,analyze-race-payload.ts}(신규) · 동 index.ts
+  · src/entities/race-record/model/race-analysis-gate.ts(신규) · 동 index.ts
+  · src/features/race-record/model/use-race-analysis.ts(신규) · 동 index.ts
+  · src/features/race-record/ui/{RaceAnalysisCard.tsx(신규),RaceInsightCard.tsx(additive props)} · 동 index.ts
+  · src/pages/race-detail/ui/RaceDetailPage.tsx(배선) · 각 테스트
+- PUBLIC_CONTRACTS_TO_PRESERVE: RaceInsightCard 기존 props·렌더(onAnalyze 미전달 시 100% 동일 — 기존 테스트 무수정 통과가 게이트) · R22 인사이트·목록·[+ 기록]·목표 팝업·왕복·삭제·초기화·로그인 게이트 전부 무변경 · recommend-voltage 요청/응답 계약 불변(가드만 교체, 클라 수정 0) · IndexedDB·서버 스키마 무변경(응답 비저장) · 고정 셸 스크롤 소유권.
+- NON_GOALS: 자동 호출·알림 · AI 쓰기(L1 초과) · 모터 간 비교 · 측정 도메인 AI · 자유 텍스트 입력 · 역할별 엔드포인트 분리 · 응답 영속·세션 캐시(D3 기본값 유지 없음) · focus 파라미터(2차).
+- CHANGE_BUDGET: 신규 8 + 수정 6 + 테스트 ~6. 커밋 1~2.
+- 보안 필수(위협모델 체크리스트): requireAllowedSession(fail-closed) · 서버 필드 allowlist 검증·미지 키 드롭·races 20 슬라이스·body 32KB · retireReason은 **key 배열만 수신**(pathLabel/causal 서버 재구성) · 응답 구조·길이 검증 + **전압 패턴 502 거부** · dangerouslySetInnerHTML 0건 · 프롬프트/응답 원문 무로깅 · payload 제외 필드 부재 테스트.
+- TEST_EVIDENCE: LOCAL_VERIFIABLE — 게이트 차단(fetch 0회)·zod 실패·타임아웃/취소·evidence 덮어쓰기·전압 패턴 거부·payload 제외 필드·5상태 render·기존 회귀. 게이트 4종 + check-iterate-scope + 프리뷰(로그인 게이트로 카드 자체는 제한적). 실 LLM 품질·p95·401/403/503 실동작은 DEPLOY_ONLY(eval-plan §3, owner 사용자).

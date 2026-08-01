@@ -39,3 +39,24 @@ export async function requireSession(req, res) {
   }
   return payload
 }
+
+/**
+ * R25(U4) — AI 경로 전용 가드 (api-schema §0, DL-030). requireSession과의 차이는 딱 하나:
+ * `ALLOWED_EMAIL` 미설정/공백이면 **503 ai_disabled로 fail-closed** 한다 — 위 isAllowedEmail의
+ * fail-open(미설정 시 true, 본인 잠금 회피용)과 **반대 방향**이다. AI 경로는 소유자 미확정
+ * 상태에서 서버 키를 태우지 않는다(threat-model T2 denial-of-wallet).
+ * 분기: ① 세션 없음/무효 → 401 (requireSession 재사용) ② env 미설정/공백 → 503 {error:'ai_disabled'}
+ * ③ allowlist 밖 → 403 (requireSession 내부 isAllowedEmail이 전송) ④ 통과 → payload 반환.
+ * 호출자 계약은 선례와 동일 — null이면 즉시 return(응답은 이미 전송됨).
+ */
+export async function requireAllowedSession(req, res) {
+  const payload = await requireSession(req, res) // ①·③ — 401/403 이미 전송
+  if (!payload) return null
+  const raw = process.env.ALLOWED_EMAIL
+  if (!raw || raw.trim() === '') {
+    // ② fail-closed — requireSession은 방금 fail-open(경고만)으로 통과시켰지만 AI 경로는 차단한다
+    res.status(503).json({error: 'ai_disabled'})
+    return null
+  }
+  return payload
+}

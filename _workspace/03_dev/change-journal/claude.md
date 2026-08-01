@@ -90,3 +90,12 @@
 - 직접 구현 사유: 서버 3파일+마이그레이션이 배포 순서로 묶여 단일 소유가 필요, 003 선례를 그대로 따르는 기계적 수정.
 - ⚠️ 배포 순서: **004 마이그레이션 실행 → 코드 배포**(역순이면 INSERT가 없는 컬럼 참조로 동기화 전체 실패). 마이그레이션 실행·ALLOWED_EMAIL env 설정은 사용자 몫.
 - EVIDENCE: Node 22 게이트 typecheck·lint·test(183)·build PASS + check-iterate-scope OK(source 4건). 서버 왕복·allowlist 401/403은 로컬에 serverless·DB 런타임 없어 DEPLOY_ONLY — 마이그레이션 후 확인 위임.
+
+## 2026-08-01 R25 레이스 AI 분석 구현 — 오케스트레이션 (feature/existing-change)
+- Phase 2 설계(8종) 완료 후 Phase 3. 위임: U1 계약(feature-mutation-builder) → U2·U3(entity-query-builder)∥U4 서버(shared-foundation-builder)∥U5 카드(component-builder) → U6 훅(form-state-builder)+배선(route-builder) → 테스트(test-writer).
+- **오케스트레이터 직접 적용(ownership hook 차단분)**: api/ 전체는 무소유 경로(R23·R24 선례) — api/analyze-race.js·api/_lib/{authGuard(requireAllowedSession 추가),retire-reason-tree(신규 미러)}·api/recommend-voltage.js(가드 교체)·vercel.json(maxDuration 30) + src/features/race-record/api/analyze-race-payload.ts·barrel(entity-query-builder 차단분). 전부 subagent 반환 원문 그대로 적용.
+- **직접 수정 1건**: RaceAnalysisCard의 `RACE_ANALYSIS_MESSAGES`에 `retry`·`retryPending` 카피 키 누락(typecheck 실패) → 설계 §5 문구로 추가.
+- EVIDENCE: Node 22 게이트 typecheck·lint·test(**213**, 신규 30)·build PASS + check-iterate-scope OK(source 19건).
+  보안 체크리스트 실측: dangerouslySetInnerHTML 실사용 0건(주석 1건만) / 프롬프트·응답 원문 console 출력 0건 / 가드가 키 읽기·업스트림 fetch보다 앞(239행 가드).
+  실 LLM 품질·401/403/503/429 실동작·p95는 DEPLOY_ONLY(eval-plan §3) — 배포 후 사용자 확인.
+- 생략(문서화): 펼침 자동 스크롤(과설계 방지, 카드 scrollMarginTop 유지) / D5 타임아웃 fake timer 테스트(jsdom 비결정) / 훅·페이지 통합 테스트(핵심 4파일 우선).

@@ -13,6 +13,9 @@ export type {CreateRaceRecordDraft, RaceRecord, UpdateRaceRecordPatch} from './m
 // R22 — 레이스 인사이트 파생(순수 selector, DL-013·DL-014)
 export {computeRaceInsight, RECENT_FALLBACK, selectAdviceWindow} from './model/race-insight'
 export type {RaceInsight, TrendDir} from './model/race-insight'
+// R25 U3 — AI 분석 근거 부족 게이트(REQ-RAI-004, 순수 selector — 호출 차단은 UI가 소비)
+export {selectRaceAnalysisGate} from './model/race-analysis-gate'
+export type {RaceAnalysisGate, RaceAnalysisGateReason} from './model/race-analysis-gate'
 export {
   createRaceRecord,
   deleteRaceRecord,
