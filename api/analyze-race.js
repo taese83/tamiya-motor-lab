@@ -33,8 +33,15 @@ const LAP_TIME_MAX_MS = 3_600_000
 const STREAK_MAX = 5
 const ISO_8601_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
 
-// DL-029 결정론 집행(T3③) — 직렬화된 응답 전체에서 전압 수치 패턴 검출 시 502 **거부**
-// (클램프·수정 아님 — 비전압 처방 계약)
+// 전압 수치 패턴 — DL-031(R27)로 **적용 범위가 nextRace 섹션 한정**으로 좁혀졌다.
+// 배경: DL-029의 결정은 "코칭 섹션이 전압을 **추천**하지 말 것"이었는데 R25 구현이 이를
+// "모든 섹션 전압 수치 전면 금지 + 응답 전체 502"로 과잉 적용했다. 그런데 주입 데이터(insight)에
+// 완주 전압대·최근 완주 전압이 들어 있고 프롬프트는 "주입값을 인용하라"고 지시하므로, 모델이
+// 진단·브리핑에서 전압을 인용하는 것은 지시를 따른 결과다 — 실사용에서 전 요청이 502로 실패했다
+// (로그 code: voltage_pattern_rejected). 인용(cite)과 처방(prescribe)을 구분한다:
+//   · diagnosis·anomaly·briefing — 주입된 전압값 인용 **허용**(분석의 핵심 근거)
+//   · nextRace(다음 판 제안) — 전압 수치 **금지**(추천은 기존 advisor 소관, 과전압 유도 방지)
+// 위반 시 해당 섹션만 드롭하고 나머지 분석은 반환한다 — 문체 규칙 위반으로 전체를 날리지 않는다.
 const VOLTAGE_PATTERN = /\d[.,]?\d*\s*[vV볼]/
 
 // best-effort in-memory rate limit — 분당 5회(cost-latency-budget §4).
@@ -239,7 +246,8 @@ const SYSTEM_PROMPT = [
   '',
   '[경계 규칙 — 반드시 준수]',
   '- 주입값을 재계산하지 마라. 언급하는 모든 수치는 races·insight에 있는 값의 인용이어야 한다.',
-  '- 전압 수치는 어떤 형태로도 출력 금지(숫자+V·볼트 표기 전면 금지). 전압은 방향 어휘(낮추기/유지/높이기)로만, 수치 없이 언급한다.',
+  '- 전압 수치 인용은 진단·이상 신호·브리핑에서 **허용**한다(insight의 완주 전압대·최근 완주 전압을 근거로 대는 것은 정상이다).',
+  '- 단 nextRace(다음 판 제안)에서는 전압 수치를 쓰지 마라 — 몇 V로 하라는 처방은 앱의 다른 기능이 담당한다. 여기서는 방향 어휘(낮추기/유지/높이기)로만 말한다.',
   '- speedRelated=false인 사유(파츠 이탈·멈춤 등)에는 전압 관련 조언을 하지 마라 — 전압 무관 원인이다.',
   '- 측정되지 않은 세팅(롤러·댐퍼·기어비 등)은 단정하지 말고 "~일 가능성" 수준의 어휘까지만 사용하라.',
   '- 판단 근거가 부족하면 verdict를 "insufficient"로 하고 reason에 이유를 한 문장으로 적어라.',
@@ -365,9 +373,19 @@ export default async function handler(req, res) {
     return
   }
 
-  // DL-029 집행 — 전압 수치 패턴 검출 시 거부(수정·클램프 금지, T3③)
-  if (VOLTAGE_PATTERN.test(JSON.stringify(output))) {
-    console.warn(JSON.stringify({fn: 'analyze-race', code: 'voltage_pattern_rejected', upstreamMs}))
+  // DL-031(R27) 집행 — nextRace(다음 판 제안)에만 전압 수치 금지. 위반 시 **그 섹션만 드롭**하고
+  // 나머지 분석은 살린다(문체 규칙 위반으로 전체를 날리지 않는다 — R25의 전체 502는 폐기).
+  // 인용(진단·이상·브리핑의 전압 언급)은 허용 — 주입값 인용은 분석의 핵심 근거다.
+  let voltageInNextRace = false
+  if (output.verdict === 'ok' && output.sections.nextRace !== undefined) {
+    if (VOLTAGE_PATTERN.test(output.sections.nextRace.summary)) {
+      voltageInNextRace = true
+      delete output.sections.nextRace
+    }
+  }
+  // 드롭 후 섹션이 하나도 안 남으면 빈 응답이 되므로 502(최소 1섹션 계약 유지)
+  if (output.verdict === 'ok' && Object.keys(output.sections).length === 0) {
+    console.warn(JSON.stringify({fn: 'analyze-race', code: 'empty_after_voltage_drop', upstreamMs}))
     res.status(502).json({error: 'invalid model output'})
     return
   }
@@ -384,6 +402,8 @@ export default async function handler(req, res) {
     JSON.stringify({
       fn: 'analyze-race',
       verdict: output.verdict,
+      // R27 — nextRace가 전압 수치를 써서 드롭됐는지(프롬프트 준수 관찰용. 자주 true면 프롬프트 보강 신호)
+      ...(voltageInNextRace ? {voltageDropped: true} : {}),
       upstreamMs,
       inputTokens: usage?.input_tokens ?? null,
       outputTokens: usage?.output_tokens ?? null,

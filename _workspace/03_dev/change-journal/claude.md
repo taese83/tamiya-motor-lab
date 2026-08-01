@@ -127,3 +127,16 @@
   탐색 근거(실측 폐기): 스펙트럼 subtraction A/B 0프레임 회복·프레임0.2→0.4 무효·voicing만 2dB에서 0→39 회복+순수잡음 오검출 0.
   ⚠️ 실 마이크 인식률 체감·"더 가까이" UI 라이브 트리거는 DEPLOY_ONLY(실기기) — 표면 PASS로 보고 안 함. voicing 완화는 실기기 재검증 권장.
 - 라운드 번호 note: 동시 세션이 R25·R26 사용 → 본 라운드는 R27(코드 주석도 R27로 정정).
+
+## 2026-08-01 R27 전압 패턴 거부 과잉 수정 — 직접 구현 (bug-fix)
+- **실사용 실패 대응**: 사용자 제보 "분석하지 못했어요" + Vercel 로그 `{code: 'voltage_pattern_rejected', upstreamMs: 6989}` — 모델은 7초에 정상 응답했으나 서버 전압 패턴 검사가 응답 전체를 502로 거부. 전 요청 실패.
+- **근본 원인(내 설계 오류)**: DL-029의 결정은 "코칭 섹션이 전압을 **추천**하지 말 것"인데 R25 구현이 "모든 섹션 전압 수치 전면 금지 + 전체 502"로 과잉 적용. 게다가 주입 insight에 완주 전압대·최근 완주 전압이 있고 프롬프트가 "주입값 인용" 지시 → 모델이 전압을 인용하는 건 지시 준수 결과. **구조적 자기모순**을 내가 만들었다. 인용(cite)과 처방(prescribe) 미구분이 핵심.
+- MODIFIED: api/analyze-race.js (DL-031)
+  · VOLTAGE_PATTERN 적용 범위: 응답 전체 → **`sections.nextRace.summary` 한정**. 주석에 인용/처방 구분과 실패 이력 기록.
+  · 위반 처리: 전체 502 → **해당 섹션만 delete 후 200 반환**(나머지 분석 유지). 드롭 후 0섹션이면 502 `empty_after_voltage_drop`(최소 1섹션 계약 유지).
+  · 관측: 드롭 발생 시 로그에 `voltageDropped: true` 추가(프롬프트 준수 관찰 — 잦으면 보강 신호).
+  · 프롬프트: "전압 수치 어떤 형태로도 출력 금지" → **"진단·이상·브리핑에서 인용 허용 / nextRace에서만 수치 금지(방향 어휘)"** 2줄로 분리. 섹션 정의부("전압은 방향만")는 이미 정합이라 무변경.
+- 보존: 응답 스키마·evidence 덮어쓰기·가드·rate limit·max_tokens·모델·temp·클라 계약 불변. 다른 안전 규칙 5종 불변(재계산 금지·speedRelated=false 전압 조언 금지·"가능성" 어휘·insufficient·최소 1섹션).
+- EVIDENCE: 드롭 로직 4케이스 재현 검증(①인용+방향=전부 유지 ②제안에 수치=nextRace만 드롭·나머지 200 ③드롭 후 0섹션=502 ④insufficient 무영향) + 프로덕션 verdict 가드 확인(380·387행) + Node22 게이트 4종 PASS + check-iterate-scope OK(source 1건).
+  ⚠️ 실동작은 DEPLOY_ONLY — 배포 후 로그에 `voltage_pattern_rejected` 부재·`verdict` 기록이 확인 기준.
+- 후속: eval-plan G-VOLT를 "전 시나리오" → "nextRace 한정"으로 조정 필요(문서, 별도).

@@ -2209,3 +2209,13 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - TEST_EVIDENCE: LOCAL — Node22 게이트 4종 PASS(typecheck·lint·test 213 — engine fixture 무회귀=voicing 안전) +
   합성 실측(peak0.009 회수 / 조용→weakReason 'too-quiet' / 잡음→ 'no-pitch' / 정상 무영향).
   ⚠️ 실제 마이크 인식률 체감과 "더 가까이" UI 라이브 트리거는 DEPLOY_ONLY(실기기) — 표면 PASS로 보고 안 함.
+
+## R27 — 전압 패턴 거부 과잉 수정 (2026-08-01, bug-fix)
+- REQUEST: 실사용에서 AI 분석이 항상 실패(로그 `voltage_pattern_rejected`). DL-031대로 인용 허용·처방만 금지, 위반은 섹션 드롭.
+- OBSERVED_BASELINE: api/analyze-race.js — `VOLTAGE_PATTERN.test(JSON.stringify(output))`가 응답 **전체**를 검사해 502 반환(369행). 프롬프트는 "전압 수치 어떤 형태로도 출력 금지".
+- TARGET_BEHAVIOR: ① 검사 범위를 `sections.nextRace`로 한정 ② 매칭 시 그 섹션만 삭제하고 200 반환(나머지 분석 유지) ③ 드롭 후 섹션 0개면 502(빈 응답 금지) ④ 프롬프트를 "인용은 허용, 다음 판 제안에서만 수치 금지"로 수정.
+- ALLOWED_PATHS: api/analyze-race.js(VOLTAGE_PATTERN 적용부·SYSTEM_PROMPT).
+- PUBLIC_CONTRACTS_TO_PRESERVE: 응답 스키마·evidence 덮어쓰기·가드·rate limit·max_tokens·모델·temp·클라 계약 전부 불변 · 다른 안전 규칙 5종(재계산 금지·speedRelated=false 전압 조언 금지·"가능성" 어휘·insufficient·최소 1섹션) 불변 · 최소 1섹션 규칙으로 빈 응답 방지.
+- NON_GOALS: 스키마 변경 · 모델·토큰 변경 · UI 변경 · eval-plan 문서 갱신(별도).
+- CHANGE_BUDGET: 파일 1, 커밋 1.
+- TEST_EVIDENCE: 게이트 4종 + check-iterate-scope + **신규 서버 단위 테스트 없음(api/는 vitest 대상 밖)** — 대신 순수 함수 로직을 프롬프트·검사부 주석으로 고정하고, 실제 동작은 배포 후 로그(`code` 부재=성공)로 확인. DEPLOY_ONLY로 명시.
