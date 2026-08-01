@@ -2171,3 +2171,23 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 신규 8 + 수정 6 + 테스트 ~6. 커밋 1~2.
 - 보안 필수(위협모델 체크리스트): requireAllowedSession(fail-closed) · 서버 필드 allowlist 검증·미지 키 드롭·races 20 슬라이스·body 32KB · retireReason은 **key 배열만 수신**(pathLabel/causal 서버 재구성) · 응답 구조·길이 검증 + **전압 패턴 502 거부** · dangerouslySetInnerHTML 0건 · 프롬프트/응답 원문 무로깅 · payload 제외 필드 부재 테스트.
 - TEST_EVIDENCE: LOCAL_VERIFIABLE — 게이트 차단(fetch 0회)·zod 실패·타임아웃/취소·evidence 덮어쓰기·전압 패턴 거부·payload 제외 필드·5상태 render·기존 회귀. 게이트 4종 + check-iterate-scope + 프리뷰(로그인 게이트로 카드 자체는 제한적). 실 LLM 품질·p95·401/403/503 실동작은 DEPLOY_ONLY(eval-plan §3, owner 사용자).
+
+## R26 — AI 분석 프롬프트 개선 (2026-08-01, feature/existing-change)
+- REQUEST: R25 프롬프트 리뷰에서 발견한 3결함 수정(사용자 지시: 배포 전 선반영).
+  ① **역할 자기모순** — "다음 세팅 조언"을 시키면서 같은 문장에서 "세팅을 결정하지 않는다" → nextRace 섹션이
+     위축·생략될 소지. 원 의도는 "앱이 자동 적용하지 않음(L1)"이며 그건 UI caption 소관.
+  ② **이탈 사유 미활용** — retireReasons(causal·speedRelated)를 입력으로 주기만 하고 "회차 간 사유 패턴을
+     교차 분석하라"는 지시가 없음. R20 수집의 존재 이유가 프롬프트에 미반영.
+  ③ **섹션 정의 부재** — 4섹션이 이름만 나열돼 각 섹션이 답할 질문이 없음 → briefing이 수치 재진술로 흘러
+     규칙(재진술 섹션 생략)에 걸려 겉돎. planning-context "역할별 답하는 질문" 표를 프롬프트로 승격 필요.
+- OBSERVED_BASELINE: api/analyze-race.js:206-231 `SYSTEM_PROMPT` 상수(R25 구현분).
+- TARGET_BEHAVIOR: 역할 문장이 "제안하되 단정 금지·적용은 사용자"로 일관 / 사유 교차 분석 지시 명시 /
+  섹션별 답할 질문·금지(재진술) 명시. 안전 규칙 6종은 문구 강화만, **약화 금지**.
+- ALLOWED_PATHS: api/analyze-race.js(SYSTEM_PROMPT 상수만).
+- PUBLIC_CONTRACTS_TO_PRESERVE: 응답 스키마·검증 로직·전압 패턴 스캔·evidence 덮어쓰기·가드·rate limit·
+  max_tokens 800·모델·temp 0 전부 불변 · 클라이언트 계약 무변경 · 출력 JSON 형식 예시 불변.
+- NON_GOALS: 모델 교체 · 토큰 상한 변경 · 스키마 변경 · 검증 완화 · UI 변경.
+- CHANGE_BUDGET: 파일 1(상수 1개), 커밋 1.
+- TEST_EVIDENCE: 게이트 4종 + check-iterate-scope(프롬프트는 문자열이라 기존 테스트에 무영향 — 서버 검증·
+  스키마 불변 확인이 회귀 기준). ⚠️ **프롬프트 품질 자체는 LOCAL 검증 불가** — 실 LLM 응답으로만 확인
+  가능(eval-plan §3 S1~S7). DEPLOY_ONLY로 명시하고 표면 PASS로 보고하지 않는다.

@@ -99,3 +99,15 @@
   보안 체크리스트 실측: dangerouslySetInnerHTML 실사용 0건(주석 1건만) / 프롬프트·응답 원문 console 출력 0건 / 가드가 키 읽기·업스트림 fetch보다 앞(239행 가드).
   실 LLM 품질·401/403/503/429 실동작·p95는 DEPLOY_ONLY(eval-plan §3) — 배포 후 사용자 확인.
 - 생략(문서화): 펼침 자동 스크롤(과설계 방지, 카드 scrollMarginTop 유지) / D5 타임아웃 fake timer 테스트(jsdom 비결정) / 훅·페이지 통합 테스트(핵심 4파일 우선).
+
+## 2026-08-01 R26 AI 분석 프롬프트 개선 — 직접 구현 (feature)
+- 배경: R25 배포 후 사용자가 프롬프트 리뷰 요청 → 코드 리딩으로 3결함 발견, 사용자 지시로 실사용 전 선반영(A안).
+- MODIFIED: api/analyze-race.js — `SYSTEM_PROMPT` 상수만.
+  ① 역할 자기모순 제거: "세팅을 결정하지 않는다"(조언 지시와 충돌 → nextRace 위축 우려) → "제안하되 단정 금지, 적용 여부는 사용자"로 재정의 + 가치 기준 1줄("insight 되풀이는 무가치, 패턴·인과 가설만 가치") 추가.
+  ② 이탈 사유 활용 지시 신설: 도메인 지식에 retireReason/speedRelated/causal 의미 추가 + **[분석 절차] 5단계**(사유별 그룹핑→반복 사유 causal 1순위 가설→speedRelated로 속도/정비 분기→전압 낮췄는데 재발 시 밸런스 가설→trend 어긋남 이상 신호→미입력 많으면 확신 하향). R20 수집 데이터가 프롬프트에서 처음으로 실제 활용됨.
+  ③ **[섹션별로 답할 질문]** 신설: diagnosis/anomaly/briefing/nextRace 각각의 질문·생략 조건 명시(planning-context "역할별 답하는 질문" 표 승격). 기존 나열식 규칙 1줄은 중복 제거 + summary 1~2문장·트랙사이드 가독성 1줄 추가.
+- 보존 확인(실측): 안전 규칙 6종 전부 잔존(grep 6/6) — 재계산 금지·전압 수치 출력 금지·speedRelated=false 전압 조언 금지·"가능성" 어휘 상한·insufficient 반환·최소 1섹션. 검증 로직·VOLTAGE_PATTERN 스캔·evidence 덮어쓰기·MAX_TOKENS 800·temp 0·모델·스키마·클라 계약 전부 불변.
+- 비용 영향: system 프롬프트 입력 토큰 ~+400(회당 센트 미만 — cost-latency-budget §2 추정 범위 내). max_tokens(출력) 불변.
+- EVIDENCE: Node 22 게이트 typecheck·lint·test(213)·build PASS + check-iterate-scope OK(source 1건).
+  ⚠️ **프롬프트 품질 자체는 LOCAL 검증 불가** — 실 LLM 응답으로만 확인 가능(eval-plan §3 S1~S7). 표면 PASS로 보고하지 않음. 3결함 수정은 코드 리딩 근거의 가설이며 실사용 관찰로 검증 필요.
+- 프로세스 note: change-scope append가 cwd 리셋으로 1회 실패(잘못된 경로 생성) → 올바른 경로에 재기록 후 편집 착수. append 선행 원칙은 유지됨.
