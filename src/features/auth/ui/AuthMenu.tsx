@@ -9,8 +9,11 @@ import type {MouseEvent} from 'react'
 
 // 로그인/로그아웃 메뉴 (v2.40 / v2.41 — 아바타 중심 UX).
 // - 비로그인: 기본 아바타(빈 사람 실루엣) → 클릭 시 **바로 구글 로그인 페이지로 이동**(메뉴 없음, v2.41).
-// - 로그인: 설정된 아바타(user.picture) → 클릭 시 메뉴 [기본 정보(이름·이메일) + 로그아웃].
+// - 로그인: 설정된 아바타(user.picture) → 클릭 시 메뉴 [기본 정보(이름·이메일) + 타미야 경기 일정(외부 링크, R29) + 로그아웃].
 // 세션은 서버리스(/api/auth/session)에서만 실동작 — 로컬 정적 서버는 null(미로그인)로 수렴.
+
+// 타미야 공식 경기 일정 외부 앱 (R29) — 로그인 사용자에게만 노출. 새 탭 + noopener/noreferrer로 격리(tabnabbing 방지).
+const TAMIYA_RACE_SCHEDULE_URL = 'https://tamiya-race-app-br4o.vercel.app/'
 
 export function AuthMenu() {
   const {user} = useSession()
@@ -66,6 +69,16 @@ export function AuthMenu() {
               {user.email}
             </Typography>
           </Box>
+          <Divider />
+          {/* 타미야 경기 일정 — 외부 앱으로 새 탭 이동(R29). 실제 링크(component="a")라 중클릭·새 탭 열기·컨텍스트 메뉴 등 접근성 유지 */}
+          <MenuItem
+            component="a"
+            href={TAMIYA_RACE_SCHEDULE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={close}>
+            타미야 경기 일정
+          </MenuItem>
           <Divider />
           <MenuItem onClick={() => void logout()}>로그아웃</MenuItem>
         </Menu>

@@ -140,3 +140,15 @@
 - EVIDENCE: 드롭 로직 4케이스 재현 검증(①인용+방향=전부 유지 ②제안에 수치=nextRace만 드롭·나머지 200 ③드롭 후 0섹션=502 ④insufficient 무영향) + 프로덕션 verdict 가드 확인(380·387행) + Node22 게이트 4종 PASS + check-iterate-scope OK(source 1건).
   ⚠️ 실동작은 DEPLOY_ONLY — 배포 후 로그에 `voltage_pattern_rejected` 부재·`verdict` 기록이 확인 기준.
 - 후속: eval-plan G-VOLT를 "전 시나리오" → "nextRace 한정"으로 조정 필요(문서, 별도).
+
+## 2026-08-02 R29 로그인 메뉴에 타미야 경기 일정 외부 링크 — 직접 구현 (feature/existing-change)
+- MODIFIED: src/features/auth/ui/AuthMenu.tsx — 로그인 계정 메뉴(user!==null 분기)에 '타미야 경기 일정' MenuItem 추가.
+  `TAMIYA_RACE_SCHEDULE_URL` 상수 + MenuItem `component="a" href target=_blank rel="noopener noreferrer" onClick=close`.
+  배치: 사용자 정보 · Divider · **타미야 경기 일정** · Divider · 로그아웃(그룹 분리). 실제 anchor라 중클릭·새 탭·컨텍스트 메뉴 접근성 유지.
+- CREATED: src/features/auth/ui/AuthMenu.test.tsx — 계약 render 테스트(vi.mock useSession + createWrapper): ①비로그인=메뉴/링크 미표시 ②로그인=항목 노출·href=외부URL·target=_blank·rel~noopener·로그아웃 보존.
+- 보존: 비로그인 즉시 로그인 진입·아바타/aria·로그아웃 흐름·useSession 계약 전부 불변. 순수 additive.
+- 실행 사유: 단일 컴포넌트 additive 메뉴 항목 → 직접(execution-contract §10).
+- EVIDENCE: Node22 typecheck·lint·build PASS + AuthMenu 테스트 격리 실행 2/2 PASS.
+  ⚠️ 전체 test 1건 실패는 **동시 세션 미커밋 파일(analyze-race-payload.test.ts, R28 진행 중)** — 내 변경과 무관(auth 파일 무관, 격리 실행으로 내 계약 통과 확인).
+  실화면(계정 메뉴)은 서버리스 세션 로그인 게이트라 로컬 미표시 — 라이브 노출·이동은 DEPLOY_ONLY(로그인 후 실기기). 계약은 render 테스트로 LOCAL 고정.
+- 라운드 번호: 동시 세션이 R27·R28 사용 → 본 라운드 R29. 커밋은 auth 소스 2파일 + 본 저널만(동시 세션이 change-scope.md 미커밋 수정 중이라 change-scope R29는 working-tree 문서로만 남김 — 엉킴 방지).
