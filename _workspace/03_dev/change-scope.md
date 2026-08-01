@@ -2242,3 +2242,18 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - TEST_EVIDENCE: LOCAL — Node22 게이트 4종 + AuthMenu render 테스트(로그인 시 항목·href/target/rel 고정 / 비로그인 미표시).
   ⚠️ 실화면(계정 메뉴)은 서버리스 세션 로그인 게이트라 로컬 미표시 — 라이브 노출·이동은 DEPLOY_ONLY(로그인 후 실기기). 컴포넌트 계약은 render 테스트로 LOCAL 고정.
 - 프로세스 note: 동시 세션이 change-scope.md를 미커밋 수정 중이라 R29 소스 커밋에는 change-scope.md를 포함하지 않고 저널(claude.md)로 기록. change-scope R29는 working-tree 문서로 남긴다(엉킴 방지).
+
+## R29 — 이탈만 있을 때 insufficient 남발 수정 (2026-08-01, bug-fix)
+- REQUEST: 사용자 제보 — 이탈만 있는 모터에서 항상 "분석할 근거가 부족해요"(서버 verdict=insufficient).
+- OBSERVED_BASELINE(코드 근거): ① 이탈만이면 `computeRaceInsight`가 `finishedBand: null`·`lastFinishedVoltage: null`
+  (race-insight.ts:118-119) → payload가 빈약해 보임 ② 프롬프트 257행 "판단 근거가 부족하면 insufficient"가
+  **기준 없이 열린 탈출구** ③ R28의 [분석의 초점]이 완주 케이스를 먼저 서술해 완주가 전제처럼 읽힘.
+  → 모델이 섹션을 구성하는 것보다 insufficient가 쉬운 선택이 됨.
+- TARGET_BEHAVIOR: 완주 부재를 근거 부족으로 취급하지 않는다. insufficient는 최후 수단으로 좁히고(클라 게이트가
+  이미 3건·사유 최소 조건을 검사함을 프롬프트에 명시), 이탈만 있을 때 무엇을 분석할지 구체 지시.
+- ALLOWED_PATHS: api/analyze-race.js(SYSTEM_PROMPT 2곳).
+- PUBLIC_CONTRACTS_TO_PRESERVE: 스키마·insufficient 응답 경로 자체(2xx 정상)·검증·가드·토큰·모델·클라 계약 불변.
+  안전 규칙(재계산 금지·nextRace 전압 수치 금지·speedRelated=false·"가능성" 어휘·최소 1섹션) 불변.
+- NON_GOALS: 게이트 조건 변경 · 스키마 변경 · insufficient 경로 제거(근거가 진짜 없으면 여전히 필요).
+- CHANGE_BUDGET: 파일 1, 커밋 1.
+- TEST_EVIDENCE: 게이트 4종 + scope. 효과는 DEPLOY_ONLY — 이탈만 있는 모터에서 4섹션이 나오는지 실측(eval-plan S2 시나리오).
