@@ -378,7 +378,9 @@ describe('신뢰 게이트 상실 — 이전 값 노출 금지 (D-9 stale 방지
   // (missTolerance 프레임 = 100 ms 예측 유지)를 두므로, 허용창이 지난 뒤에는 어떤 수치도
   // 다시 노출되면 안 된다 — 이전 확정값(300 Hz)의 잔류 표시를 여기서 잡는다.
   const toneSeconds = 1.5
-  const silenceSeconds = 1.0
+  // R32: coast 8→20프레임 연장으로 deadline이 뒤로 밀려, 무음 1.0s로는 deadline 이후 tail 표본이
+  // 10개(> 10 sanity 미달)뿐이었다. 무음을 늘려 검증 창을 복원한다 — stale 금지 계약 자체는 불변.
+  const silenceSeconds = 1.5
   const tone = fixturePureTone(toneSeconds)
   const pcm = new Float32Array(tone.length + Math.round(silenceSeconds * FIXTURE_SAMPLE_RATE))
   pcm.set(tone, 0)

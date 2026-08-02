@@ -191,3 +191,17 @@
   · api/analyze-race.js — 파노 도메인 서술에 "**같은 전압이면 파노↑=속도↑**, 회차 간 파노 변화를 이탈·이상 해석 핵심 신호로" 추가(사용자 "분석해야해" 직접 반영, DL-029 전압 수치 금지와 무충돌 — 해석용).
 - 보존: 세 추천 경로(휴리스틱·recommend-voltage·analyze-race)가 이제 **동일 원칙**을 말함(반대 방향 상충 제거). GOAL_DELTA 값·클램프 대역·이탈 회피·공개 API·소비처 무변경. R30 산출물 무관.
 - EVIDENCE: Node22 게이트 typecheck·lint·test(255, 반전+완주우선 포함)·build PASS + check-iterate-scope OK(source 6건). 수치 재현: 1건 이력 파노 300·3.0V → 파노 320서 2.82V(이전 3.20V). 실주행 체감·LLM 응답은 DEPLOY_ONLY.
+
+## 2026-08-02 R32 측정 깜빡임 보정 — 게이트 결손 coast 연장 — 직접 구현 (bug-fix)
+- **사용자 증상**: 측정 중 파노 수치가 보였다 "—"로 사라졌다 반복(깜빡임) → 측정 불가. 소리가 잠깐 끊겨도 보정 필요.
+- **원인**: track coast가 missTolerance 8프레임(≈200ms)뿐 — 실기기 게이트 결손이 200ms를 넘으면 weak 전환 +
+  clearTrack으로 안정창(1.5s) 리셋 → 재획득해도 stable/자동확정 무산. 세션 타이머는 1200ms 유예로 이미 관대(비대칭).
+- MODIFIED: src/shared/lib/audio-analysis/types.ts — `missTolerance 8→20`(≈500ms, 세션 유예 1200ms 안쪽). 주석에 근거 기록.
+- MODIFIED: src/shared/lib/audio-analysis/engine.fixtures.test.ts — [scope 확대] D-9 테스트 무음 1.0s→1.5s.
+  실패는 stale 노출이 아니라 tail 표본 수 sanity(`10 > 10`) — deadline이 missTolerance에서 동적 계산되는데 무음이
+  짧아 검증 창이 부족해진 것. fixture 길이만 조정, stale 금지 계약 불변.
+- EVIDENCE: 합성 간헐 끊김 A/B(old=8 override vs new=20): 결손 450ms에서 old 깜빡임 5회·stable 0% → new 깜빡임 0회·stable 65%
+  (자동확정 가능 회복). 결손 800ms(>500ms)는 양쪽 weak(D-9 stale 방지 유지). coast 오값(400±8 밖) 0건.
+  Node22 게이트 4종 PASS(255) — engine 스위트 27/27(⑤⑥⑧ 포함 무회귀).
+  ⚠️ 실기기 깜빡임 소멸 체감은 DEPLOY_ONLY. 트레이드오프: 안정창 내 예측 프레임 비중 최대 20/60 — 정지 측정 전제, 실기기 재검증 대상.
+- 라운드 note: 동시 세션이 R30·R31 사용 → 본 라운드 R32. change-scope R32 항목은 동시 세션 커밋에 포함되어 반영됨.

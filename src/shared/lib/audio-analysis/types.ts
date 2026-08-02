@@ -253,8 +253,11 @@ export const DEFAULT_TUNING: EngineTuning = {
   jumpCostThresholdOctaves: 0.35,
   jumpPenalty: 2.5,
   harmonicJumpExtraPenalty: 1.5,
-  // v2.x(사용자: 깜빡임) — 게이트 결손 coast 허용을 4→8 프레임(≈200ms)으로 늘려 표시 깜빡임을 줄인다
-  missTolerance: 8,
+  // v2.x(사용자: 깜빡임) — 게이트 결손 coast 허용을 4→8 프레임(≈200ms)으로 늘려 표시 깜빡임을 줄인다.
+  // R32(사용자: 여전히 보였다 사라졌다 반복) — 8→20(≈500ms). 실기기 결손이 200ms를 자주 넘어
+  // weak 전환+안정창 리셋이 반복돼 stable/자동확정이 무산됐다. 세션 타이머 유예(1200ms) 안쪽이고
+  // >500ms 결손은 종전대로 weak(D-9 stale 방지). coast 보고값은 Kalman 예측(kf) — 정지 측정 전제.
+  missTolerance: 20,
   stabilitySeconds: 1.5,
   stabilityCv: 0.015,
 }
