@@ -42,6 +42,12 @@ export interface MotorSummary {
   raceCount: number
   lastRace?: MotorSummaryRace // max createdAt (동률 시 id 최대) — 부재 시 "레이스 기록 없음"
   /**
+   * R41 ④ — 최근 완주(result==='finished') 레이스 projection. 레이스 목록 우측에 "완주 시 전압·파노"를
+   * 노출하기 위한 파생(가장 최근 완주 1건, max createdAt·동률 id 최대). 완주 0건이면 부재.
+   * lastRace(결과 무관 최신)와 별개 — 이탈이 최신이어도 완주 기준점은 이 필드가 유지한다.
+   */
+  lastFinishedRace?: MotorSummaryRace
+  /**
    * v2.12: 목록 스파크라인용 파노 추세 — measuredAt 오름차순(오래된→최신), ≤MEASURE_RECORD_LIMIT.
    * 기록 0건이면 빈 배열. listMotorSummaries가 이미 measureRecords 전건을 메모리로 읽어
    * 롤업하므로 추가 IO는 없다. 표시 포맷·단위는 소비 UI 소관 — 여기는 원시 panoHz 수열만 전달한다.

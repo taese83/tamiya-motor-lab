@@ -326,6 +326,25 @@ function rollupBy<T extends {motorId: string; id: string}>(
 }
 
 /**
+ * R41 ④ — race.rows에서 최근 완주(result==='finished') 1건 선택 (max createdAt, 동률 시 id 최대 —
+ * rollupBy.last와 동일 tie-break). 완주 0건이면 undefined. rows는 이미 메모리에 있어 추가 IO 없음.
+ */
+function pickLatestFinishedRace(rows: readonly MotorSummaryRace[]): MotorSummaryRace | undefined {
+  let best: MotorSummaryRace | undefined
+  for (const row of rows) {
+    if (row.result !== 'finished') continue
+    if (
+      best === undefined ||
+      row.createdAt > best.createdAt ||
+      (row.createdAt === best.createdAt && row.id > best.id)
+    ) {
+      best = row
+    }
+  }
+  return best
+}
+
+/**
  * query: listMotorSummaries — 3-store 조인 파생 view (T-4 · R-1).
  * motors+measureRecords+raceRecords 전건 read → 메모리 조인. 영속·캐시 금지(INV-09) — 매 조회 계산.
  * 정렬: sortOrder 오름차순(listMotors와 동일 순서 — 화면 간 순서 불일치 금지).
@@ -362,6 +381,11 @@ export async function listMotorSummaries(): Promise<MotorSummary[]> {
       ...(measure !== undefined ? {lastMeasure: measure.last} : {}),
       raceCount: race?.count ?? 0,
       ...(race !== undefined ? {lastRace: race.last} : {}),
+      // R41 ④ — 최근 완주 기준점(전압·파노). 완주 0건이면 필드 자체를 생략(exactOptional 정합)
+      ...(() => {
+        const finished = race !== undefined ? pickLatestFinishedRace(race.rows) : undefined
+        return finished !== undefined ? {lastFinishedRace: finished} : {}
+      })(),
       // v2.12 스파크라인 수열 — measuredAt 오름차순(오래된→최신). 같은 스캔 결과를 정렬만 하므로
       // 추가 IO 없음. 상세 화면 차트와 정렬 방향을 일치시켜 두 화면의 추세 방향이 어긋나지 않게 한다.
       panoTrend:

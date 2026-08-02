@@ -1,14 +1,25 @@
-import {Alert, Box, Button, Chip, InputAdornment, OutlinedInput, Typography} from '@mui/material'
-import {useId, useRef} from 'react'
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  IconButton,
+  InputAdornment,
+  OutlinedInput,
+  Typography,
+} from '@mui/material'
+import {useId, useRef, useState} from 'react'
 
 import {RACE_GOAL_LABELS, RACE_RESULT_LABELS, RACE_RESULTS} from '@shared/config/domain'
 import {layoutTokens, numericTypography, srOnlySx} from '@shared/config/design-tokens'
 import {formatFanoHz} from '@shared/lib/format'
 import {BottomSheet} from '@shared/ui/bottom-sheet'
 import {FormField} from '@shared/ui/form-field'
+import {TimerIcon} from '@shared/ui/icons'
 import {SegmentControl} from '@shared/ui/segment-control'
 import {VoltageStepper} from '@shared/ui/voltage-stepper'
 
+import {LapTimerDialog} from './LapTimerDialog'
 import {RacePrerunChecklist} from './RacePrerunChecklist'
 import {RaceRetireReasonSelect} from './RaceRetireReasonSelect'
 
@@ -134,6 +145,14 @@ export function RaceEntrySheet({
   const lapTimeId = useId()
   const lapTimeErrorId = useId()
   const measureButtonRef = useRef<HTMLButtonElement>(null)
+  const [timerOpen, setTimerOpen] = useState(false)
+
+  // R41 ⑤ — 타이머 결과를 draft에 반영: 완주/이탈 + 잰 랩타임(초 2자리). 이탈이면 result='retired'가
+  // 시트의 이탈 사유 셀렉트를 펼친다(useRaceEntry.onDraftChange가 완주 전환 시 사유 클리어를 소유).
+  const handleTimerResult = (result: RaceResult, lapTimeSec: number) => {
+    onDraftChange({result, lapTimeRaw: lapTimeSec.toFixed(2)})
+    setTimerOpen(false)
+  }
 
   const isEdit = mode === 'edit'
   const hasSubmitError = errorMessage !== null && errorMessage !== ''
@@ -321,13 +340,23 @@ export function RaceEntrySheet({
         </Box>
 
         {/* ④ 랩타임 (옵션) — 초 단위 입력, ms 변환은 제출 시(state-contract).
-            텍스트 입력이라 labelFor로 실제 <label for> 결속을 만든다 */}
+            텍스트 입력이라 labelFor로 실제 <label for> 결속을 만든다.
+            R41 ⑤(사용자): 필드 우측 타이머 버튼 → 실측 팝업(직접 재고 완주/이탈까지 한 번에). */}
         <Box sx={fieldRowSx}>
           <FormField
             label="랩타임 · 옵션"
             labelFor={lapTimeId}
             error={fieldErrors.lapTime ?? null}
-            errorId={lapTimeErrorId}>
+            errorId={lapTimeErrorId}
+            action={
+              <IconButton
+                aria-label="랩타임 타이머로 재기"
+                onClick={() => setTimerOpen(true)}
+                disabled={pending}
+                sx={{mr: 0.5}}>
+                <TimerIcon size={20} />
+              </IconButton>
+            }>
             <OutlinedInput
               id={lapTimeId}
               fullWidth
@@ -371,6 +400,13 @@ export function RaceEntrySheet({
           </Button>
         </Box>
       </Box>
+
+      {/* R41 ⑤ 랩타임 타이머 팝업 — 랩타임 필드의 타이머 버튼으로 오픈. 완주/이탈 결과는 draft에 반영 */}
+      <LapTimerDialog
+        open={timerOpen}
+        onClose={() => setTimerOpen(false)}
+        onResult={handleTimerResult}
+      />
     </BottomSheet>
   )
 }

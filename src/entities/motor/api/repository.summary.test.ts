@@ -60,3 +60,47 @@ describe('listMotorSummaries — result 미정 레이스 (R38)', () => {
     expect(summaries[0]!.lastRace?.result).toBe('finished')
   })
 })
+
+// R41 ④ — 목록 우측 "완주 시 전압·파노"를 위한 최근 완주(finished) projection.
+// lastRace(결과 무관 최신)와 별개: 최신 레이스가 이탈이어도 완주 기준점은 lastFinishedRace가 유지한다.
+describe('listMotorSummaries — lastFinishedRace 파생 (R41 ④)', () => {
+  beforeEach(async () => {
+    await initPersistence()
+  })
+
+  const finishedEarlier = {
+    id: 'eeeeeeee-5555-4555-8555-555555555555',
+    motorId: MOTOR,
+    panoHz: 500.0,
+    voltage: 2.8,
+    goal: 'finish',
+    result: 'finished',
+    createdAt: '2026-08-01T00:00:00.000Z',
+  }
+  const retiredLater = {
+    id: 'ffffffff-6666-4666-8666-666666666666',
+    motorId: MOTOR,
+    panoHz: 521.4,
+    voltage: 3.1,
+    goal: 'speed',
+    result: 'retired',
+    createdAt: '2026-08-02T00:00:00.000Z',
+  }
+
+  it('최신 레이스가 이탈이어도 최근 완주 레이스를 lastFinishedRace로 잡는다', async () => {
+    await replaceDomainSnapshot({motors: [motor], measures: [], races: [finishedEarlier, retiredLater]})
+    const summaries = await listMotorSummaries()
+
+    expect(summaries[0]!.lastRace?.result).toBe('retired') // 결과 무관 최신
+    expect(summaries[0]!.lastFinishedRace?.panoHz).toBe(500.0) // 최근 완주 파노
+    expect(summaries[0]!.lastFinishedRace?.voltage).toBe(2.8) // 최근 완주 전압
+  })
+
+  it('완주 레이스가 하나도 없으면 lastFinishedRace는 부재', async () => {
+    await replaceDomainSnapshot({motors: [motor], measures: [], races: [{...settingOnlyRace}, retiredLater]})
+    const summaries = await listMotorSummaries()
+
+    expect(summaries[0]!.raceCount).toBe(2)
+    expect(summaries[0]!.lastFinishedRace).toBeUndefined()
+  })
+})

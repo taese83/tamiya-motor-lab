@@ -3,7 +3,7 @@ import {Fragment, useId} from 'react'
 
 import {RACE_RESULT_LABELS} from '@shared/config/domain'
 import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
-import {formatFanoHz, formatVoltage} from '@shared/lib/format'
+import {formatPanoValue, formatVoltage} from '@shared/lib/format'
 
 import type {RaceInsight, TrendDir} from '@entities/race-record'
 
@@ -39,13 +39,15 @@ const TREND_PANO_LABELS: Record<NonNullable<TrendDir>, string> = {
 // 전압대 자릿수는 formatVoltage(RaceRecordRow 표기)와 반드시 일치해야 한다 — 요약↔목록 눈 대조
 // 신뢰(ux-brief). 별도 toFixed를 두지 않고 formatVoltage에서 단위만 떼어, 자릿수 규칙이
 // shared/lib/format 한 곳에 남게 한다.
+// R41 ⑥(사용자): 요약 카드에서는 Hz/V 단위를 뗀다 — 히어로에 라벨("최근 완주 파노/전압")이 이미
+// 맥락을 주므로 단위 반복이 군더더기다. 전역 formatter는 그대로(다른 화면 단위 유지), 카드 내부만 제거.
 const voltageDigits = (voltage: number): string => formatVoltage(voltage).replace(/ V$/, '')
 
-// "완주 2.80–3.20 V" — 단위는 말미 1회. min=max(동일 전압 반복, F6)는 단일값으로 퇴화 표기.
+// "완주 2.80–3.20" — min=max(동일 전압 반복, F6)는 단일값으로 퇴화 표기. R41: 단위 없이 자릿수만.
 function finishedBandLabel(band: NonNullable<RaceInsight['finishedBand']>): string {
   return band.minVoltage === band.maxVoltage
-    ? `완주 ${formatVoltage(band.minVoltage)}`
-    : `완주 ${voltageDigits(band.minVoltage)}–${formatVoltage(band.maxVoltage)}`
+    ? `완주 ${voltageDigits(band.minVoltage)}`
+    : `완주 ${voltageDigits(band.minVoltage)}–${voltageDigits(band.maxVoltage)}`
 }
 
 /**
@@ -92,7 +94,7 @@ export function RaceInsightCard({
           {insight.lastFinishedVoltage !== null && insight.lastFinishedPanoHz !== null && (
             <>
               <Box component="span" sx={{color: 'text.primary', fontWeight: 600}}>
-                최근 완주 {formatFanoHz(insight.lastFinishedPanoHz)} · {formatVoltage(insight.lastFinishedVoltage)}
+                최근 완주 {formatPanoValue(insight.lastFinishedPanoHz)} · {voltageDigits(insight.lastFinishedVoltage)}
               </Box>
               {' · '}
             </>
@@ -158,8 +160,10 @@ export function RaceInsightCard({
                   sx={{color: 'text.secondary', lineHeight: 1}}>
                   최근 완주 파노
                 </Typography>
-                <Typography component="span" sx={{...numericTypography.guideRange, color: 'text.primary'}}>
-                  {formatFanoHz(lastFinishedPanoHz)}
+                {/* R41 ⑥(사용자): 파노 색을 전압 히어로와 동일한 primary.main(라임)으로 — 같은 완주 세팅의
+                    두 기준값(파노·전압)을 한 쌍으로 읽히게 한다. 단위(Hz)는 위 라벨이 대신한다. */}
+                <Typography component="span" sx={{...numericTypography.guideRange, color: 'primary.main'}}>
+                  {formatPanoValue(lastFinishedPanoHz)}
                 </Typography>
               </Box>
             )}
@@ -171,7 +175,7 @@ export function RaceInsightCard({
                 최근 완주 전압
               </Typography>
               <Typography component="span" sx={{...numericTypography.guideRange, color: 'primary.main'}}>
-                {formatVoltage(lastFinishedVoltage)}
+                {voltageDigits(lastFinishedVoltage)}
               </Typography>
               {finishedBand !== null && (
                 <Typography

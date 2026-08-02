@@ -383,3 +383,23 @@
   (로컬은 로그인·마이크 없이 [기록]→시트 오픈 불가) — flex 계약은 결정론적.
 - 라운드 note: 동시 세션(R37 인사이트 카드, race-record 8파일)이 change-scope.md에 doc append + 소스 미커밋 진행 중.
   공유 change-scope.md는 내 R40만 HEAD 기준으로 격리 스테이징(plumbing), 그들의 R37 소스·doc은 미접촉. 내 소스 2 + 저널만 커밋.
+
+## R41 — 레이스 UX 개선 6종 (2026-08-03, ui-change + feature · 직접)
+- REQUEST(사용자): ① 모터상세→레이스상세 진입점 ② 레이스 기록 행 클릭→수정·스와이프 삭제만
+  ③ 목록 파노=최근 측정 파노(레이스 없어도) ④ 레이스 있으면 완주 전압+파노 ⑤ 랩타임 실측 타이머 팝업
+  ⑥ 요약 카드 Hz/V 단위 제거·파노 색=전압 색. (확정: ③④ 완주 우선/엔티티 파생, ① 진입점 구현)
+- CHANGED:
+  · [엔티티 ③④] entities/motor/model/types.ts — MotorSummary에 lastFinishedRace?: MotorSummaryRace additive.
+    entities/motor/api/repository.ts — pickLatestFinishedRace(race.rows에서 result==='finished' 최신) 파생, 추가 IO 없음.
+    repository.summary.test.ts — 최신 이탈이어도 완주 기준 유지 / 완주 0건이면 부재 회귀 2건.
+  · [③④] RaceMotorList.tsx — deriveRightColumn: 완주 있으면 완주 파노+"완주 · {전압}", 없으면 최근 측정 파노 + "완주 기록 없음"/"레이스 기록 없음". EM_DASH는 파노·측정 둘 다 없을 때만.
+  · [②] RaceRecordRow.tsx — Paper role=group→button(onClick→onEdit, Enter/Space, deletePending 가드), 스와이프 트레이 [수정] 제거·[삭제]만(trayWidth ×1). RaceRecordRow.test: group→button + 클릭/삭제-only/pending 가드 3건.
+  · [⑤] LapTimerDialog.tsx(신규) — performance.now() 히어로 타이머, idle→시작→running→정지→stopped→완주/이탈/취소.
+    완주→onResult('finished',초)·이탈→onResult('retired',초)·취소→무효. 리셋은 transition onExited(effect 내 setState 회피).
+    RaceEntrySheet.tsx — 랩타임 FormField action에 TimerIcon 버튼, handleTimerResult가 onDraftChange({result,lapTimeRaw})로 반영(이탈이면 이탈 사유 셀렉트 자동 노출). LapTimerDialog.test 5건(rAF stub).
+  · [⑥] RaceInsightCard.tsx — 히어로 파노 formatPanoValue(단위 없음)+색 primary.main(전압과 동일), 전압 voltageDigits, finishedBandLabel 단위 제거. RaceInsightCard.test: 단위 문자열 갱신(512.0 Hz·2.80 V→512.0·2.80 등).
+  · [①] MotorDetailPage.tsx — 히어로 하단 고정영역에 "레이스 기록 보기 →" Button → navigate('/race/:motorId').
+  · [⑤ 지원] shared/ui/icons/icons.tsx+index.ts — TimerIcon(Material stopwatch glyph) 신규.
+- EVIDENCE: LOCAL — typecheck·lint 클린, 전체 vitest 36파일 292 PASS(신규 10: LapTimerDialog 5·RaceRecordRow 3·repository.summary 2), build OK.
+  프리뷰: 모터 하나 시드 후 모터 상세에서 "레이스 기록 보기 →" 노출·클릭 시 /race/:id 이동·콘솔 무오류 실측(시드 원복). 로그인 필요한 레이스 목록/상세/타이머 실동작(②③④⑤⑥)은 DEPLOY_ONLY — 단위/render/상태기계 테스트로 계약 고정.
+- 라운드 note: 동시 세션 신규 커밋 없음(HEAD=R40). 내 R41 15파일만 스테이징. race-record/ui/index.ts 무접촉(LapTimerDialog는 시트 내부 사용).

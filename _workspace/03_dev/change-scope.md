@@ -2521,3 +2521,33 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 소스 2, 커밋 1. 직접 구현(레이아웃/CSS).
 - TEST_EVIDENCE: LOCAL — 기존 MotorPickSheet render 6건·전체 게이트 4종 회귀 통과(구조 유지) + 프리뷰 미로그인 회귀(R39 캡션·무오류).
   열린 시트의 50vh 고정·리스트 스크롤 실측은 DEPLOY_ONLY(로컬은 마이크·로그인 없이 [기록]→시트 오픈 불가) — 레이아웃은 결정론적 flex 계약.
+
+## R41 — 레이스 UX 개선 6종 (2026-08-03, ui-change + feature)
+- CHANGE_MODE: existing-change
+- REQUEST(사용자): ① 모터상세→레이스상세 진입점 ② 레이스 기록 행 클릭→수정·스와이프 삭제만
+  ③ 목록 파노=최근 측정 파노(레이스 없어도) ④ 레이스 있으면 완주 전압+파노 노출 ⑤ 랩타임 실측 타이머 팝업
+  ⑥ 요약 카드 Hz/V 단위 제거·파노 색=전압 색. (Q확정: ③④ 완주 우선/엔티티 파생 추가, ① 진입점 구현)
+- TARGET_BEHAVIOR:
+  ① MotorDetailPage 본문 상단에 "레이스 기록 보기 →" 진입 행 → navigate('/race/:motorId') (history push, 뒤로가기 복귀).
+  ② RaceRecordRow: 행 본체를 클릭 가능한 button으로(onClick→onEdit, 키보드 Enter/Space, aria-label 유지).
+     스와이프 트레이에서 [수정] 제거, [삭제]만(trayWidth ×1). SwipeActions의 tap/swipe 구분(handleClickCapture) 그대로 활용.
+  ③④ MotorSummary에 lastFinishedRace 파생 추가(entities/motor: types.ts + repository.ts listMotorSummaries —
+     race.rows에서 result==='finished' 중 createdAt 최대). RaceMotorList 우측: 주값=완주 파노→없으면 최근 측정 파노→없으면 —,
+     부값=완주 있으면 "완주 · {완주 전압}" / 레이스 있고 완주 없으면 "완주 기록 없음" / 레이스 없으면 "레이스 기록 없음".
+  ⑤ 신규 LapTimerDialog(race-record/ui): performance.now() 기반 히어로 타이머, [시작]→[정지] 토글, 정지 후 [완주]/[이탈]/[취소].
+     완주→onResult('finished', sec)·이탈→onResult('retired', sec)로 부모가 draft에 result+lapTimeRaw 반영(취소=무효).
+     RaceEntrySheet 랩타임 FormField action에 TimerIcon 버튼 추가로 오픈. TimerIcon은 shared/ui/icons 신규.
+  ⑥ RaceInsightCard: 히어로 파노/전압에서 단위 제거(formatPanoValue·기존 voltageDigits), 파노 색 text.primary→primary.main(전압과 동일).
+- ALLOWED_PATHS: src/entities/motor/model/types.ts · src/entities/motor/api/repository.ts · src/entities/motor/api/repository.summary.test.ts ·
+  src/features/race-record/ui/RaceMotorList.tsx · src/features/race-record/ui/RaceRecordRow.tsx · src/features/race-record/ui/RaceRecordRow.test.tsx ·
+  src/features/race-record/ui/RaceInsightCard.tsx · src/features/race-record/ui/RaceInsightCard.test.tsx ·
+  src/features/race-record/ui/LapTimerDialog.tsx(신규) · src/features/race-record/ui/LapTimerDialog.test.tsx(신규) ·
+  src/features/race-record/ui/RaceEntrySheet.tsx · src/features/race-record/ui/index.ts · src/shared/ui/icons/icons.tsx · src/shared/ui/icons/index.ts ·
+  src/pages/motor-detail/ui/MotorDetailPage.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: MotorSummary 기존 필드(additive만)·listMotorSummaries 정렬·RaceRecordRow onEdit/onDelete/swipe props·
+  SwipeActions 계약·RaceEntrySheet draft/제출/검증 계약·useRaceEntry(onDraftChange result→retireReason 클리어)·formatFanoHz/Voltage 전역 불변(카드 내부만 단위 제거)·
+  RaceInsightCard aria-label "레이스 요약"·정렬 금지·표시-기록 일치.
+- NON_GOALS: 전역 formatter 단위 제거, 다른 화면 파노 색 변경, race 스키마/서버 변경, 측정 화면 타이머, 목록 정렬 변경.
+- CHANGE_BUDGET: 소스 ~11 + 테스트 ~4, 커밋 1(직접). 동시 세션(R37 race-insight) 커밋 완료·트리 깨끗 — 내 파일만 스테이징.
+- TEST_EVIDENCE: LOCAL — repository.summary lastFinishedRace 회귀 + RaceRecordRow 클릭·삭제 render + RaceInsightCard 단위/색 render +
+  LapTimerDialog 상태기계(시작/정지/완주/이탈/취소) render + 게이트 4종. 로그인 필요한 레이스 실화면(목록/상세/타이머 실동작)은 DEPLOY_ONLY.

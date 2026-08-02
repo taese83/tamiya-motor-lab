@@ -8,10 +8,11 @@ import {
   formatLapTimeSec,
   formatVoltage,
 } from '@shared/lib/format'
-import {PencilIcon, TrashIcon} from '@shared/ui/icons'
+import {TrashIcon} from '@shared/ui/icons'
 import {SWIPE_ACTION_WIDTH, SwipeActionButton, SwipeActions} from '@shared/ui/swipe-actions'
 
 import type {RaceRecord} from '@entities/race-record'
+import type {KeyboardEvent} from 'react'
 
 export interface RaceRecordRowProps {
   record: RaceRecord
@@ -31,13 +32,14 @@ export interface RaceRecordRowProps {
 /**
  * S6 레이스 기록 행 (component-spec §6.2, layout §6.2 — R-2·R-7·LD-4).
  *
- * v2.16: [수정]·[삭제]를 **행 위에서 스와이프 트레이로 이동**했다(LD-4 번복 — 근거는
+ * v2.16: [삭제]를 **행 위에서 스와이프 트레이로 이동**했다(LD-4 번복 — 근거는
  * layout-spec LD-4 v2.16 항과 SwipeActions 주석). 버튼은 사라지지 않고 트레이 안에
  * 그대로 살아 있어 Tab·스크린리더로 계속 도달한다 — 제스처는 노출 수단일 뿐이다.
  *
- * 부수 효과로 v2.14에서 미뤄둔 레이아웃 문제가 풀렸다: 이전에는 버튼 2개와 수치가
- * 같은 우측 공간을 다퉈 값을 우측 정렬할 수 없었다. 버튼이 트레이로 빠지면서
- * 다른 목록(MotorRow·RaceMotorList)과 같은 **좌측 식별 / 우측 수치** 2열이 된다.
+ * R41(사용자 ②): [수정]은 스와이프에서 빼고 **행 본체 클릭**으로 승격한다(수정이 가장 잦은 행동인데
+ * 스와이프 뒤에 숨어 있었다). 행은 이제 button — 클릭·Enter·Space로 편집 시트를 연다. 스와이프
+ * 트레이에는 파괴 액션 [삭제]만 남는다(오탭 복구는 여전히 ConfirmDialog 경유). 탭 vs 스와이프
+ * 판정은 SwipeActions의 handleClickCapture가 소유하므로 클릭 핸들러는 그대로 얹으면 된다.
  *
  * 상태: normal / delete-pending / swipe-open.
  */
@@ -51,6 +53,16 @@ export function RaceRecordRow({
   onSwipeOpenChange,
 }: RaceRecordRowProps) {
   const dateTimeLabel = formatDateTimeShort(record.createdAt)
+  // 행 클릭 → 수정. deletePending 중엔 무시(삭제 확정 중 편집 진입 방지, single-flight 정합)
+  const handleEdit = () => {
+    if (!deletePending) onEdit(record)
+  }
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault() // Space 스크롤 억제 + implicit 동작 방지
+      handleEdit()
+    }
+  }
   // v2.31 result 옵션 — 미정이면 '미정' 표시(결과를 아직 안 넣은 세팅 기록)
   const resultLabel = record.result !== undefined ? RACE_RESULT_LABELS[record.result] : '미정'
   // R20 — 이탈 행에만 사유 라벨을 결과 직후에 잇는다(예: '이탈 · 비거리 김 · 3.2V').
@@ -70,31 +82,30 @@ export function RaceRecordRow({
     <SwipeActions
       open={swipeOpen}
       onOpenChange={onSwipeOpenChange}
-      trayWidth={SWIPE_ACTION_WIDTH * 2}
+      trayWidth={SWIPE_ACTION_WIDTH}
       actions={
-        <>
-          <SwipeActionButton
-            icon={<PencilIcon size={20} />}
-            label="수정"
-            ariaLabel={`${dateTimeLabel} 레이스 기록 수정`}
-            onClick={() => onEdit(record)}
-            disabled={deletePending}
-          />
-          <SwipeActionButton
-            destructive
-            icon={<TrashIcon size={20} />}
-            label="삭제"
-            ariaLabel={`${dateTimeLabel} 레이스 기록 삭제`}
-            onClick={() => onDelete(record.id)}
-            disabled={deletePending}
-          />
-        </>
+        <SwipeActionButton
+          destructive
+          icon={<TrashIcon size={20} />}
+          label="삭제"
+          ariaLabel={`${dateTimeLabel} 레이스 기록 삭제`}
+          onClick={() => onDelete(record.id)}
+          disabled={deletePending}
+        />
       }>
       {/*
-        행은 button이 아니다 — 레이스 기록에는 진입할 상세가 없다. 그래서 aria-label을 걸어도
-        읽히지 않으므로 group role로 묶어 2열 텍스트가 한 덩어리로 읽히게 한다.
+        R41 ②: 행은 이제 button — 클릭·Enter·Space로 수정 시트를 연다. aria-label은 2열 텍스트를
+        한 덩어리로 읽히게 하고, 편집 진입이라는 역할은 role=button이 전달한다.
       */}
-      <Paper variant="outlined" role="group" aria-label={rowLabel} sx={{px: 2, py: 1.5}}>
+      <Paper
+        variant="outlined"
+        role="button"
+        tabIndex={0}
+        aria-label={rowLabel}
+        aria-disabled={deletePending || undefined}
+        onClick={handleEdit}
+        onKeyDown={handleKeyDown}
+        sx={{px: 2, py: 1.5, cursor: 'pointer', '&:hover': {borderColor: 'text.secondary'}}}>
         <Box sx={{display: 'flex', alignItems: 'center', gap: 1.5}}>
           {/* 좌측 2줄 — 회차·일시(주) / 결과·전압·랩타임(부) */}
           <Box sx={{minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 0.25}}>

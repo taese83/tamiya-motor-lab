@@ -314,6 +314,28 @@ export function MotorDetailPage() {
                   </Box>
                 )}
               </Box>
+
+              {/* R41 ①(사용자): 모터 상세 → 레이스 상세 진입점. 라우트는 이미 존재(/race/:motorId)하고
+                  history push라 뒤로가기로 이 화면에 복귀한다. 진입점은 항상 노출(발견성) — 레이스는
+                  로그인 필수라 미로그인 시 대상 화면이 로그인 게이트를 보여준다. */}
+              <Button
+                variant="outlined"
+                fullWidth
+                onClick={() => void navigate(`/race/${motor.id}`)}
+                endIcon={
+                  <Box component="span" aria-hidden sx={{fontSize: '1.1rem', lineHeight: 1}}>
+                    →
+                  </Box>
+                }
+                sx={{
+                  mt: 1.5,
+                  justifyContent: 'space-between',
+                  textTransform: 'none',
+                  px: 2,
+                  py: 1.25,
+                }}>
+                레이스 기록 보기
+              </Button>
             </Box>
 
             {/* ── 스크롤 영역: 파노 추세 그래프 + 기록 목록 (R18) ──

@@ -1,5 +1,6 @@
 import {render, screen} from '@testing-library/react'
-import {describe, expect, it} from 'vitest'
+import userEvent from '@testing-library/user-event'
+import {describe, expect, it, vi} from 'vitest'
 
 import {RaceRecordRow} from './RaceRecordRow'
 
@@ -36,8 +37,8 @@ describe('RaceRecordRow 이탈 사유 표시 (R20 — D-R3)', () => {
     renderRow({result: 'retired', retireReason: 'jump_overshoot'})
 
     expect(screen.getByText('이탈 · 점프 · 비거리 김 · 2.80 V')).toBeInTheDocument()
-    // 행 접근성 이름(rowLabel)도 같은 detailLine을 쓴다 — 시각·낭독 일치
-    expect(screen.getByRole('group', {name: /이탈 · 점프 · 비거리 김/})).toBeInTheDocument()
+    // R41 ②: 행은 이제 button(클릭→수정) — rowLabel(aria)은 같은 detailLine을 써 시각·낭독 일치
+    expect(screen.getByRole('button', {name: /이탈 · 점프 · 비거리 김/})).toBeInTheDocument()
   })
 
   it("top-level leaf 사유는 라벨 그대로 — '이탈 · 코너 이탈 · 2.80 V'(섹션 병기 없음)", () => {
@@ -64,5 +65,55 @@ describe('RaceRecordRow 이탈 사유 표시 (R20 — D-R3)', () => {
 
     expect(screen.getByText('미정 · 2.80 V')).toBeInTheDocument()
     expect(screen.queryByText(/비거리 김/)).toBeNull()
+  })
+})
+
+describe('RaceRecordRow 클릭→수정 · 스와이프 삭제 (R41 ②)', () => {
+  it('행 본체 클릭이 onEdit(record)를 호출한다', async () => {
+    const onEdit = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <RaceRecordRow
+        record={BASE_RECORD}
+        index={1}
+        onEdit={onEdit}
+        onDelete={() => undefined}
+        deletePending={false}
+        swipeOpen={false}
+        onSwipeOpenChange={() => undefined}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', {name: /1회차/}))
+
+    expect(onEdit).toHaveBeenCalledTimes(1)
+    expect(onEdit).toHaveBeenCalledWith(BASE_RECORD)
+  })
+
+  it('스와이프 트레이에는 [삭제]만 — [수정] 버튼은 제거됐다', () => {
+    renderRow({})
+
+    expect(screen.getByRole('button', {name: /레이스 기록 삭제/})).toBeInTheDocument()
+    expect(screen.queryByRole('button', {name: /레이스 기록 수정/})).toBeNull()
+  })
+
+  it('deletePending 중에는 행 클릭이 무시된다(삭제 확정 중 편집 진입 방지)', async () => {
+    const onEdit = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <RaceRecordRow
+        record={BASE_RECORD}
+        index={1}
+        onEdit={onEdit}
+        onDelete={() => undefined}
+        deletePending
+        swipeOpen={false}
+        onSwipeOpenChange={() => undefined}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', {name: /1회차/}))
+
+    expect(onEdit).not.toHaveBeenCalled()
   })
 })
