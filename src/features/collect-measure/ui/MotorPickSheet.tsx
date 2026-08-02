@@ -67,85 +67,92 @@ export function MotorPickSheet({
   const filtered =
     effectiveFilter === null ? motors : motors.filter(motor => motor.kind === effectiveFilter)
   return (
-    <BottomSheet open={open} title="기록할 모터" onClose={onClose}>
+    // R40(사용자): 시트 높이를 화면의 1/2(50vh)로 고정하고 리스트만 스크롤 — 스냅샷/에러/탭/버튼은 고정.
+    <BottomSheet open={open} title="기록할 모터" onClose={onClose} height="50vh">
       {snapshot !== null && (
-        <Typography component="p" sx={{...numericTypography.listValue, mb: 1.5}}>
+        <Typography component="p" sx={{...numericTypography.listValue, mb: 1.5, flexShrink: 0}}>
           {formatFanoHz(snapshot.panoHz)} · {formatRpm(snapshot.rpm)} rpm
         </Typography>
       )}
       {errorMessage !== null && (
-        <Alert severity="error" role="alert" sx={{mb: 1.5}}>
+        <Alert severity="error" role="alert" sx={{mb: 1.5, flexShrink: 0}}>
           {errorMessage}
         </Alert>
       )}
-      {motors.length === 0 ? (
-        // R39: 액션 있는 EmptyState 대신 중립 문구 — 등록 진입은 하단 상시 버튼 1곳으로 통일
-        <Typography component="p" sx={{color: 'text.secondary'}}>
-          등록된 모터가 없습니다 — 아래에서 추가하세요
-        </Typography>
-      ) : (
-        <>
-          {presentKinds.length >= 2 && (
-            <Tabs
-              value={effectiveFilter ?? ALL_VALUE}
-              onChange={(_event, value: string) =>
-                setKindFilter(value === ALL_VALUE ? null : (value as MotorKind))
-              }
-              variant="scrollable"
-              scrollButtons={false}
-              aria-label="모터 종류 필터"
-              sx={{
-                minHeight: 44,
-                borderBottom: 1,
-                borderColor: 'divider',
-                '& .MuiTab-root': {minHeight: 44, minWidth: 'auto', px: 1.5, textTransform: 'none'},
-              }}>
-              <Tab value={ALL_VALUE} label="전체" />
-              {presentKinds.map(kind => (
-                <Tab key={kind} value={kind} label={MOTOR_KIND_LABELS[kind]} />
-              ))}
-            </Tabs>
-          )}
-          <Box sx={{maxHeight: '50vh', overflowY: 'auto'}}>
-            {filtered.length === 0 ? (
-              // effectiveFilter 강등 계약상 정상 경로에선 도달하지 않는 방어선(렌더 프레임 간 잔상 대비)
-              <Typography component="p" sx={{color: 'text.secondary', py: 1.5}}>
-                이 종류의 모터가 없습니다
-              </Typography>
-            ) : (
-              <List disablePadding>
-                {filtered.map(motor => (
-                  <ListItemButton
-                    key={motor.id}
-                    disabled={pending}
-                    onClick={() => onSelect(motor.id)}
-                    sx={{minHeight: '3.5rem', gap: 1, px: 1.5}}>
-                    <Typography
-                      variant="body1"
-                      noWrap
-                      sx={{fontWeight: 600, flex: 1, minWidth: 0}}>
-                      {motor.name}
-                    </Typography>
-                    <MotorKindChip kind={motor.kind} />
-                    <Typography
-                      component="span"
-                      sx={{...numericTypography.listValue, color: 'text.secondary'}}>
-                      {motor.id === pendingMotorId
-                        ? '기록 중…'
-                        : motor.lastPanoHz !== null
-                          ? formatFanoHz(motor.lastPanoHz)
-                          : '기록 없음'}
-                    </Typography>
-                  </ListItemButton>
+      {/* 콘텐츠 영역 — 고정 높이(50vh) 안에서 이 영역이 남은 공간을 채우고, 리스트만 스크롤한다 */}
+      <Box sx={{flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column'}}>
+        {motors.length === 0 ? (
+          // R39: 액션 있는 EmptyState 대신 중립 문구 — 등록 진입은 하단 상시 버튼 1곳으로 통일
+          <Typography component="p" sx={{color: 'text.secondary'}}>
+            등록된 모터가 없습니다 — 아래에서 추가하세요
+          </Typography>
+        ) : (
+          <>
+            {presentKinds.length >= 2 && (
+              <Tabs
+                value={effectiveFilter ?? ALL_VALUE}
+                onChange={(_event, value: string) =>
+                  setKindFilter(value === ALL_VALUE ? null : (value as MotorKind))
+                }
+                variant="scrollable"
+                scrollButtons={false}
+                aria-label="모터 종류 필터"
+                sx={{
+                  minHeight: 44,
+                  flexShrink: 0,
+                  borderBottom: 1,
+                  borderColor: 'divider',
+                  '& .MuiTab-root': {minHeight: 44, minWidth: 'auto', px: 1.5, textTransform: 'none'},
+                }}>
+                <Tab value={ALL_VALUE} label="전체" />
+                {presentKinds.map(kind => (
+                  <Tab key={kind} value={kind} label={MOTOR_KIND_LABELS[kind]} />
                 ))}
-              </List>
+              </Tabs>
             )}
-          </Box>
-        </>
-      )}
+            {/* 스크롤 영역 — 시트가 고정 높이라 리스트가 넘치면 여기서만 스크롤(버튼은 시트 하단 고정) */}
+            <Box sx={{flex: 1, minHeight: 0, overflowY: 'auto'}}>
+              {filtered.length === 0 ? (
+                // effectiveFilter 강등 계약상 정상 경로에선 도달하지 않는 방어선(렌더 프레임 간 잔상 대비)
+                <Typography component="p" sx={{color: 'text.secondary', py: 1.5}}>
+                  이 종류의 모터가 없습니다
+                </Typography>
+              ) : (
+                <List disablePadding>
+                  {filtered.map(motor => (
+                    <ListItemButton
+                      key={motor.id}
+                      disabled={pending}
+                      onClick={() => onSelect(motor.id)}
+                      sx={{minHeight: '3.5rem', gap: 1, px: 1.5}}>
+                      <Typography
+                        variant="body1"
+                        noWrap
+                        sx={{fontWeight: 600, flex: 1, minWidth: 0}}>
+                        {motor.name}
+                      </Typography>
+                      <MotorKindChip kind={motor.kind} />
+                      <Typography
+                        component="span"
+                        sx={{...numericTypography.listValue, color: 'text.secondary'}}>
+                        {motor.id === pendingMotorId
+                          ? '기록 중…'
+                          : motor.lastPanoHz !== null
+                            ? formatFanoHz(motor.lastPanoHz)
+                            : '기록 없음'}
+                      </Typography>
+                    </ListItemButton>
+                  ))}
+                </List>
+              )}
+            </Box>
+          </>
+        )}
+      </Box>
       {/*
         v2.23(사용자) → R39(사용자 ③): 모터 유무와 무관하게 항상 노출한다. 이전엔 0개일 때
         EmptyState 액션에만 등록 진입이 있어 경로가 상태별로 갈라졌다 — 이제 이 버튼 1곳이다.
+        R40: 시트 하단 고정(flexShrink:0) — 리스트가 길어도 스크롤 밖에서 항상 보인다.
         onRequestRegister는 empty 상태와 동일 오케스트레이션(useCollectFlow가 시트 교체)을 쓴다 —
         등록 성공 시 그 모터로 즉시 이 스냅샷을 수집한다.
       */}
@@ -154,7 +161,7 @@ export function MotorPickSheet({
         variant="contained"
         onClick={onRequestRegister}
         disabled={pending}
-        sx={{mt: 1.5, minHeight: 48}}>
+        sx={{mt: 1.5, minHeight: 48, flexShrink: 0}}>
         + 새 모터 추가
       </Button>
     </BottomSheet>

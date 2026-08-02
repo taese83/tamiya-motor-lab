@@ -369,3 +369,17 @@
 - EVIDENCE: Node22 게이트 4종 PASS(typecheck·lint·**test 282**·build) — 동시 세션 measure 오류 해소 후 전체 클린 + check-iterate-scope OK.
   카드 실화면(2열 히어로 폭·정렬)은 로그인 게이트 뒤 DEPLOY_ONLY — render 테스트로 계약 고정, 배포 후 시각 튜닝 가능.
 - 라운드 note: R35(AI 방향 가드)에 이어 본 라운드 R37(동시 세션이 R34·R36대 번호 사용 가능 — 커밋 해시로 구분). R36(AI 추천 항목)은 다음.
+
+## R40 — 모터 픽 드로어 높이 50vh 고정 + 리스트 내부 스크롤 (2026-08-02, ui-change · 직접)
+- REQUEST(사용자): [기록] 눌렀을 때 드로어 높이를 화면의 1/2(50vh)로 고정, 모터 리스트는 그 안에서 스크롤.
+- CHANGED:
+  · src/shared/ui/bottom-sheet/BottomSheet.tsx — 선택적 `height` prop 추가(기본 undefined=자동 높이, 기존 3시트 무변).
+    지정 시 Drawer paper를 height로 고정+flex 컬럼, 제목 flexShrink:0, children을 flex:1·minHeight:0 컬럼으로 감싸 스크롤 소유권 위임.
+  · src/features/collect-measure/ui/MotorPickSheet.tsx — height="50vh" 전달. 스냅샷/에러/탭/버튼 flexShrink:0 고정,
+    콘텐츠 영역을 flex:1·minHeight:0 컬럼으로, 리스트 박스를 maxHeight:50vh→flex:1·minHeight:0·overflowY:auto로 교체(리스트만 스크롤).
+    [+ 새 모터 추가]는 flexShrink:0로 시트 하단 상시 고정(R39 계약 유지).
+- EVIDENCE: LOCAL — typecheck·lint 클린, 전체 vitest 35파일 282 PASS(MotorPickSheet render 6건 구조 유지), build OK.
+  프리뷰(:8082 미로그인) 회귀: 측정화면 R39 캡션 유지·[기록] 부재·콘솔 무오류. 열린 시트 50vh·스크롤 실측은 DEPLOY_ONLY
+  (로컬은 로그인·마이크 없이 [기록]→시트 오픈 불가) — flex 계약은 결정론적.
+- 라운드 note: 동시 세션(R37 인사이트 카드, race-record 8파일)이 change-scope.md에 doc append + 소스 미커밋 진행 중.
+  공유 change-scope.md는 내 R40만 HEAD 기준으로 격리 스테이징(plumbing), 그들의 R37 소스·doc은 미접촉. 내 소스 2 + 저널만 커밋.
