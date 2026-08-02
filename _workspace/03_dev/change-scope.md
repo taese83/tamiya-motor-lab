@@ -2408,3 +2408,13 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   읽지 못하는 행(지금은 그 행 때문에 전체가 불능)이므로 수용. 격리 발생 시 console.warn으로 어떤 행인지 기록.
 - TEST_EVIDENCE: LOCAL — 게이트 4종 + SyncManager 격리 로직 unit(불량 행 섞인 스냅샷 → 유효 행만 저장) 가능 범위.
   실기기 회복·304 소멸은 DEPLOY_ONLY — PWA 재설치(홈 화면 삭제 후 재추가) 안내 포함.
+
+## R36 — sanitize 전량 격리 시 역오염 방지: 분기를 raw 기준으로 (2026-08-02, bug-fix)
+- CHANGE_MODE: existing-change
+- OBSERVED_BASELINE: R35의 serverHasData 분기가 **sanitize 후** 개수 기준 — 서버 전 행이 격리되면 else(시드 push)로
+  빠져 오염된 로컬을 서버로 역push하고, 로컬 교체(정화)는 영영 일어나지 않는 빈틈.
+- TARGET_BEHAVIOR: 분기를 raw(pull 원본) 기준으로 — 서버에 데이터가 있으면 격리 결과(빈 것 포함)로 서버 우선 교체.
+  시드 push는 서버가 진짜 빈 경우에만.
+- ALLOWED_PATHS: src/app/SyncManager.tsx (분기 1곳)
+- CHANGE_BUDGET: 파일 1, 커밋 1. 직접 구현.
+- TEST_EVIDENCE: 게이트 4종 + 기존 sanitize unit 3건 무회귀. 실동작 DEPLOY_ONLY.

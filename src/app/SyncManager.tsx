@@ -80,8 +80,11 @@ export function SyncManager() {
       const raw = await pullServerData()
       if (raw === null) return // 서버리스/DB 미가용 — skip(기존 로컬 유지)
       const server = sanitizeSnapshot(raw) // R35 — 위반 행 격리 후 저장(재오염 차단)
+      // R36: 분기는 **raw 기준** — sanitize가 전 행을 격리한 경우에도 "서버에 데이터가 있다"는 사실은
+      // 참이므로 서버 우선 교체를 수행한다(격리 결과가 비어 있으면 로컬도 비움). raw 기준이 아니면
+      // 이 경우 else로 빠져 오염된 로컬을 서버로 시드 push(역오염)하고 로컬 교체는 영영 일어나지 않는다.
       const serverHasData =
-        server.motors.length > 0 || server.measures.length > 0 || server.races.length > 0
+        raw.motors.length > 0 || raw.measures.length > 0 || raw.races.length > 0
       if (serverHasData) {
         await replaceDomainSnapshot(server) // 서버 우선(로컬 대체)
       } else {

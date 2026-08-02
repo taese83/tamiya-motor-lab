@@ -279,3 +279,8 @@
   행(지금은 그 행 때문에 전체 불능)이므로 수용. console.warn으로 격리 행 id 기록.
 - EVIDENCE: Node22 게이트 4종 PASS(266, sanitize 3 신규). 실기기 회복·격리 발동은 DEPLOY_ONLY —
   PWA 재설치(홈 화면 삭제→Safari 확인→재추가) 후 목록 로드·Alert 캡션 확인 위임.
+
+## 2026-08-02 R36 sanitize 전량 격리 시 역오염 방지 — 직접 구현 (bug-fix)
+- MODIFIED: src/app/SyncManager.tsx — serverHasData 분기를 sanitize 후 → **raw 기준**으로. 전 행 격리 시에도
+  서버 우선 교체가 수행돼 오염된 로컬이 정화된다(이전엔 시드 push로 역오염 + 로컬 교체 불발).
+- EVIDENCE: Node22 게이트 4종 PASS + sanitize unit 3건 무회귀. 실동작 DEPLOY_ONLY.
