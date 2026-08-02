@@ -16,7 +16,12 @@ import {
   useRaceMeasureSlot,
 } from '@features/race-measure-handoff'
 import {conditionLevelOf} from '@shared/config/domain'
-import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
+import {
+  layoutTokens,
+  motionTokens,
+  numericTypography,
+  shapeTokens,
+} from '@shared/config/design-tokens'
 import {formatDateTimeShort, formatFanoHz, formatRpm} from '@shared/lib/format'
 import {EmptyState} from '@shared/ui/empty-state'
 import {TrashIcon} from '@shared/ui/icons'
@@ -338,26 +343,7 @@ export function MotorDetailPage() {
               )}
               {records !== undefined && records.length > 0 && (
                 <Box sx={{mt: 2, mb: 0.5}}>
-                  {/* R41→R42(사용자): 레이스 진입점을 이 섹션 헤딩 우측 "Show All" 자리로 이동 —
-                      측정 기록 타이틀과 같은 라인 오른쪽 끝, 언더라인 텍스트 버튼(navigate /race/:motorId). */}
-                  <SectionHeading
-                    meta={`${records.length}건`}
-                    action={
-                      <Button
-                        variant="text"
-                        onClick={() => void navigate(`/race/${motor.id}`)}
-                        sx={{
-                          minWidth: 0,
-                          p: 0,
-                          textTransform: 'none',
-                          textDecoration: 'underline',
-                          '&:hover': {backgroundColor: 'transparent', textDecoration: 'underline'},
-                        }}>
-                        레이스 기록 보기
-                      </Button>
-                    }>
-                    측정 기록
-                  </SectionHeading>
+                  <SectionHeading meta={`${records.length}건`}>측정 기록</SectionHeading>
                 </Box>
               )}
               {recordsQuery.isPending ? (
@@ -497,21 +483,61 @@ export function MotorDetailPage() {
             </Box>
 
             {/*
-            ── 하단 고정 [측정] (v2.8) — 기록이 늘어도 화면 밖으로 밀리지 않는다.
-            레이스 왕복과 동일 방식(S1 자동 확정 후 자동 복귀).
-            기록 0건에서도 노출한다(첫 수집 진입점). primary contained 48px.
+            ── 하단 고정 도크 (v2.8 → R43) — 기록이 늘어도 화면 밖으로 밀리지 않는다.
+            R43(사용자): [측정](주, 넓게)과 [레이스 보기](보조, 좁게)를 나란히 둔다. [측정]은 라임 primary
+            컷코너 contained 왕복(S1 자동 확정 후 복귀). [레이스 보기]는 **같은 컷코너 모양이되 아웃라인**
+            (라임 채움 대신 테두리)으로 위계를 낮추고 폭을 좁게 잡는다 — /race/:motorId 이동(history push).
+            기록 0건에서도 노출한다(첫 수집 진입점).
           */}
             <Box sx={footerSx}>
               {/* 쓰기(기록 삭제) 진행 중에는 [측정] 비활성 — 왕복 진입이 in-flight 쓰기와 겹치지
-                  않게(사용자 요청: 서버 요청 중 버튼 비활성). 삭제 완료 후 즉시 재활성. */}
-              <Button
-                variant="contained"
-                fullWidth
-                onClick={handleMeasure}
-                disabled={deleteMeasure.isPending}
-                sx={{minHeight: 48}}>
-                측정
-              </Button>
+                  않게(사용자 요청: 서버 요청 중 버튼 비활성). [레이스 보기]는 순수 이동이라 상시 활성. */}
+              <Box sx={{display: 'flex', gap: 1}}>
+                <Button
+                  variant="contained"
+                  onClick={handleMeasure}
+                  disabled={deleteMeasure.isPending}
+                  sx={{flex: 3, minHeight: 48}}>
+                  측정
+                </Button>
+                {/*
+                  컷코너 아웃라인 — clip-path는 단순 border를 대각선에서 끊으므로, 테두리색 층(::before)과
+                  1px 인셋 배경색 층(::after)을 겹쳐 "컷코너 테두리 링"을 만든다. 면색은 footer 표면(background.default).
+                  variant는 outlined를 쓰되 그 직각 보더는 border:none으로 끄고 위 두 층으로 대체한다.
+                */}
+                <Button
+                  variant="outlined"
+                  onClick={() => void navigate(`/race/${motor.id}`)}
+                  sx={[
+                    {flex: 1, minHeight: 48, textTransform: 'none', whiteSpace: 'nowrap'},
+                    theme => ({
+                      color: theme.palette.text.primary,
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        inset: 0,
+                        zIndex: -2,
+                        clipPath: shapeTokens.cutCorner,
+                        backgroundColor: 'var(--mml-outline)',
+                        transition: `background-color ${motionTokens.hoverMs}ms ${motionTokens.easeStandard}`,
+                      },
+                      '&::after': {
+                        content: '""',
+                        position: 'absolute',
+                        inset: '1px',
+                        zIndex: -1,
+                        clipPath: shapeTokens.cutCorner,
+                        backgroundColor: theme.palette.background.default,
+                      },
+                      '&:hover': {backgroundColor: 'transparent'},
+                      '&:hover::before': {backgroundColor: theme.palette.text.secondary},
+                    }),
+                  ]}>
+                  레이스 보기
+                </Button>
+              </Box>
             </Box>
           </>
         )}

@@ -2561,3 +2561,16 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - NON_GOALS: SectionHeading 컴포넌트 변경, 레이스/목록/카드 변경, 0측정 상태 별도 진입점 신설.
 - CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
 - TEST_EVIDENCE: LOCAL — typecheck·lint·build 클린(전체 테스트 무영향) + 프리뷰 실측(측정 기록 라인 우측 언더라인 링크·풀width 제거·같은 라인 top 일치·클릭 /race/:id).
+
+## R43 — 레이스 진입점을 하단 도크 2버튼으로 (2026-08-03, ui-change)
+- REQUEST(사용자, 다단계): [측정] 옆에 [레이스 보기]를 나란히 → 처음 측정 2/3·레이스 1/3 → "같은 모양 좀더 작게"
+  → 최종 "너비를 작게, 모양은 동일(컷코너), 아웃라인 버튼으로".
+- TARGET_BEHAVIOR: R42의 측정 기록 헤딩 언더라인 링크를 되돌리고, 하단 고정 도크를 2버튼 행으로:
+  [측정](contained 라임 컷코너, flex 3, 48px, 왕복) + [레이스 보기](flex 1, 48px, navigate /race/:motorId).
+  [레이스 보기]는 [측정]과 **같은 컷코너 모양이되 아웃라인** — clip-path가 단순 border를 대각선에서 끊으므로
+  테두리색 층(::before, var(--mml-outline)) + 1px 인셋 배경색 층(::after, background.default)을 겹쳐 컷코너 테두리 링을 만든다.
+- ALLOWED_PATHS: src/pages/motor-detail/ui/MotorDetailPage.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: handleMeasure 왕복·deleteMeasure.isPending 가드·navigate 대상·footerSx·나머지 화면 무변경.
+- NON_GOALS: 테마 MuiButton 변경(DS-A13 컷코너=contained 전용은 유지, 이 버튼만 로컬 override), 레이스/목록/카드 변경.
+- CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
+- TEST_EVIDENCE: LOCAL — typecheck·lint·build 클린(전체 테스트 무영향) + 프리뷰 실측(2버튼·측정 넓게·레이스 좁게 동일 48px·컷코너 아웃라인 테두리 링·square border 제거).

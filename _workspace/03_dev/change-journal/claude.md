@@ -410,3 +410,13 @@
   측정 기록 SectionHeading의 action 슬롯(ml:auto "Show All" 자리)에 언더라인 text Button으로 이동(→ 화살표 제거). navigate 대상 불변.
 - EVIDENCE: typecheck·lint·build 클린. 프리뷰: 측정 기록 라인 우측 끝 언더라인 링크(textDecoration underline·fullWidth false·같은 라인 top 일치)·클릭 시 /race/:id, 스크린샷. 시드 원복.
 - note: 측정 기록 헤딩은 records>0에서만 렌더 → 링크도 그 조건(0측정 모터는 레이스 데이터도 거의 없어 수용). 동시 세션 무관, HEAD=R41 위에 쌓음.
+
+## R43 — 레이스 진입점을 하단 도크 2버튼으로 (2026-08-03, ui-change · 직접)
+- REQUEST(사용자 다단계): [측정] 옆 [레이스 보기] 나란히 → 최종 "너비 작게·모양 동일(컷코너)·아웃라인".
+- CHANGED: src/pages/motor-detail/ui/MotorDetailPage.tsx —
+  · R42 측정 기록 헤딩 언더라인 링크 되돌림.
+  · 하단 도크: full-width [측정] → 2버튼 행. [측정] contained flex3 48px, [레이스 보기] flex1 48px.
+  · [레이스 보기] 컷코너 아웃라인: variant outlined의 직각 보더를 border:none으로 끄고, ::before(테두리색 clip cutCorner)+
+    ::after(background.default 1px 인셋 clip cutCorner)로 컷코너 테두리 링 재현. shapeTokens·motionTokens import 추가.
+- EVIDENCE: typecheck·lint·build 클린. 프리뷰: measureW 316/raceW 124(≈2.5:1)·동일 48px·raceBorder 0px none·::before clip cutCorner+outline색, 스크린샷. 시드 원복.
+- note: DS-A13(컷코너=contained 전용)은 테마에서 유지, 이 한 버튼만 로컬 override로 컷코너 아웃라인 구현. R42 링크는 이 커밋으로 무효화(미푸시 반복 탐색).
