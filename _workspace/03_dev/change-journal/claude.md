@@ -420,3 +420,9 @@
     ::after(background.default 1px 인셋 clip cutCorner)로 컷코너 테두리 링 재현. shapeTokens·motionTokens import 추가.
 - EVIDENCE: typecheck·lint·build 클린. 프리뷰: measureW 316/raceW 124(≈2.5:1)·동일 48px·raceBorder 0px none·::before clip cutCorner+outline색, 스크린샷. 시드 원복.
 - note: DS-A13(컷코너=contained 전용)은 테마에서 유지, 이 한 버튼만 로컬 override로 컷코너 아웃라인 구현. R42 링크는 이 커밋으로 무효화(미푸시 반복 탐색).
+
+## R44 — 레이스 요약 카드 전압 열 우측 정렬 (2026-08-03, ui-change · 직접)
+- REQUEST(사용자): 레이스 모터 상세 상단 카드 전압부분 오른쪽 정렬.
+- CHANGED: src/features/race-record/ui/RaceInsightCard.tsx — ready 히어로 [최근 완주 전압] 열 Box에 alignItems:flex-end + textAlign:right.
+  파노 열은 좌측 그대로 → 파노(좌)/전압(우) 양끝 배치. 값·색·단위·라벨 불변.
+- EVIDENCE: typecheck·lint·build 클린, RaceInsightCard 7건 통과(텍스트 불변). 실화면 정렬은 로그인 게이트 뒤 DEPLOY_ONLY.

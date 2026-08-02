@@ -2574,3 +2574,13 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - NON_GOALS: 테마 MuiButton 변경(DS-A13 컷코너=contained 전용은 유지, 이 버튼만 로컬 override), 레이스/목록/카드 변경.
 - CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
 - TEST_EVIDENCE: LOCAL — typecheck·lint·build 클린(전체 테스트 무영향) + 프리뷰 실측(2버튼·측정 넓게·레이스 좁게 동일 48px·컷코너 아웃라인 테두리 링·square border 제거).
+
+## R44 — 레이스 요약 카드 전압 열 우측 정렬 (2026-08-03, ui-change)
+- REQUEST(사용자): 레이스 모터 상세 상단 카드(RaceInsightCard)의 전압부분을 오른쪽 정렬.
+- TARGET_BEHAVIOR: ready 히어로의 [최근 완주 전압] 열을 우측 정렬(alignItems flex-end + textAlign right) —
+  파노(좌)·전압(우)로 카드 양끝에 기준값 배치. 라벨·수치·전압대 모두 우측 정렬. 파노 열·값·색·단위 불변.
+- ALLOWED_PATHS: src/features/race-record/ui/RaceInsightCard.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: aria-label "레이스 요약"·표기(단위 없는 자릿수·primary.main 색)·insufficient/완주0건 분기·[보는 법]/AI 분석·정렬 금지.
+- NON_GOALS: 파노 열 정렬 변경, insufficient 한 줄 변경, 다른 카드/화면 변경.
+- CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
+- TEST_EVIDENCE: LOCAL — typecheck·lint·build 클린 + RaceInsightCard render 7건 통과(텍스트 불변). 실화면 정렬은 로그인 게이트 뒤 DEPLOY_ONLY(결정론적 flex).

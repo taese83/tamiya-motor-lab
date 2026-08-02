@@ -167,7 +167,18 @@ export function RaceInsightCard({
                 </Typography>
               </Box>
             )}
-            <Box sx={{minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 0.25}}>
+            {/* R44(사용자): 전압 열은 오른쪽 정렬 — 파노(좌)·전압(우)를 카드 양끝 기준값으로 배치한다.
+                라벨·수치·전압대 전부 우측 정렬(alignItems flex-end + textAlign right). */}
+            <Box
+              sx={{
+                minWidth: 0,
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-end',
+                textAlign: 'right',
+                gap: 0.25,
+              }}>
               <Typography
                 variant="overline"
                 component="span"
