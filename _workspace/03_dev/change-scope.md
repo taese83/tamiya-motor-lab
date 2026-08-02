@@ -2628,3 +2628,12 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - NON_GOALS: SignalStrength 내부/뷰 변경.
 - CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
 - TEST_EVIDENCE: LOCAL — typecheck·lint·build 클린(테스트 무영향) + 프리뷰(신호 세기 top 뷰포트 74%·안정도 아래 101px·액션 위).
+
+## R48 — 신호 세기 위치 미세조정: 조금 위로(중간) (2026-08-03, ui-change)
+- REQUEST(사용자): 너무 내리면 스크롤 우려 → 조금 위로(안정도에 더 가깝게).
+- 검증: 실기기급(375×812·375×667·360×600) 스크롤 0. R47/R48은 flex 스페이서 재분배라 총 높이 불변 —
+  스크롤 임계는 파노 게이지 고정높이가 결정(신호 위치 무관). 360×460(세로폰엔 없음)만 기존 특성상 오버플로.
+- TARGET_BEHAVIOR: 신호 세기 아래 스페이서 flex 1→2 (위 1 < 아래 2)로 하단 영역 위쪽(뷰포트 ≈67%, 안정도 아래 58px) 배치.
+- ALLOWED_PATHS: src/pages/measure/ui/MeasurePage.tsx
+- CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
+- TEST_EVIDENCE: LOCAL — typecheck·lint·build 클린 + 프리뷰(신호 67%·안정도 아래 58px·375×812·360×600 스크롤 0·CTA 겹침 없음).

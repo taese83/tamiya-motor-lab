@@ -452,3 +452,9 @@
 - CHANGED: src/pages/measure/ui/MeasurePage.tsx — 신호 세기 Box를 안정도 직하(mt:0.5)에서 안정도↔도크 사이 하단으로,
   위아래 flex 스페이서로 균형 배치(뷰포트 ~74%).
 - EVIDENCE: typecheck·lint·build 클린. 프리뷰: 신호 세기 top 74%·안정도 아래 101px 간격·액션 위, 스크린샷.
+
+## R48 — 신호 세기 위치 미세조정(조금 위로) + 스크롤 검증 (2026-08-03, ui-change · 직접)
+- REQUEST(사용자): 너무 내리면 스크롤 우려 → 조금 위로.
+- CHANGED: src/pages/measure/ui/MeasurePage.tsx — 신호 세기 아래 스페이서 flex 1→2(위1<아래2)로 하단 영역 위쪽 배치(≈67%).
+- 검증: 실기기급 375×812·360×600 스크롤 0·CTA 겹침 없음. R47/R48은 스페이서 재분배라 총 높이 불변 → 스크롤 임계 불변(원인은 파노 게이지 고정높이). 360×460만 기존 특성상 오버플로.
+- EVIDENCE: typecheck·lint·build 클린, 프리뷰 스크린샷.
