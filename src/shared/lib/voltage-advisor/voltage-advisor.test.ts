@@ -100,6 +100,35 @@ describe('recommendVoltageHeuristic — 속도 상한 다운그레이드', () =>
   })
 })
 
+describe('recommendVoltageHeuristic — 파노 과다 신호(R34)', () => {
+  it('속도 유지 전압이 하한 미만이면 2.6V로 두고 저파노 모터를 권한다', () => {
+    // 400Hz 2.9V 완주(S=1160)에서 파노가 480으로 오르면 V=1160/480≈2.42 < 하한 2.6.
+    // 값은 2.6으로 클램프하되, 파노가 과하다는 신호로 보고 근거에 저파노 모터 권장을 남긴다.
+    const advice = recommendVoltageHeuristic({
+      goal: 'stability',
+      currentPanoHz: 480,
+      history: [race({voltage: 2.9, panoHz: 400})],
+    })
+    expect(advice.voltage).toBe(2.6)
+    expect(advice.rationale).toContain('더 낮은 파노 모터')
+  })
+
+  it('파노가 과하지 않으면(기준선 ≥ 하한) 저파노 권장 문구가 없다', () => {
+    // 같은 파노(400)에서 성공 전압 2.9 유지 → baseV 2.9 ≥ 하한 → 경고 없음(정상 추천)
+    const advice = recommendVoltageHeuristic({
+      goal: 'stability',
+      currentPanoHz: 400,
+      history: [race({voltage: 2.9, panoHz: 400})],
+    })
+    expect(advice.rationale).not.toContain('더 낮은 파노 모터')
+  })
+
+  it('이력이 없으면(기준선=중립 2.9) 신호를 내지 않는다', () => {
+    const advice = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 900, history: []})
+    expect(advice.rationale).not.toContain('더 낮은 파노 모터')
+  })
+})
+
 describe('assignExponentialWeights — 지수 가중치(v2.37)', () => {
   it('최신순 입력에 오래된=1, 최근일수록 GROWTH^rank', () => {
     const h = [race({voltage: 3.0}), race({voltage: 2.9}), race({voltage: 2.8})] // 최신→오래됨

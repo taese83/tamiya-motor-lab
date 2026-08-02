@@ -2349,3 +2349,40 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   배포 후 Network에서 /api/data·/api/auth/session이 항상 200(no-store)인지, 목록 정상 로드 확인.
   ⚠️ 잔여 가설: 로컬 IndexedDB에 이미 나쁜 행이 있다면 pull 회복(서버 우선 교체)으로 해소되지만,
   서버 데이터 자체가 클라 스키마 위반이면 오류 지속 — 그 경우 콘솔 오류 캡처 요청해 2차 진단.
+
+### R34 추천 대역 하한 2.6→2.4 (bug-fix/도메인, 2026-08-02)
+- TARGET_BEHAVIOR: 레이스 전압 폼에 AI 추천값이 실제 계산값 그대로 소수 2자리로 표기되게. 사용자 증상:
+  "추천은 2.58로 하는데 실제 2.6으로 찍혀". 원인은 반올림이 아니라 **clampVoltage 바닥 클램프**(max(2.6,2.58)=2.6).
+  2.58은 0.02 그리드 정상값이라 하한만 걷어내면 그대로 통과. 2.6 하한은 R31(속도 유지) 이전 가정 —
+  R31에서는 파노 높은(강한) 모터가 2.6 미만을 정당하게 추천하므로 하한이 R31과 어긋나 있었다.
+- ALLOWED_PATHS:
+  · src/shared/config/domain.ts — VOLTAGE_ADVICE_RANGE.min 2.6→2.4 (+주석).
+  · src/shared/lib/voltage-advisor/voltage-advisor.ts — 대역 서술 주석 2.6→2.4 (로직·상수 불변; NEUTRAL_BASE·GOAL_DELTA 그대로).
+  · src/shared/lib/voltage-advisor/voltage-advisor.test.ts — 하한 단언 2.6→2.4 + 2.58 비클램프 케이스 신규.
+  · api/recommend-voltage.js — VOLTAGE_MIN 2.6→2.4 + 프롬프트 제약·출력 스펙 "2.6~3.2"→"2.4~3.2".
+  · api/analyze-race.js — 주석의 추천 대역 표기 2.6→2.4 (문구만).
+- PUBLIC_CONTRACTS_TO_PRESERVE: clampVoltage 시그니처·0.02 그리드·상한 3.2(물리 한계)·recommendVoltageHeuristic 반환 shape·
+  finish/stability/speed no-history 기준값 상대순서(완주<안정<속도)·source·rationale 포맷·클라 배선·voltageSchema(입력 0.1~9.9).
+- NON_GOALS: 상한 3.2 변경, 입력 스키마 대역 변경, R33 스텝퍼 재변경, GOAL_DELTA·이탈 회피 로직 변경.
+- 부수효과(명시): 저파워 모터의 finish 목표가 하한에 걸려 2.6이던 것이 이제 실제값(예 2.4)로 내려갈 수 있음 —
+  R31 보수적 완주(느리게=완주율↑)와 정합. no-history finish 기준값(2.9-0.3=2.6)은 하한 위라 불변.
+- CHANGE_BUDGET: 소스 4 + 테스트 1, 커밋 1. 직접 구현(단일 상수 + 프롬프트 문구 정합).
+- TEST_EVIDENCE: LOCAL — clampVoltage(2.58)=2.58·(1.0)=2.4·(NaN)=2.4, 기준값 상대순서 유지, 게이트 4종.
+  실 LLM이 2.58을 반환하고 폼에 2.58로 찍히는 것은 DEPLOY_ONLY(서버리스+실기기).
+- 값 선택 근거: 2.4는 미니4WD 실주행 하한 근방(그 아래는 부하시 모터 회전 곤란). 사용자가 다른 값/완전 개방을 원하면 조정.
+
+### R34 방향 전환 (2026-08-02) — 하한 하향 폐기 → 파노 과다 신호
+- 사용자 결정: "2.6 하한이 있다면 모터 파노가 너무 높은 거니 더 파노가 적은 모터를 추천해야". 위 R34 초안(하한
+  2.6→2.4)은 **폐기**하고 원복. 대신 하한 2.6은 유지하되, 속도 유지 기준선(V=S̄/파노, 목표 보정 전)이 2.6 미만이면
+  파노 과다 신호로 보고 rationale에 "더 낮은 파노 모터 권장"을 남긴다.
+- 원복: domain.ts VOLTAGE_ADVICE_RANGE.min 2.6 유지 / voltage-advisor.ts 대역 주석 2.6 / recommend-voltage.js
+  VOLTAGE_MIN 2.6·프롬프트 2.6~3.2. (초안 편집 전량 되돌림 — 순증분 0.)
+- 신규 로직:
+  · src/shared/lib/voltage-advisor/voltage-advisor.ts — recommendVoltageHeuristic에 `panoTooHigh = pts>0 && baseV<하한`
+    판정 + rationale 경고 append(값은 clampVoltage로 2.6 유지). 목표 보정 전 baseV로 판정해 finish -0.3 오탐 방지.
+  · api/recommend-voltage.js — 프롬프트 [제약]에 동일 규칙 1줄(기준 전압<2.6 → voltage 2.6 + 저파노 모터 권장 명시).
+  · voltage-advisor.test.ts — 파노 과다 신호 3케이스 신규(과다=2.6+문구 / 정상=문구없음 / 이력0=문구없음).
+- PUBLIC_CONTRACTS_TO_PRESERVE(갱신): clampVoltage 하한 2.6·상한 3.2·0.02 그리드·VoltageAdvice 반환 shape(문자열
+  rationale에 append만, 필드 추가 없음)·finish/stability/speed 상대순서·클라 배선(rationale=helperText) 전부 불변.
+- NON_GOALS(갱신): 하한 값 변경, VoltageAdvice에 구조 필드 추가, 신규 화면/배지, UI 컴포넌트 변경.
+- 부수효과: 파노 정상 모터·이력 0건은 문구 없음(오탐 0). 실 LLM이 규칙을 따르는지는 DEPLOY_ONLY.

@@ -240,3 +240,25 @@
 - EVIDENCE: Node22 게이트 4종 PASS(260) + check-iterate-scope OK(source 4건+vercel.json).
   ⚠️ 304 소멸·목록 회복은 DEPLOY_ONLY — 배포 후 Network에서 /api/* 항상 200(no-store)·목록 로드 확인.
   잔여 가설: 서버 데이터 자체가 클라 스키마 위반이면 오류 지속 — 그 경우 콘솔 오류 캡처로 2차 진단(replaceDomainSnapshot 무검증 저장은 후속 하드닝 후보).
+
+## 2026-08-02 R34 파노 과다 신호(하한 2.6 유지) — 직접 구현 (feature/bug-fix)
+- **경위**: R33 후 사용자 "추천은 2.58로 하는데 실제 2.6으로 찍혀" → 원인은 clampVoltage 바닥 클램프(하한 2.6).
+  초안으로 하한 2.6→2.4 하향을 진행하다, 사용자 결정 "2.6 하한이 있다면 파노가 너무 높은 거니 더 파노가 적은
+  모터를 추천해야" 로 **방향 전환**. 하한 하향 초안 전량 원복(순증분 0), 신호 방식으로 재구현.
+- **설계**: 하한 2.6은 의미 있는 경계로 유지. 속도 유지 기준선 baseV=S̄/파노(목표 보정 전)가 2.6 미만이면
+  "학습된 성공 속도를 내려면 하한보다 낮은 전압 필요 = 이 모터 파노가 그 속도에 과함" 신호. 값은 2.6으로
+  클램프하되 근거에 **더 낮은 파노 모터 권장**을 남긴다. 목표 보정 전 baseV 판정이라 finish −0.3만으로 하한을
+  스치는 정상 모터(baseV 2.7→finish 2.4)는 오탐하지 않음. 이력 0건은 S̄ 부재라 미적용.
+- MODIFIED:
+  · src/shared/lib/voltage-advisor/voltage-advisor.ts — `panoTooHigh = pts.length>0 && baseV<VOLTAGE_ADVICE_RANGE.min`
+    판정 + rationale 경고 append(clampVoltage 2.6 유지). 로직·상수·반환 shape 불변(문자열 append만).
+  · api/recommend-voltage.js — 프롬프트 [제약]에 규칙 1줄: 기준 전압(S̄/P)<2.6이면 voltage 2.6 + rationale에
+    저파노 모터 권장 명시. VOLTAGE_MIN 2.6 유지(주석만 갱신).
+  · src/shared/config/domain.ts — VOLTAGE_ADVICE_RANGE.min 2.6 유지 + 주석에 신호 규칙 근거.
+  · src/shared/lib/voltage-advisor/voltage-advisor.test.ts — 신호 3케이스(과다=2.6+문구 / 정상=문구없음 / 이력0=문구없음).
+- 보존: clampVoltage 하한 2.6·상한 3.2·0.02 그리드·VoltageAdvice 필드(추가 없음, rationale append만)·finish/stability/speed
+  상대순서·클라 배선(rationale=voltage 필드 helperText). 기존 하한 단언(clampVoltage 1.0=2.6·NaN=2.6·≥2.6) 전부 불변.
+- 실행 사유: 순수 함수 1곳 + 프롬프트 1줄 + 상수 주석, 단일 도메인 개념 → 직접.
+- EVIDENCE: Node22 게이트 typecheck·lint·test(**263**, 신규 3)·build PASS + check-iterate-scope OK(source 4건).
+  수치 재현: 400Hz 2.9V 완주 → 파노 480서 baseV≈2.42<2.6 → voltage 2.6 + "더 낮은 파노 모터" 문구. 파노 400 유지·이력0은 문구 없음.
+  실 LLM이 규칙을 따라 저파노 모터를 권하는지, 폼 helperText 실노출은 DEPLOY_ONLY(서버리스+로그인 게이트).

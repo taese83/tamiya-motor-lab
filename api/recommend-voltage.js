@@ -8,7 +8,8 @@
 // 휴리스틱으로 폴백하므로 추천 기능 자체는 계속 동작한다. max_tokens 상한·이력 20건 컷은 그대로 유지.
 import {requireAllowedSession} from './_lib/authGuard.js'
 
-const VOLTAGE_MIN = 2.6 // 권장 대역 하한(입력 허용과 별개 — domain VOLTAGE_ADVICE_RANGE와 일치)
+const VOLTAGE_MIN = 2.6 // 권장 대역 하한(입력 허용과 별개 — domain VOLTAGE_ADVICE_RANGE와 일치). R34: 하한
+// 유지 — 속도 유지 전압이 2.6 미만이면 파노가 목표에 비해 과한 신호로 보고 rationale로 저파노 모터를 권장
 const VOLTAGE_MAX = 3.2 // 권장 대역 상한(풀충 배터리 한계·배터리 부담)
 const GOALS = ['finish', 'stability', 'speed']
 const MODEL = 'claude-haiku-4-5-20251001' // Haiku 4.5 — 빠르고 저렴(스칼라 추천에 충분)
@@ -71,6 +72,8 @@ export default async function handler(req, res) {
     '',
     '[제약 — 반드시 준수]',
     '- 추천 전압은 2.6~3.2V, 0.02V 단위.',
+    '- 2단계 기준 전압(S̄/P, 목표 보정 전)이 2.6V 미만이면 파노가 목표 속도에 비해 과하다는 신호다.',
+    '  voltage는 2.6으로 두되, rationale에 "파노가 높아 이 세팅엔 과함 — 더 낮은 파노 모터 권장"을 반드시 밝힌다.',
     '- 풀충 배터리로도 ~3.2V가 상한이며 3.2V는 배터리 부담이 크다. speed 목표라도 3.2V를 넘겨야만',
     '  더 빨라지는 상황이면 무리하지 말고 stability 수준으로 낮춰 추천하고 근거에 그 사실을 밝힌다.',
     '',

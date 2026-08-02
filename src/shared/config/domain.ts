@@ -220,6 +220,9 @@ export const VOLTAGE_RANGE = {min: 0.1, max: 9.9, step: 0.02, maxDecimals: 2} as
 // ── 전압 추천(권장) 대역 (v2.34 — 입력 허용 대역과 별개). 실사용상 풀충 배터리로도 ~3.2V가
 // 상한(모터 밀어넣기로 간신히 도달, 배터리 부담)이고 하한은 2.6V다. 추천기(휴리스틱·LLM)는
 // 이 대역으로만 제안하고, 속도 목표라도 3.2V를 넘겨야 더 빨라지는 상황이면 안정으로 낮춘다.
+// R34: 하한 2.6은 유지한다. R31 속도 유지(V=S̄/파노)가 2.6 미만을 요구하면 값을 낮추는 대신
+// "이 모터 파노가 목표 속도에 비해 과함"의 신호로 보고 **더 낮은 파노 모터를 권장**한다
+// (recommendVoltageHeuristic·recommend-voltage 프롬프트가 rationale로 안내). 클램프는 2.6 유지.
 export const VOLTAGE_ADVICE_RANGE = {min: 2.6, max: 3.2, step: 0.02} as const
 
 // ── 레이스 분석 가중치 (v2.37) — 가장 오래된 기록=1, 최근일수록 지수적으로 큰 중요도.

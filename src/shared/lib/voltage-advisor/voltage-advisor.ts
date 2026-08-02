@@ -148,6 +148,13 @@ export function recommendVoltageHeuristic({
     reasons.push(`파노 ${Math.round(pano)}Hz`, fit.reason)
   }
 
+  // R34 — 파노 과다 신호. 속도 유지 기준선(V=S̄/파노, 목표 보정 전)이 권장 하한 미만이면, 학습된 성공
+  // 속도를 내려면 하한보다 낮은 전압이 필요하다는 뜻 = 이 모터 파노가 그 속도에 비해 과하다. 전압을
+  // 억지로 낮추는 대신(하한은 유지) "더 낮은 파노 모터"를 권한다. 이력이 있어야 S̄를 알 수 있으므로
+  // 0건에는 적용하지 않는다. 목표 보정 전 baseV로 판정 — finish의 -0.3만으로 하한을 스치는 정상
+  // 모터(예 baseV 2.7 → finish 2.4)를 오탐하지 않는다.
+  const panoTooHigh = pts.length > 0 && baseV < VOLTAGE_ADVICE_RANGE.min
+
   // 목표 보정 + 속도 상한 다운그레이드 — 속도가 권장 상한(3.2V)을 넘겨야 하면 안정으로 낮춘다
   // (풀충 배터리로도 ~3.2V가 한계·배터리 부담이라 무리한 속도 대신 안정을 권장).
   let v = baseV + GOAL_DELTA[goal]
@@ -163,6 +170,13 @@ export function recommendVoltageHeuristic({
   if (cap !== null && v >= cap) {
     v = cap - VOLTAGE_ADVICE_RANGE.step
     reasons.push(`${RACE_RESULT_LABELS.retired} 회피(<${cap.toFixed(2)}V)`)
+  }
+
+  // 파노 과다면 하한(2.6V)으로 클램프하되 근거에 저파노 모터 권장을 밝힌다(값만 보고 오해하지 않도록).
+  if (panoTooHigh) {
+    reasons.push(
+      `파노 과다 — 이 세팅엔 ${VOLTAGE_ADVICE_RANGE.min}V 미만이 필요, 더 낮은 파노 모터 권장`,
+    )
   }
 
   const voltage = clampVoltage(v)
