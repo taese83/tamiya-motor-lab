@@ -19,3 +19,10 @@ EVIDENCE:
 - 신규 src/entities/race-record/model/race-insight.ts — RaceRecord[](desc) → RaceInsight 순수 파생. selectAdviceWindow+RECENT_FALLBACK=5 추출(RaceDetailPage:160-163 동일 동작). computeRaceInsight: DL-013 세분화(band·lastFinishedVoltage=전체 finished / trend=advisor 윈도우), streak 최신순≤5(미정 제외), DL-014 excluded 항상 산출. trend 규칙: 표본<3→null, baseline=최신 제외 평균, |diff|<baseline×5%→steady.
 - src/entities/race-record/index.ts — computeRaceInsight·selectAdviceWindow·RECENT_FALLBACK·RaceInsight·TrendDir export(기존 무변경).
 - EVIDENCE: 게이트 typecheck·lint·test(183)·build PASS. 순수·O(n)·입력 불변.
+
+## 2026-08-02 R30 U1·U2
+- CREATED: model/race-goal-recommend.ts — `selectGoalRecommendation(races, insight)`. 침묵(kind≠ready·streak<3) → R1(2연속 이탈→finish) → R2(1회 이탈+speedRelated→stability, **확정 첫 회차** `races.find(r=>r.result!==undefined)` 판독 — plan-review 지적 반영) → R2'(비속도·무사유→null) → R3(3연속 완주·trend≠worsening→speed) → R4(worsening→stability) → R5(null). 임계 const+근거 주석. rationale 코드만 반환(카피는 UI 소유).
+- CREATED: model/race-prerun-checklist.ts — `selectPrerunChecklist(races)`. 확정 최신 5건(STREAK_LIMIT) 스캔·미정 skip, retired+사유만 집계, dedupe·빈도 desc·동률 최신, 상위 2 사유, 총 항목 ≤3 절삭, 0건 → [].
+- MODIFIED: model/race-insight.ts(STREAK_LIMIT export 승격만) · index.ts(신규 export).
+- 차단→대필: shared/config/domain.ts의 `RETIRE_REASON_PRERUN_ITEMS`(11 leaf, Record 타입으로 누락 시 컴파일 에러·전압 항목 미포함 근거 주석) — 오케스트레이터 적용.
+- EVIDENCE: 순수·결정론·IO 0. 게이트 typecheck·lint·test(254)·build PASS.

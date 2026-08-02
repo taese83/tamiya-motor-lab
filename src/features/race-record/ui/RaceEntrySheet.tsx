@@ -9,8 +9,10 @@ import {FormField} from '@shared/ui/form-field'
 import {SegmentControl} from '@shared/ui/segment-control'
 import {VoltageStepper} from '@shared/ui/voltage-stepper'
 
+import {RacePrerunChecklist} from './RacePrerunChecklist'
 import {RaceRetireReasonSelect} from './RaceRetireReasonSelect'
 
+import type {PrerunChecklistGroup} from '@entities/race-record'
 import type {RaceGoal, RaceResult, RetireReason} from '@shared/config/domain'
 import type {FormEvent, KeyboardEvent} from 'react'
 
@@ -76,6 +78,12 @@ export interface RaceEntrySheetProps {
   recommendSource: 'ai' | 'heuristic' | null
   /** v2.35 [AI 추천] 클릭 — 현재 상태로 AI 추천 요청(목표 있을 때만 노출) */
   onRequestAiVoltage: () => void
+  /**
+   * R30 U4(REQ-AF-005·006) — 주행 전 체크리스트(create만, 페이지가 selectPrerunChecklist로
+   * 주입 — edit·첫 기록은 미전달). 미전달·빈 배열이면 현행과 동등 렌더(블록 DOM 부재).
+   * 표시 전용 — 체크 상태는 RacePrerunChecklist 로컬(ephemeral), draft·스키마 무접촉.
+   */
+  prerunChecklist?: ReadonlyArray<PrerunChecklistGroup>
   onClose: () => void
 }
 
@@ -118,6 +126,7 @@ export function RaceEntrySheet({
   recommendPending,
   recommendSource,
   onRequestAiVoltage,
+  prerunChecklist,
   onClose,
 }: RaceEntrySheetProps) {
   const resultErrorId = useId()
@@ -242,6 +251,18 @@ export function RaceEntrySheet({
                 onChange={next => onDraftChange({retireReason: next})}
               />
             </FormField>
+          </Box>
+        )}
+
+        {/*
+          ②-c 주행 전 점검 (R30 U4) — 결과 세그먼트 아래 표시 전용 블록(이탈 사유 조건부 블록
+          다음 — 결과 미정이면 사유 블록이 없어 실질 위치는 결과 바로 아래). 체크 상태는
+          RacePrerunChecklist 로컬(ephemeral) — 콜백 자체가 없어 draft·스키마 무접촉(DL-038).
+          미전달·빈 배열이면 행 간격 Box까지 생략 — DOM 부재·시트 높이 현행 동등(REQ-AF-006).
+        */}
+        {prerunChecklist !== undefined && prerunChecklist.length > 0 && (
+          <Box sx={fieldRowSx}>
+            <RacePrerunChecklist groups={prerunChecklist} />
           </Box>
         )}
 

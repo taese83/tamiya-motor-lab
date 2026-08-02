@@ -41,8 +41,10 @@ export interface RaceInsight {
 
 // kind 경계 (REQ-RI-004): 전체 건수가 이 값 이상이어야 ready
 const INSIGHT_READY_MIN = 3
-// streak 표시 상한 (R22 계약 — 최신순 최대 5개)
-const STREAK_LIMIT = 5
+// streak 표시 상한 (R22 계약 — 최신순 최대 5개).
+// R30 race-autofill: 체크리스트 윈도우(race-prerun-checklist)가 같은 경계를 재사용하도록
+// export 승격 — 값·로직 무변경(새 임계 발명 금지, requirements §핵심 산출 3).
+export const STREAK_LIMIT = 5
 
 // ─── 추세 방향 규칙 (결정론 — test fixture가 이 규칙을 고정한다. 임계·비교 방식 변경 금지) ───
 // 1) 표본: selectAdviceWindow 안에서 해당 지표를 **보유한** 회차의 값만, 연대순(oldest→newest).

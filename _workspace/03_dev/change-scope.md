@@ -2257,3 +2257,16 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - NON_GOALS: 게이트 조건 변경 · 스키마 변경 · insufficient 경로 제거(근거가 진짜 없으면 여전히 필요).
 - CHANGE_BUDGET: 파일 1, 커밋 1.
 - TEST_EVIDENCE: 게이트 4종 + scope. 효과는 DEPLOY_ONLY — 이탈만 있는 모터에서 4섹션이 나오는지 실측(eval-plan S2 시나리오).
+
+## R30 — 레이스 자동 입력: 목표 추천 + 주행 전 체크리스트 (2026-08-02, feature)
+- REQUEST: Phase 1 기획 완료(race-autofill). 구성안 사용자 승인. 설계 canonical: `_workspace/01_plan/race-autofill/{requirements,feature-plan,plan-review}.md`, 결정 DL-033~039.
+- TARGET_BEHAVIOR: ① 목표 팝업에서 기록 기반 추천 목표에 배지+근거 표시(선택은 사용자, 자동 선택 없음)
+  ② 입력 시트 결과 세그먼트 아래에 최근 이탈 사유 기반 주행 전 점검 블록(≤3항목, 표시 전용·비저장, 근거 없으면 미노출).
+  전압 프리필·advisor·edit·첫 기록 경로는 **무변경**.
+- ALLOWED_PATHS: src/shared/config/domain.ts(사유→점검항목 맵) · src/entities/race-record/model/{race-goal-recommend.ts,race-prerun-checklist.ts}(신규)+동 .test.ts · src/entities/race-record/model/race-insight.ts(STREAK_LIMIT export 승격만) · src/entities/race-record/index.ts ·
+  src/features/race-record/ui/{RaceGoalSheet.tsx,RacePrerunChecklist.tsx(신규),RaceEntrySheet.tsx}+동 test · src/pages/race-detail/ui/RaceDetailPage.tsx(배선).
+- PUBLIC_CONTRACTS_TO_PRESERVE: **스키마·repository·migration·서버 동기화·use-race-entry·voltage-advisor 변경 0**(체크 상태 비저장 — U4에 onChange 콜백 자체를 두지 않아 타입이 차단) · RaceGoalSheet 직전 목표 강조 현행 유지 · openWithGoal 전압 프리필·[AI 추천] 흐름 불변 · edit/첫 기록 경로 신규 UI 미노출 · 기존 테스트 무수정 통과.
+- NON_GOALS: 자동 저장 · LLM 자동 호출 · 체크 상태 저장 · 전압 로직 변경 · 팝업 스킵 · edit 프리필.
+- CHANGE_BUDGET: 신규 7(selector 2+test 2+체크리스트 컴포넌트+컴포넌트 test 2) + 수정 6. 커밋 1~2.
+- 구현 주의(plan-review): ① R2의 "최신 이탈"은 races[0]이 아니라 **result 확정 첫 회차** ② 근거 카피는 "직전 이탈 — 안정 권장"(속도 단정 회피) ③ N04 a11y 테스트 케이스 포함.
+- TEST_EVIDENCE: selector unit(R1~R5 전 분기·침묵 경계·매핑·dedupe·상한 3) + 컴포넌트 render(추천 병기·자동선택 없음·체크리스트 비노출·ephemeral·a11y) + 기존 회귀 + 게이트 4종 + check-iterate-scope. 실화면은 로그인 게이트 뒤 DEPLOY_ONLY.

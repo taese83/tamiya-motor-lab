@@ -11,8 +11,13 @@ export {
 } from './model/schema'
 export type {CreateRaceRecordDraft, RaceRecord, UpdateRaceRecordPatch} from './model/types'
 // R22 — 레이스 인사이트 파생(순수 selector, DL-013·DL-014)
-export {computeRaceInsight, RECENT_FALLBACK, selectAdviceWindow} from './model/race-insight'
+export {computeRaceInsight, RECENT_FALLBACK, selectAdviceWindow, STREAK_LIMIT} from './model/race-insight'
 export type {RaceInsight, TrendDir} from './model/race-insight'
+// R30 race-autofill U1·U2 — 목표 추천·주행 전 체크리스트 파생(순수 selector, DL-036~038)
+export {selectGoalRecommendation} from './model/race-goal-recommend'
+export type {GoalRecommendRationale} from './model/race-goal-recommend'
+export {selectPrerunChecklist} from './model/race-prerun-checklist'
+export type {PrerunChecklistGroup} from './model/race-prerun-checklist'
 // R25 U3 — AI 분석 근거 부족 게이트(REQ-RAI-004, 순수 selector — 호출 차단은 UI가 소비)
 export {selectRaceAnalysisGate} from './model/race-analysis-gate'
 export type {RaceAnalysisGate, RaceAnalysisGateReason} from './model/race-analysis-gate'

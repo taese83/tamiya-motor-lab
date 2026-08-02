@@ -21,6 +21,8 @@ import {
   computeRaceInsight,
   raceQueries,
   selectAdviceWindow,
+  selectGoalRecommendation,
+  selectPrerunChecklist,
   selectRaceAnalysisGate,
 } from '@entities/race-record'
 import {AuthMenu, useSession} from '@features/auth'
@@ -179,6 +181,9 @@ export function RaceDetailPage() {
   const [goalSheetOpen, setGoalSheetOpen] = useState(false)
   // R22 레이스 인사이트 — racesQuery 파생(표시 전용, 새 행동 진입점 아님). 도움말 열림은 페이지 소유.
   const insight = computeRaceInsight(races)
+  // R30 — 자동 입력 파생(결정론·동기, DL-036). 저장 없음: 추천은 표시만, 체크리스트는 ephemeral.
+  const goalRecommendation = selectGoalRecommendation(races, insight)
+  const prerunChecklist = selectPrerunChecklist(races)
   const [insightHelpOpen, setInsightHelpOpen] = useState(false)
   // R25 U6 — AI 분석: 결정론 게이트(호출 차단) + 상태기계 훅 + 카드 뷰 사상(배선만 페이지 소유)
   const analysisGate = selectRaceAnalysisGate(races, insight)
@@ -513,6 +518,8 @@ export function RaceDetailPage() {
           errorMessage={entry.errorMessage}
           fieldErrors={entry.fieldErrors}
           justMeasured={entry.justMeasured}
+          // R30 — 출발 전 점검은 create 전용(REQ-AF-008: edit 경로 신규 UI 미노출)
+          prerunChecklist={entry.mode === 'create' ? prerunChecklist : []}
           recommendation={entry.rationale}
           recommendPending={entry.recommendPending}
           recommendSource={entry.recommendSource}
@@ -544,6 +551,7 @@ export function RaceDetailPage() {
       <RaceGoalSheet
         open={goalSheetOpen}
         lastGoal={lastGoal}
+        recommendation={goalRecommendation}
         onSelect={handleGoalSelect}
         onClose={() => setGoalSheetOpen(false)}
       />

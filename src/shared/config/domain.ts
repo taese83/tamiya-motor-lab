@@ -183,6 +183,28 @@ export function resolveSpeedRelated(key: RetireReason): boolean {
   return false
 }
 
+// ── 이탈 사유 → 주행 전 점검 항목 (race-autofill Phase 1 — requirements §핵심 산출 2, DL-038)
+// 트리 causal 메타의 실행형 도메인 지식 — 화면별 카피가 아니라 leaf당 정비 상식 1~2항목(AF-A1:
+// 문구는 사용자 검토로 조정 가능, 이 맵 1곳 수정). 앱이 측정하지 않는 세팅은 단정하지 않는다
+// ("~확인" 수준). key는 트리와 동일하게 **append-only** — Record<RetireReason, ...> 타입이
+// leaf 추가 시 맵 누락을 컴파일 에러로 강제한다.
+// **전압 항목 전 leaf 미포함**: 전압 수치의 단독 출처는 advisor(DL-034)이고 시트에 이미
+// 프리필+rationale이 있어 체크리스트에 담으면 중복·상충 채널이 된다 — speedRelated=true
+// 계열도 비전압 정비 항목만 담는다.
+export const RETIRE_REASON_PRERUN_ITEMS: Record<RetireReason, readonly string[]> = {
+  corner: ['롤러 상태·스태빌라이저 확인'],
+  jump_overshoot: ['브레이크 세팅 확인'],
+  jump_attitude: ['댐퍼 상태 확인', '무게중심(배터리 위치) 확인'],
+  jump_rebound: ['댐퍼 작동 확인', '타이어 상태 확인'],
+  jump_other: ['점프 세팅(브레이크·댐퍼) 전반 확인'],
+  down_step: ['브레이크·무게중심 확인'],
+  wave: ['댐퍼·롤러 폭 확인'],
+  lane_change: ['브레이크·롤러 각도 확인'],
+  parts: ['롤러·기어 체결(나사 조임) 확인'],
+  stall: ['배터리 잔량·접점 확인', '기어 물림·이물질 확인'],
+  other: ['차체 전반 체결·배터리 확인'],
+}
+
 // ── 측정 기록 rolling 상한 (T-3·INV-20: 모터당 최대 N건, 초과 시 최고령(最古) 자동 삭제)
 // v2.21(사용자): 10 → 20으로 상향. rolling·eviction 로직은 상수만 참조하므로 값 변경으로 족하다
 // (INV-20의 "N건 유지·초과 시 최고령 삭제" 불변식 자체는 불변, 경계값만 20).

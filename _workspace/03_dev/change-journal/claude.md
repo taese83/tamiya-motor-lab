@@ -174,3 +174,9 @@
 - 보존: 스키마·insufficient 응답 경로(2xx 정상)·검증·가드·토큰·모델·클라 계약 불변. 안전 규칙 5종 잔존(grep 5/5).
 - EVIDENCE: Node22 게이트 4종 PASS + check-iterate-scope OK(source 1건). 효과는 DEPLOY_ONLY — 이탈만 있는 모터에서 섹션이 실제로 나오는지 실측(eval-plan S2).
 - ⚠️ 잔여 가설: 사용자의 이탈 기록 중 **사유가 입력된 비율**이 낮으면(게이트는 1건만 있어도 통과) 프롬프트 수정만으로는 분석 품질이 얇을 수 있다 — 실측 후 재평가 대상.
+
+## 2026-08-02 R30 레이스 자동 입력 — 오케스트레이션 (feature)
+- Phase 1 기획(race-autofill 4문서·DL-033~039) 후 구성안 사용자 승인 → 구현. 위임: entity-query-builder(U1·U2) → component-builder(U3·U4) → route-builder(U5) → test-writer.
+- 직접 적용(hook 차단분): `src/shared/config/domain.ts`의 RETIRE_REASON_PRERUN_ITEMS 상수 맵(entity-query-builder 반환 원문).
+- **사용자 파일 처리**: 세션 중 `_scratch_multimotor.test.ts`·`_scratch_multidetect.test.ts`(사용자 실험, 미추적)가 게이트를 두 번 막음 — 임의 수정·삭제하지 않고 사용자에게 확인. 두 번 모두 사용자가 직접 정리해 해소(내 코드는 각 시점 오류 0건으로 분리 확인).
+- EVIDENCE: Node22 게이트 typecheck·lint·**test 254**(신규 38)·build PASS + check-iterate-scope OK(source 14건). 스키마·repository·migration·서버 동기화·use-race-entry·voltage-advisor **변경 0**(체크 상태 비저장을 타입으로 차단). 실화면은 로그인 게이트 뒤 DEPLOY_ONLY.

@@ -34,3 +34,8 @@ export type {RaceInsightHelpDialogProps} from './RaceInsightHelpDialog'
 // RaceDetailPage + useRaceAnalysis 소유. RaceAnalysisView가 훅→카드 사이 공개 계약.
 export {RACE_ANALYSIS_MESSAGES, RaceAnalysisCard} from './RaceAnalysisCard'
 export type {RaceAnalysisCardProps, RaceAnalysisView} from './RaceAnalysisCard'
+// R30 U4 — 주행 전 체크리스트(표시 전용·ephemeral). onChange 콜백이 타입에 없음 —
+// 체크 상태의 draft·스키마 유출을 계약으로 차단(DL-038). 데이터(PrerunChecklistGroup)는
+// @entities/race-record 소유 — 여기서 재수출하지 않는다.
+export {RacePrerunChecklist} from './RacePrerunChecklist'
+export type {RacePrerunChecklistProps} from './RacePrerunChecklist'

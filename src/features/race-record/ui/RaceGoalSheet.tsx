@@ -1,14 +1,16 @@
-import {Box, Button, Typography} from '@mui/material'
+import {Box, Button, Chip, Typography} from '@mui/material'
 
 import {RACE_GOALS, RACE_GOAL_LABELS} from '@shared/config/domain'
 import {layoutTokens} from '@shared/config/design-tokens'
 import {BottomSheet} from '@shared/ui/bottom-sheet'
 
+import type {GoalRecommendRationale} from '@entities/race-record'
 import type {RaceGoal} from '@shared/config/domain'
 
 // 레이스 목표 선택 팝업 (v2.31 — 2번째+ 입력 진입점). 무엇을 우선할지 고르면 그 목표 + 과거
 // 레이스 + 현재 파노로 전압을 추천한다. 완전 제어형 — 선택은 상위(page)가 openWithGoal로 처리.
 // 직전 목표를 primary(contained)로 강조해 "지난 목표"를 빠르게 반복 선택할 수 있게 한다.
+// R30 U3(REQ-AF-003): 추천 목표에 "추천" 배지+근거 캡션 병기 — 직전 강조와 독립(동일 버튼 공존).
 
 /** 목표별 한 줄 설명 — 라벨만으로 애매한 우선순위 뉘앙스를 보강 */
 const GOAL_DESCRIPTIONS: Record<RaceGoal, string> = {
@@ -17,15 +19,38 @@ const GOAL_DESCRIPTIONS: Record<RaceGoal, string> = {
   speed: '속도 우선 · 공격적 전압',
 }
 
+/**
+ * 추천 근거 코드→카피 (R30 U3 — 문구 소유는 UI, ANALYZE_GATE_MESSAGES 선례).
+ * retired_speed_related는 "속도 연관" 단정 금지(DL-039) — 관찰 사실(직전 이탈)만 서술한다.
+ */
+const GOAL_RECOMMEND_MESSAGES: Record<GoalRecommendRationale, string> = {
+  retired_streak: '최근 2연속 이탈 — 완주 우선 권장',
+  retired_speed_related: '직전 이탈 — 안정 권장',
+  finished_streak: '3연속 완주·추세 양호 — 속도 도전 가능',
+  finished_worsening: '완주 유지 중·랩타임 추세 하락 — 안정 권장',
+}
+
 export interface RaceGoalSheetProps {
   open: boolean
   /** 직전 기록의 목표 — 있으면 해당 버튼을 강조(반복 선택 편의). 없으면 균등 표시 */
   lastGoal: RaceGoal | null
+  /**
+   * R30 U3(REQ-AF-003) — selectGoalRecommendation 파생. 미전달·null이면 현행과 동등 렌더
+   * (REQ-AF-002 침묵). 추천 목표 버튼에만 "추천" 배지(색 단독 아님 — 텍스트 병기)+근거 캡션.
+   * 자동 선택·자동 진행 없음 — onSelect는 사용자 탭에서만 호출된다.
+   */
+  recommendation?: {goal: RaceGoal; rationale: GoalRecommendRationale} | null
   onSelect: (goal: RaceGoal) => void
   onClose: () => void
 }
 
-export function RaceGoalSheet({open, lastGoal, onSelect, onClose}: RaceGoalSheetProps) {
+export function RaceGoalSheet({
+  open,
+  lastGoal,
+  recommendation,
+  onSelect,
+  onClose,
+}: RaceGoalSheetProps) {
   return (
     <BottomSheet open={open} title="이번 목표" onClose={onClose}>
       <Typography color="text.secondary" sx={{mb: 2}}>
@@ -34,6 +59,11 @@ export function RaceGoalSheet({open, lastGoal, onSelect, onClose}: RaceGoalSheet
       <Box sx={{display: 'flex', flexDirection: 'column', gap: 1}}>
         {RACE_GOALS.map(goal => {
           const isLast = goal === lastGoal
+          // R30 U3 — 이 버튼이 추천 목표일 때만 non-null(배지+근거 캡션). 표기만 — 선택은 탭.
+          const rationale =
+            recommendation !== undefined && recommendation !== null && recommendation.goal === goal
+              ? recommendation.rationale
+              : null
           return (
             <Button
               key={goal}
@@ -51,6 +81,24 @@ export function RaceGoalSheet({open, lastGoal, onSelect, onClose}: RaceGoalSheet
               <Typography component="span" sx={{fontWeight: 700}}>
                 {RACE_GOAL_LABELS[goal]}
                 {isLast ? ' · 지난 목표' : ''}
+                {/* "추천" 배지 — 텍스트가 구분을 전달(색 단독 금지, N04). " · 지난 목표"와
+                    독립 병기(동일 목표면 공존). contained 위에서는 currentColor로 대비 확보 */}
+                {rationale !== null && (
+                  <Chip
+                    component="span"
+                    size="small"
+                    variant="outlined"
+                    label="추천"
+                    sx={{
+                      ml: 0.75,
+                      height: 20,
+                      verticalAlign: 'text-bottom',
+                      ...(isLast
+                        ? {color: 'inherit', borderColor: 'currentColor'}
+                        : {color: 'primary.main', borderColor: 'primary.main'}),
+                    }}
+                  />
+                )}
               </Typography>
               <Typography
                 component="span"
@@ -58,6 +106,15 @@ export function RaceGoalSheet({open, lastGoal, onSelect, onClose}: RaceGoalSheet
                 sx={{color: isLast ? 'inherit' : 'text.secondary', opacity: isLast ? 0.85 : 1}}>
                 {GOAL_DESCRIPTIONS[goal]}
               </Typography>
+              {/* 근거 캡션 1줄 (REQ-AF-003) — 추천 목표에만 추가. sr 도달 가능(N04) */}
+              {rationale !== null && (
+                <Typography
+                  component="span"
+                  variant="caption"
+                  sx={{color: isLast ? 'inherit' : 'primary.main', opacity: isLast ? 0.85 : 1}}>
+                  {GOAL_RECOMMEND_MESSAGES[rationale]}
+                </Typography>
+              )}
             </Button>
           )
         })}

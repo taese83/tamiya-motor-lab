@@ -31,3 +31,10 @@ EVIDENCE:
 - 신규 RaceInsightHelpDialog.tsx — ConditionHelpDialog 패턴, D2 기준 2개(전압대=전체 완주/추세=최근 구간) 설명.
 - index.ts — 2컴포넌트 export.
 - EVIDENCE: 게이트 183 PASS. 실화면 로그인 뒤 DEPLOY_ONLY — render 테스트로 고정.
+
+## 2026-08-02 R30 U3·U4
+- MODIFIED: RaceGoalSheet.tsx — additive `recommendation?` (null/미전달 시 기존 렌더 100% 동일 — 추천 JSX 전부 rationale 게이트 내부). GOAL_RECOMMEND_MESSAGES 카피 맵 파일 소유, `retired_speed_related`는 '직전 이탈 — 안정 권장'(DL-039 속도 단정 회피). "추천" Chip 배지+근거 캡션, 텍스트 병기(색 단독 금지). 직전 목표 contained·' · 지난 목표' 무변경, 자동 선택 없음.
+- CREATED: RacePrerunChecklist.tsx — props `{groups}`만(**onChange 콜백 부재 = 체크 상태 유출을 타입으로 차단**, DL-038). groups=[] → null(REQ-AF-006). 체크 상태 로컬 useState(언마운트 소멸). Paper outlined + 헤더('주행 전 점검'/'표시 전용 · 저장 안 됨') + Checkbox 44px·라벨 결속 + 근거 caption(retireReasonRowLabel ×count).
+- MODIFIED: RaceEntrySheet.tsx — additive `prerunChecklist?`, 이탈 사유 블록 아래·전압 위 삽입. 빈/미전달이면 간격 Box까지 조건부 생략(REQ-AF-006 "시트 높이 현행 동등" 보존 — 지시 원문 대비 의도 보존 편차, 저널 기록).
+- MODIFIED: ui/index.ts — RacePrerunChecklist·Props export.
+- EVIDENCE: 게이트 4종 PASS(254). 기존 공개 API·전압/AI 추천 흐름 무변경.
