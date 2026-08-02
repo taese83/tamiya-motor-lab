@@ -26,7 +26,8 @@ export interface MotorSummaryRace {
   id: string
   motorId: string
   panoHz: number
-  result: RaceResult
+  // R38: canonical과 정합 — 결과 미정("레이스 전 세팅") 레이스는 result 부재. undefined 포함(exactOptional 대입 호환)
+  result?: RaceResult | undefined
   voltage: number
   // `number | undefined` 포함 — zod .optional() infer 결과(RaceRecord)와 구조 호환
   // (exactOptionalPropertyTypes 아래 대입 가능성 유지)

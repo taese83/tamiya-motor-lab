@@ -34,7 +34,9 @@ export interface RaceMotorListProps {
 
 /** 마지막 레이스 보조 줄 — 결과 · 전압 (· 랩타임) */
 const raceDetailLine = (race: MotorSummaryRace): string => {
-  const base = `${RACE_RESULT_LABELS[race.result]} · ${formatVoltage(race.voltage)}`
+  // R38: result 부재("레이스 전 세팅" — 목표만, 결과 미정)면 "결과 미정"으로 표시
+  const resultLabel = race.result !== undefined ? RACE_RESULT_LABELS[race.result] : '결과 미정'
+  const base = `${resultLabel} · ${formatVoltage(race.voltage)}`
   return race.lapTimeMs !== undefined ? `${base} · ${formatLapTimeSec(race.lapTimeMs)}` : base
 }
 

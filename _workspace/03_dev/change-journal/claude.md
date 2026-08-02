@@ -295,3 +295,17 @@
 - 보존: 응답 필드·정렬·클라 스키마·R35 격리 로직 불변. UTC 순간 보존(표기만 통일), μs 손실 무해(앱 ms만 사용).
 - EVIDENCE: Node22 게이트 4종 PASS(266). 실기기 회복은 DEPLOY_ONLY — 배포 후 pull이 정규화 값을 주므로
   R35 격리 없이 정상 로드 기대. 기존에 격리로 비워진 로컬도 이번 pull에서 서버 우선 교체로 복원.
+
+## 2026-08-02 R38 목록 조회 실패 근본 수정 — summaryRaceRowSchema.result optional — 직접 구현 (bug-fix/프로덕션)
+- **확정(사용자 /api/data 원문으로)**: 서버 JSON 정상인데 앱이 "저장된 데이터를 읽을 수 없습니다". 실측: 사용자 데이터에
+  result 없는 레이스 1건(R30/v2.31 "레이스 전 세팅" — goal:stability, 결과 미정). listMotorSummaries의
+  parseSummaryRaceRow가 이를 거부(summaryRaceRowSchema.result가 z.enum 필수) → data-corrupt → 그 모터를 가진
+  사용자의 전체 목록 불능. 부팅 검증·R35 sanitize는 canonical(result optional)이라 통과 → projection 스키마 drift가 원인.
+- MODIFIED: src/entities/motor/api/repository.ts — summaryRaceRowSchema.result를 `.optional()`로(canonical 정합).
+- MODIFIED: src/entities/motor/model/types.ts — MotorSummaryRace.result를 `result?: RaceResult | undefined`로.
+- MODIFIED: src/features/race-record/ui/RaceMotorList.tsx — raceDetailLine이 result 부재 시 "결과 미정 · 전압" 표시.
+- CREATED: src/entities/motor/api/repository.summary.test.ts — 회귀 2건(result 없는 레이스→목록 정상 조회 / result 있으면 그대로).
+- 실증: 사용자 실제 실패 행을 summary 스키마에 통과 — R38 전 실패=1(원인)·후 실패=0(임시 probe, 삭제).
+- 보존: canonical raceRecordSchema·부팅 검증·R35 sanitize·정렬·rollup·result 있는 레이스 표시 문구 불변.
+- 관계 정리: R34(no-store)·R35(sanitize)·R36(branch)·R37(ts 정규화)는 방어적 하드닝(각자 유효)이었고, **R38이 이 장애의 진짜 원인 수정**.
+- EVIDENCE: Node22 게이트 4종 PASS(268, 회귀 2 신규). 실기기 목록 로드는 DEPLOY_ONLY — 배포 후 확인.

@@ -269,7 +269,9 @@ const summaryRaceRowSchema = z.object({
   id: z.uuid(),
   motorId: z.uuid(),
   panoHz: panoHzStoredSchema,
-  result: z.enum(RACE_RESULTS),
+  // R38: canonical raceRecordSchema와 정합 — result는 optional이다(v2.31/R30 "레이스 전 세팅"은
+  // 목표만 정하고 결과 미정). 필수로 두면 결과 미입력 레이스를 가진 모터의 전체 목록이 data-corrupt로 죽는다.
+  result: z.enum(RACE_RESULTS).optional(),
   voltage: z.number(),
   lapTimeMs: z.number().int().positive().optional(),
   createdAt: z.iso.datetime(),

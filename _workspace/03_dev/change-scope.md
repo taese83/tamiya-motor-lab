@@ -2427,3 +2427,20 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - ALLOWED_PATHS: api/_lib/db.js (isoZ 헬퍼 + 3필드 적용).
 - PUBLIC_CONTRACTS_TO_PRESERVE: 응답 필드·정렬·격리 로직·클라 스키마 불변. 시각 의미 동일(UTC 순간 보존, 표기만 통일). μs 정밀도 손실은 앱이 ms만 쓰므로 무해.
 - TEST_EVIDENCE: LOCAL — isoZ 정규화 후 motorSchema 통과 실증(offset·μs·Date 4종 전부 OK) + 게이트 4종(266). 실기기 회복은 DEPLOY_ONLY.
+
+## R38 — 목록 조회 실패 근본 수정: summaryRaceRowSchema의 result를 optional로 (2026-08-02, bug-fix/프로덕션)
+- CHANGE_MODE: existing-change
+- REQUEST(사용자 /api/data 원문 제공): 모터·레이스 목록이 "저장된 데이터를 읽을 수 없습니다"로 실패. 서버 JSON은 정상.
+- OBSERVED_BASELINE(데이터로 확정): repository.ts summaryRaceRowSchema.result가 `z.enum(RACE_RESULTS)`(**필수**)인데
+  canonical raceRecordSchema.result는 `.optional()`. 사용자 데이터에 result 없는 레이스(R30/v2.31 "레이스 전 세팅" —
+  goal만 있고 결과 미정) 1건 존재 → 부팅 검증·R35 sanitize는 canonical(통과)이나 listMotorSummaries의 parseSummaryRaceRow가
+  거부 → data-corrupt throw → 그 모터를 가진 사용자의 **전체 목록 불능**. 스키마 이중 정의(projection이 canonical과 drift).
+- TARGET_BEHAVIOR: summaryRaceRowSchema.result를 optional로(canonical 정합). MotorSummaryRace.result optional화.
+  raceDetailLine이 result 부재 시 "결과 미정 · 전압"으로 표시(RACE_RESULT_LABELS[undefined] 참조 방지).
+- ALLOWED_PATHS: src/entities/motor/api/repository.ts · src/entities/motor/model/types.ts · src/features/race-record/ui/RaceMotorList.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: canonical raceRecordSchema·부팅 검증·R35 sanitize·정렬·rollup·다른 summary 필드 불변.
+  result 있는 레이스 표시 문구 불변(미정 케이스만 신규 처리).
+- NON_GOALS: R37 타임스탬프 정규화(별도·유효), 서버 데이터 수정, summary 스키마 canonical 재사용 리팩터(범위 확대 회피).
+- CHANGE_BUDGET: 파일 3, 커밋 1. 직접 구현(스키마 drift 정합 단일 수정).
+- TEST_EVIDENCE: LOCAL — 사용자 실제 /api/data 전체를 3 스키마로 검증(수정 후 0 실패) + summaryRaceRowSchema 회귀 unit
+  (result 없는 레이스 통과) + 게이트 4종. 실기기 목록 로드는 DEPLOY_ONLY.
