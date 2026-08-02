@@ -1,5 +1,8 @@
 // MeasureView v2 — S1 UI 계약 discriminated union (component-spec v2 §2.1 / state-contract v2 M-1~3).
-// 필드명은 api-schema NR-1 표준(panoHz). confidence는 view에 포함하지 않는다(UI 비노출 확정).
+// 필드명은 api-schema NR-1 표준(panoHz).
+// R45(사용자): 이전 "confidence는 UI 비노출 확정"을 번복한다 — "신호 약함"·"더 가까이"를 안정도 하단
+// **신호 세기 미터** 하나로 통일하기 위해 confidence(0~1)를 measuring·weak-signal 뷰에 노출한다.
+// INV-13(weak-signal ⇒ 파노·rpm null)은 측정값 규칙이라 품질 지표 confidence 노출과 무관하다.
 //
 // v1 대비:
 // - `idle`(수동 시작)·`stable`(잠금 variant) 제거 — 자동 시작(M-1)·연속 측정(M-3).
@@ -30,8 +33,11 @@ export type MeasureView =
       stabilityCv: number | null
       // 순간 편차(바늘 실시간 떨림용) — 매 프레임 갱신, 창 미충족이면 null. 기록·등급 비관여.
       microCv: number | null
+      // R45: 신호 세기 미터용 신뢰도(0~1). measuring이면 게이트 통과라 대체로 높음.
+      confidence: number
     } // 연속 갱신 ≥10Hz — 잠금 없음
-  // reason(R27): weak-signal 세부 사유 — too-quiet면 "더 가까이" 안내. 수치 계약(INV-13)은 불변.
-  | {status: 'weak-signal'; reason?: WeakReason} // 수치 없음 — 타입으로 강제 (INV-13)
+  // reason(R27): weak-signal 세부 사유(too-quiet/no-pitch) — v2엔 "더 가까이" 안내에 썼으나
+  // R45에서 신호 세기 미터로 통일하며 문구는 제거. reason은 진단·향후 활용 위해 유지. 수치 계약(INV-13) 불변.
+  | {status: 'weak-signal'; reason?: WeakReason; confidence: number} // 수치 없음(INV-13), confidence는 세기 미터용
   | {status: 'no-permission'; permanent: boolean; settingsHelpOpen: boolean} // F-2
   | {status: 'suspended'} // 실행 중 세션의 오디오 중단 — [탭하여 다시 시작]

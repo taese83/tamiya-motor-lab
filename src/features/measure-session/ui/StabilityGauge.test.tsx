@@ -16,6 +16,7 @@ const measuring = (stabilityCv: number | null, rpm = 18000, microCv: number | nu
   measuredMs: 6000,
   stabilityCv,
   microCv,
+  confidence: 0.9, // R45: 신호 세기 미터용 — 안정도 게이지 판정과 무관(표시 전용)
 })
 
 const paths = (c: HTMLElement): SVGPathElement[] => [...c.querySelectorAll('path')]
@@ -56,9 +57,9 @@ describe('StabilityGauge', () => {
   it('바늘은 파노와 동일하게 항상 표시된다 — cv 없음·비측정이면 최소(-110°)', () => {
     // 창 미충족(measuring·cv null)·비측정 모두 바늘을 0=최소 위치에 둔다(빈 계기판 금지)
     expect(rotations(render(<StabilityGauge view={measuring(null)} />).container)).toEqual(['rotate(-110deg)'])
-    expect(rotations(render(<StabilityGauge view={{status: 'weak-signal'}} />).container)).toEqual([
-      'rotate(-110deg)',
-    ])
+    expect(
+      rotations(render(<StabilityGauge view={{status: 'weak-signal', confidence: 0.2}} />).container),
+    ).toEqual(['rotate(-110deg)'])
   })
 
   it('캡션: 측정+CV면 등급·%·±rpm, cv 없으면 측정 중, 비측정이면 안정도', () => {

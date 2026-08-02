@@ -2584,3 +2584,27 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - NON_GOALS: 파노 열 정렬 변경, insufficient 한 줄 변경, 다른 카드/화면 변경.
 - CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
 - TEST_EVIDENCE: LOCAL — typecheck·lint·build 클린 + RaceInsightCard render 7건 통과(텍스트 불변). 실화면 정렬은 로그인 게이트 뒤 DEPLOY_ONLY(결정론적 flex).
+
+## R45 — 측정 신호 피드백 통일: 안정도 하단 "신호 세기" 미터 (2026-08-03, ui-change + 뷰계약 소폭)
+- REQUEST(사용자): "신호 약함"(Z1)과 "더 가까이 대주세요"(게이지)가 같은 상태 중복 노출 → 안정도 하단
+  "신호 세기" 하나로 통일 검토·구현. (확정: confidence 기반 연속 미터.)
+- REVIEW: weak-signal+too-quiet에서 두 문구 동시 노출 확인(중복), measuring↔weak 시 Z1 깜빡임.
+  엔진이 weak-signal에서도 confidence(0~1) 산출(track.ts:36,249) → 연속 세기 지표 재료 존재. INV-13(파노·rpm null)과 무관.
+- TARGET_BEHAVIOR:
+  ① 뷰 계약: EngineFrameView·MeasureView의 measuring·weak-signal에 confidence:number 추가(machine 통과). "UI 비노출" 결정 번복(주석 갱신).
+  ② SignalStrength(신규): confidence를 가로 막대로 — weak=약함(앰버), measuring=양호/강(라임, ≥0.85 강), 비측정=빈 막대 dim.
+     role="img"+aria-label 단일 라벨, aria-live 없음(≥10Hz 스팸 방지 — 전이 낭독은 Z1 role=status가 담당).
+  ③ MeasurePage: 안정도(StabilityGauge) 하단에 SignalStrength 배치. statusLabelKey에서 weak-signal→'measuring'로
+     매핑(상단 "신호 약함" 제거·세션 중 "측정 중" 고정 → 깜빡임 제거).
+  ④ MeasureFigures: weak-signal "더 가까이 대주세요" 제거(messageFor→null). 게이지 dim+"—"는 유지.
+- ALLOWED_PATHS: src/features/measure-session/ui/measure-view.ts · src/features/measure-session/model/machine.ts ·
+  src/features/measure-session/ui/MeasureFigures.tsx · src/features/measure-session/ui/SignalStrength.tsx(신규) ·
+  src/features/measure-session/ui/SignalStrength.test.tsx(신규) · src/features/measure-session/ui/index.ts ·
+  src/pages/measure/ui/MeasurePage.tsx · src/features/measure-session/ui/StabilityGauge.test.tsx · src/features/measure-session/ui/MeasureActionDock.test.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: INV-13(파노·rpm null)·measuring 기존 필드·엔진 status 3종·announcement(SR "신호 약함" 전이)·
+  StabilityGauge/MeasureFigures 고정 높이·측정 왕복·기록 게이트(MIN_MEASURE_DURATION).
+- NON_GOALS: 엔진 DSP/게이트 임계 변경, announcement.ts SR 문구 변경, 기록 스키마 변경, weak reason 제거.
+- CHANGE_BUDGET: 소스 6 + 테스트 3, 커밋 1(직접).
+- TEST_EVIDENCE: LOCAL — SignalStrength render 4건(약함/강/양호/비측정) + measure-view confidence 통과 typecheck +
+  StabilityGauge·MeasureActionDock fixture 갱신 + 전체 게이트. 프리뷰(측정 대기): 신호 세기 미터 안정도 하단 렌더·"더 가까이" 제거·상단 "측정 대기"·무오류.
+  실측 활성 미터(약함/양호/강·막대 채움)와 Z1 세션 중 "측정 중" 고정은 마이크 필요라 DEPLOY_ONLY(unit이 파생 고정).

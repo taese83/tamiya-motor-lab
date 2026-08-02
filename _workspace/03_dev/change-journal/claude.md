@@ -426,3 +426,17 @@
 - CHANGED: src/features/race-record/ui/RaceInsightCard.tsx — ready 히어로 [최근 완주 전압] 열 Box에 alignItems:flex-end + textAlign:right.
   파노 열은 좌측 그대로 → 파노(좌)/전압(우) 양끝 배치. 값·색·단위·라벨 불변.
 - EVIDENCE: typecheck·lint·build 클린, RaceInsightCard 7건 통과(텍스트 불변). 실화면 정렬은 로그인 게이트 뒤 DEPLOY_ONLY.
+
+## R45 — 측정 신호 피드백 통일: 안정도 하단 "신호 세기" 미터 (2026-08-03, ui-change · 직접)
+- REQUEST(사용자): "신호 약함"·"더 가까이" 중복 → 안정도 하단 "신호 세기" 하나로 통일(검토 후 confidence 미터).
+- CHANGED:
+  · measure-view.ts — measuring·weak-signal에 confidence:number 추가("UI 비노출" 결정 번복, 주석 갱신).
+  · machine.ts — EngineFrameView 두 kind + toEngineFrame + toMeasureView에 confidence 통과(estimate.confidence).
+  · SignalStrength.tsx(신규) — confidence 가로 막대(weak=약함 앰버 / measuring=양호·강 라임 / 비측정=빈 dim). role=img+aria-label, non-live.
+  · MeasurePage.tsx — 안정도 하단에 SignalStrength 배치, statusLabelKey weak-signal→'measuring'(상단 "신호 약함" 제거·깜빡임 제거).
+  · MeasureFigures.tsx — weak-signal "더 가까이 대주세요" 제거(→null).
+  · index.ts — SignalStrength export. StabilityGauge/MeasureActionDock test fixture에 confidence 추가.
+  · SignalStrength.test.tsx(신규) — 약함/강/양호/비측정 4건.
+- EVIDENCE: typecheck·lint 클린, 전체 vitest 37파일 296 PASS(+4), build OK. 프리뷰(측정 대기): 신호 세기 미터 안정도 하단·"더 가까이" 제거·상단 "측정 대기"·콘솔 무오류, 스크린샷.
+  활성 미터·Z1 "측정 중" 고정은 마이크 필요 DEPLOY_ONLY(unit 파생 고정). announcement.ts(SR)·엔진 임계 무접촉.
+- note: 동시 세션 무관, HEAD=R44 위에 쌓음.

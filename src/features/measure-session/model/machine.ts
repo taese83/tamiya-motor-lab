@@ -50,8 +50,10 @@ export type EngineFrameView =
       stabilityCv: number | null
       /** 순간 편차(바늘 실시간 떨림용) — 매 프레임 갱신. 창 미충족이면 null. 기록·등급 비관여 */
       microCv: number | null
+      /** R45: 신호 세기 미터용 신뢰도(0~1) */
+      confidence: number
     }
-  | {kind: 'weak-signal'; reason?: WeakReason}
+  | {kind: 'weak-signal'; reason?: WeakReason; confidence: number}
 
 export interface MachineSnapshot {
   readonly phase: SessionPhase
@@ -103,8 +105,13 @@ export function toMeasureView(snapshot: MachineSnapshot): MeasureView {
             measuredMs: snapshot.frame.measuredMs,
             stabilityCv: snapshot.frame.stabilityCv,
             microCv: snapshot.frame.microCv,
+            confidence: snapshot.frame.confidence,
           }
-        : {status: 'weak-signal', ...(snapshot.frame.reason !== undefined && {reason: snapshot.frame.reason})}
+        : {
+            status: 'weak-signal',
+            confidence: snapshot.frame.confidence,
+            ...(snapshot.frame.reason !== undefined && {reason: snapshot.frame.reason}),
+          }
     case 'awaiting-gesture':
       return {status: 'awaiting-gesture'}
     case 'no-permission':
@@ -152,9 +159,14 @@ export function toEngineFrame(estimate: DisplayEstimate, measuredMs: number): En
       isStable: estimate.status === 'stable',
       stabilityCv: estimate.stabilityCv,
       microCv: estimate.microVariation,
+      confidence: estimate.confidence,
     }
   }
-  return {kind: 'weak-signal', ...(estimate.weakReason !== undefined && {reason: estimate.weakReason})}
+  return {
+    kind: 'weak-signal',
+    confidence: estimate.confidence,
+    ...(estimate.weakReason !== undefined && {reason: estimate.weakReason}),
+  }
 }
 
 /**

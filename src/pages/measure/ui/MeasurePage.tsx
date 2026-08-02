@@ -22,6 +22,7 @@ import {
   MeasureActionDock,
   MeasureFigures,
   PermissionHelpDialog,
+  SignalStrength,
   StabilityGauge,
   deriveMeasureAction,
 } from '@features/measure-session/ui'
@@ -61,6 +62,9 @@ interface ShellOutletContext {
 
 // view 7종 → MeasureStatusLabel(measureStatusTokens) 키 매핑 — MeasureFigures.statusTokenKey와
 // 동일 규칙(component-spec v2 §2.3): starting·insecure·awaiting-gesture → 'idle'.
+// R45(사용자): weak-signal은 상단에서 "신호 약함"으로 표시하지 않는다 — 약신호는 안정도 하단
+// 신호 세기 미터로 통일했다. 세션 중(running) 상단은 "측정 중"으로 고정해 measuring↔weak 깜빡임을 없앤다.
+// (SR은 announcement 채널이 여전히 신호 약함 전이를 role="status"로 전달한다.)
 function statusLabelKey(
   view: MeasureView,
 ): 'idle' | 'measuring' | 'weak-signal' | 'no-permission' | 'suspended' {
@@ -69,6 +73,8 @@ function statusLabelKey(
     case 'insecure':
     case 'awaiting-gesture':
       return 'idle'
+    case 'weak-signal':
+      return 'measuring'
     default:
       return view.status
   }
@@ -241,6 +247,11 @@ export function MeasurePage() {
         {/* [Z2b] 변동률 게이지 — 파노 게이지와 별개, 아래쪽 축소 아크 (v2.x 사용자 req) */}
         <Box sx={{mt: 1}}>
           <StabilityGauge view={view} />
+        </Box>
+
+        {/* [Z2c] 신호 세기 미터 (R45 사용자) — 안정도 하단. "신호 약함"·"더 가까이"를 하나로 통일 */}
+        <Box sx={{mt: 0.5}}>
+          <SignalStrength view={view} />
         </Box>
 
 
