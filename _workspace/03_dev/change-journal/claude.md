@@ -225,3 +225,18 @@
 - **별건 발견(scope 밖·보고)**: AI 추천 "2.58→2.6"은 **clampVoltage 바닥 클램프**(VOLTAGE_ADVICE_RANGE.min=2.6,
   voltage-advisor.ts:87 / recommend-voltage.js:21). 의도된 도메인 규칙(하한 2.6V)이나 R31 속도 유지 이후 파노 높은
   모터는 2.6 미만이 정당하게 산출될 수 있어 하한이 과할 수 있음 — 하향 여부는 도메인 결정 대상, 사용자 확인 후 별도 라운드.
+
+## 2026-08-02 R34 /api 캐시 금지 — 304·stale 응답 수정 — 직접 구현 (bug-fix/프로덕션)
+- **사용자 제보**: 모터·레이스 진입 시 "모터 목록을 불러오지 못했습니다" 지속 + "서버가 304를 전달하는 것 같다".
+- **진단**: vercel.json `/:path*` catch-all의 `Cache-Control: no-cache`가 /api/data·/api/auth/session까지 적용 —
+  인증 사용자별 JSON이 브라우저 캐시+ETag 재검증 대상 → 304(빈 본문). iOS Safari는 fetch에 304를 노출하는
+  알려진 버그 → sync-client `!res.ok → null`로 pull 상시 실패 → 서버 정본 복구 경로 차단(로컬 오류 고착).
+  session도 캐시된 authenticated:false 재사용 위험 동일.
+- MODIFIED: vercel.json — `/api/(.*)` 헤더 블록 신설 `Cache-Control: private, no-store`(catch-all 뒤, 동일 키 override). assets immutable 유지.
+- MODIFIED: api/data.js·api/auth/session.js — 핸들러 선두 `res.setHeader('Cache-Control','private, no-store')`(서버 정본 방어).
+- MODIFIED: src/features/sync/api/sync-client.ts(pull)·src/features/auth/model/useSession.ts — fetch `cache: 'no-store'` —
+  기존 캐시된 ETag 엔트리 무시(조건부 요청 자체가 안 나가 304 소멸), 배포 즉시 회복.
+- 보존: 응답 body·상태코드·클라 파싱·pull 실패=null 조용 수렴 계약 전부 불변(헤더·fetch 옵션만).
+- EVIDENCE: Node22 게이트 4종 PASS(260) + check-iterate-scope OK(source 4건+vercel.json).
+  ⚠️ 304 소멸·목록 회복은 DEPLOY_ONLY — 배포 후 Network에서 /api/* 항상 200(no-store)·목록 로드 확인.
+  잔여 가설: 서버 데이터 자체가 클라 스키마 위반이면 오류 지속 — 그 경우 콘솔 오류 캡처로 2차 진단(replaceDomainSnapshot 무검증 저장은 후속 하드닝 후보).

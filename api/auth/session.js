@@ -2,6 +2,8 @@
 import {readSessionCookie, verifySession} from '../_lib/session.js'
 
 export default async function handler(req, res) {
+  // R34: 세션 상태는 절대 캐시 금지 — 캐시되면 로그인 후에도 authenticated:false가 재사용될 수 있다.
+  res.setHeader('Cache-Control', 'private, no-store')
   const token = readSessionCookie(req.headers.cookie)
   const payload = token ? await verifySession(token) : null
   if (!payload) {

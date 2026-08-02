@@ -6,7 +6,9 @@ import type {DomainSnapshot} from '@shared/lib/persistence'
 /** 서버 정본 스냅샷 조회. 실패·비인증(401)·미가용이면 null */
 export async function pullServerData(): Promise<DomainSnapshot | null> {
   try {
-    const res = await fetch('/api/data', {credentials: 'same-origin'})
+    // R34: cache 'no-store' — 브라우저에 남은 ETag 캐시 엔트리를 무시하고 항상 원본 요청.
+    // (조건부 요청이 안 나가므로 304 자체가 생기지 않는다 — iOS Safari 304 노출 버그 회피)
+    const res = await fetch('/api/data', {credentials: 'same-origin', cache: 'no-store'})
     if (!res.ok) return null
     const data: unknown = await res.json()
     if (typeof data !== 'object' || data === null) return null

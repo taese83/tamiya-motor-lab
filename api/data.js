@@ -6,6 +6,9 @@ import {requireSession} from './_lib/authGuard.js'
 import {getUserData, replaceUserData} from './_lib/db.js'
 
 export default async function handler(req, res) {
+  // R34: 사용자별 인증 JSON — 절대 캐시 금지. catch-all no-cache가 ETag 재검증(304 빈 본문)을
+  // 유발해 iOS Safari fetch가 304를 받으면 pull이 상시 실패하던 프로덕션 장애의 서버측 방어.
+  res.setHeader('Cache-Control', 'private, no-store')
   const session = await requireSession(req, res)
   if (!session) return // 401 이미 전송
 

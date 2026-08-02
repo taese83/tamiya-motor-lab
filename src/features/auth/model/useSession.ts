@@ -17,7 +17,8 @@ interface SessionResponse {
 
 async function fetchSession(): Promise<AuthUser | null> {
   try {
-    const res = await fetch('/api/auth/session', {credentials: 'same-origin'})
+    // R34: cache 'no-store' — 세션 응답이 캐시/재검증(304)되면 로그인 상태가 stale로 표시된다
+    const res = await fetch('/api/auth/session', {credentials: 'same-origin', cache: 'no-store'})
     if (!res.ok) return null
     const data = (await res.json()) as SessionResponse
     return data.authenticated && data.user ? data.user : null

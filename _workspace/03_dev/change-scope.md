@@ -2328,3 +2328,24 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   실기기 +/− 2자리 조정 체감·AI 추천 2자리 표기는 DEPLOY_ONLY.
 - 별건 발견(보고): AI 추천 2.58→2.6은 clampVoltage 바닥 클램프(VOLTAGE_ADVICE_RANGE.min=2.6) — 의도된 규칙이나
   R31 이후 파노 높은 모터에 과할 수 있음. 하한 하향 여부는 사용자 결정 대상(이번 scope 밖).
+
+## R34 — API 응답 캐시 금지: /api 304·stale 응답 수정 (2026-08-02, bug-fix/프로덕션)
+- CHANGE_MODE: existing-change
+- REQUEST: 모터·레이스 진입 시 "모터 목록을 불러오지 못했습니다" 지속 + 사용자 관측 "서버가 304를 전달".
+- OBSERVED_BASELINE(진단): vercel.json `/:path*` catch-all이 `Cache-Control: no-cache`를 **/api/data·/api/auth/session까지** 적용 —
+  인증된 사용자별 JSON이 브라우저 캐시+ETag 재검증 대상 → 304(빈 본문). iOS Safari는 fetch에 304를 노출하는 알려진 버그 →
+  sync-client `if (!res.ok) return null`에서 pull 상시 실패(304≠ok) → 서버 정본 복구 경로 차단(로컬 오류 고착).
+  session도 동일: 캐시된 `authenticated:false` 재사용 가능. 서버 핸들러(data.js·session.js)는 Cache-Control 미설정.
+- TARGET_BEHAVIOR: /api 응답은 절대 캐시되지 않는다 —
+  ① vercel.json에 `/api/(.*)` 헤더 블록 `Cache-Control: private, no-store`(catch-all보다 뒤, 동일 키 override)
+  ② api/data.js·api/auth/session.js 핸들러가 `res.setHeader('Cache-Control','private, no-store')`(서버 정본, 설정 실수 방어)
+  ③ 클라이언트 fetch `cache: 'no-store'`(sync-client pull·useSession) — 이미 캐시된 ETag 엔트리 무시, 배포 즉시 회복.
+- ALLOWED_PATHS: vercel.json · api/data.js · api/auth/session.js · src/features/sync/api/sync-client.ts · src/features/auth/model/useSession.ts
+- PUBLIC_CONTRACTS_TO_PRESERVE: 응답 body·상태코드·클라 파싱 로직 전부 불변(헤더·fetch 옵션만) · assets immutable 캐시 유지 ·
+  pull 실패=null 조용 수렴 계약 유지 · 정적 리소스 no-cache catch-all 유지.
+- NON_GOALS: replaceDomainSnapshot 검증 추가(후속 후보), ETag 커스텀 구현, 다른 API 핸들러(POST는 캐시 비대상).
+- CHANGE_BUDGET: 파일 5, 커밋 1. 직접 구현(헤더·fetch 옵션 기계적 수정).
+- TEST_EVIDENCE: LOCAL — 게이트 4종 + 기존 테스트 무회귀(동작 로직 불변). **304 소멸·목록 회복은 DEPLOY_ONLY** —
+  배포 후 Network에서 /api/data·/api/auth/session이 항상 200(no-store)인지, 목록 정상 로드 확인.
+  ⚠️ 잔여 가설: 로컬 IndexedDB에 이미 나쁜 행이 있다면 pull 회복(서버 우선 교체)으로 해소되지만,
+  서버 데이터 자체가 클라 스키마 위반이면 오류 지속 — 그 경우 콘솔 오류 캡처 요청해 2차 진단.
