@@ -14,6 +14,7 @@ const BASE: RaceInsight = {
   kind: 'ready',
   finishedBand: null,
   lastFinishedVoltage: null,
+  lastFinishedPanoHz: null,
   streak: [],
   trend: {lapTimeMs: null, panoHz: null},
   excluded: {resultPending: 0, lapTimeMissing: 0},
@@ -31,9 +32,10 @@ describe('RaceInsightCard', () => {
   })
 
   it("insufficient(1~2건)는 축약 1줄 — '추세' 단어·[보는 법]·흐름 없이 있는 사실만", () => {
-    renderCard({kind: 'insufficient', lastFinishedVoltage: 2.8})
+    renderCard({kind: 'insufficient', lastFinishedVoltage: 2.8, lastFinishedPanoHz: 512})
 
-    expect(screen.getByText('최근 완주 2.80 V')).toBeInTheDocument() // formatVoltage 자릿수 일치
+    // R37: 파노·전압을 짝으로 — formatFanoHz·formatVoltage 자릿수 일치
+    expect(screen.getByText('최근 완주 512.0 Hz · 2.80 V')).toBeInTheDocument()
     expect(screen.getByText(/기록이 더 쌓이면 흐름이 보여요/)).toBeInTheDocument()
     expect(screen.queryByText(/추세/)).toBeNull() // 오독 방지 — '추세' 금지
     expect(screen.queryByText(/최근 흐름/)).toBeNull()
@@ -44,13 +46,16 @@ describe('RaceInsightCard', () => {
     renderCard({
       finishedBand: {minVoltage: 2.8, maxVoltage: 3.2, sampleCount: 4},
       lastFinishedVoltage: 3.0,
+      lastFinishedPanoHz: 520,
       streak: ['finished', 'retired', 'finished'],
       trend: {lapTimeMs: 'improving', panoHz: 'steady'},
       excluded: {resultPending: 1, lapTimeMissing: 0},
     })
 
     expect(screen.getByRole('region', {name: '레이스 요약'})).toBeInTheDocument()
-    // 주 강조 — 라벨+수치(formatVoltage 2자리)
+    // R37 — 파노·전압 2개 히어로(라벨+수치, formatFanoHz/formatVoltage 자릿수)
+    expect(screen.getByText('최근 완주 파노')).toBeInTheDocument()
+    expect(screen.getByText('520.0 Hz')).toBeInTheDocument()
     expect(screen.getByText('최근 완주 전압')).toBeInTheDocument()
     expect(screen.getByText('3.00 V')).toBeInTheDocument()
     // 완주 전압대 — 단위는 말미 1회, en dash 연결

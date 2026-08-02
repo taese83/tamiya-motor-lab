@@ -31,6 +31,7 @@ const INSIGHT: RaceInsight = {
   kind: 'ready',
   finishedBand: {minVoltage: 2.7, maxVoltage: 3.0, sampleCount: 4},
   lastFinishedVoltage: 3.0,
+  lastFinishedPanoHz: 480,
   streak: ['finished', 'retired', 'finished'],
   trend: {lapTimeMs: null, panoHz: null},
   excluded: {resultPending: 0, lapTimeMissing: 0},

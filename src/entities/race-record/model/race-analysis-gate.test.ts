@@ -33,6 +33,7 @@ function insightOf(kind: RaceInsight['kind']): RaceInsight {
     kind,
     finishedBand: null,
     lastFinishedVoltage: null,
+    lastFinishedPanoHz: null,
     streak: [],
     trend: {lapTimeMs: null, panoHz: null},
     excluded: {resultPending: 0, lapTimeMissing: 0},

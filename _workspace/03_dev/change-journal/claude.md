@@ -353,3 +353,19 @@
 - 위임 note: Slice A(MotorPickSheet)를 component-builder(fable)에 위임 — 컴포넌트+테스트 작성 완료 후 Fable 5 한도로 종료.
   산출물 검수(라벨·계약·마크업 보존) 후 오케스트레이터가 그대로 채택. Slice B(로그인 게이트)는 직접.
 - 라운드 note: 동시 세션 recommend-voltage(R35)가 8e95fba로 change-scope·claude.md 저널 포함 커밋됨 — 내 R39 소스 5파일만 스테이징.
+
+## 2026-08-02 R37 인사이트 카드 파노 히어로 — 직접 구현 (feature/ui)
+- **사용자 요청**: "레이스 카드 정보에 모터 파노도 전압과 같이 히어로로 — 파노값도 아주 중요해." 파노 히어로 값 = 최근 완주 파노(사용자 선택, 전압 히어로와 짝).
+- MODIFIED:
+  · src/entities/race-record/model/race-insight.ts — RaceInsight에 `lastFinishedPanoHz: number|null` additive.
+    computeRaceInsight 1-pass에서 최신순 첫 완주 회차에 lastFinishedVoltage와 **같은 회차의 panoHz**를 함께 잡음(재정렬 없음).
+  · src/features/race-record/ui/RaceInsightCard.tsx — ready 1행을 [최근 완주 파노][최근 완주 전압] 2열 히어로로
+    (파노 text.primary·전압 primary.main 강조 유지), 완주 전압대는 전압 히어로 아래 보조로 이동. insufficient 축약도
+    "최근 완주 {파노} · {전압}". formatFanoHz import 추가.
+- 픽스처 갱신(신규 필수 필드 6파일): race-insight.test(파노 480 구분값 단언·완주0건 null)·RaceInsightCard.test
+  (2 히어로·insufficient 짝)·analyze-race-payload.test·analyze-race.test·race-goal-recommend.test·race-analysis-gate.test.
+- 보존: RaceInsight 기존 필드·kind 분기·empty=null·완주0건 "완주 기록 없음"·formatVoltage 자릿수·onOpenHelp·[보는 법]·
+  서버 동기화/스키마 불변(파생 파노는 IndexedDB 원본에서 계산). RaceRecordRow·RaceMotorList 무변경(파노 이미 주값).
+- EVIDENCE: Node22 게이트 4종 PASS(typecheck·lint·**test 282**·build) — 동시 세션 measure 오류 해소 후 전체 클린 + check-iterate-scope OK.
+  카드 실화면(2열 히어로 폭·정렬)은 로그인 게이트 뒤 DEPLOY_ONLY — render 테스트로 계약 고정, 배포 후 시각 튜닝 가능.
+- 라운드 note: R35(AI 방향 가드)에 이어 본 라운드 R37(동시 세션이 R34·R36대 번호 사용 가능 — 커밋 해시로 구분). R36(AI 추천 항목)은 다음.

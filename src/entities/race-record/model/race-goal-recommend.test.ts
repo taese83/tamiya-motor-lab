@@ -38,6 +38,7 @@ function insightOf(
     kind,
     finishedBand: null,
     lastFinishedVoltage: null,
+    lastFinishedPanoHz: null,
     streak: overrides.streak ?? [],
     trend: {lapTimeMs: overrides.lapTimeTrend ?? null, panoHz: null},
     excluded: {resultPending: 0, lapTimeMissing: 0},

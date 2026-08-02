@@ -31,6 +31,7 @@ describe('computeRaceInsight — kind 경계 (F1·F2, REQ-RI-004)', () => {
       kind: 'empty',
       finishedBand: null,
       lastFinishedVoltage: null,
+      lastFinishedPanoHz: null,
       streak: [],
       trend: {lapTimeMs: null, panoHz: null},
       excluded: {resultPending: 0, lapTimeMissing: 0},
@@ -56,7 +57,7 @@ describe('computeRaceInsight — kind 경계 (F1·F2, REQ-RI-004)', () => {
 describe('computeRaceInsight — ready 집계 (F3·F4·F6·보강A, REQ-RI-001·002·005)', () => {
   it('F3: 완주·이탈 혼재 — band는 전체 finished, streak는 최신순 상한 5건', () => {
     const races = racesDesc([
-      {result: 'finished', voltage: 3.0}, // 최신 완주 → lastFinishedVoltage
+      {result: 'finished', voltage: 3.0, panoHz: 480}, // 최신 완주 → lastFinished{Voltage,PanoHz}
       {result: 'retired', voltage: 3.1},
       {result: 'finished', voltage: 2.8},
       {result: 'finished', voltage: 3.2},
@@ -68,6 +69,8 @@ describe('computeRaceInsight — ready 집계 (F3·F4·F6·보강A, REQ-RI-001·
     expect(insight.kind).toBe('ready')
     expect(insight.finishedBand).toEqual({minVoltage: 2.7, maxVoltage: 3.2, sampleCount: 4})
     expect(insight.lastFinishedVoltage).toBe(3.0)
+    // R37 — 같은 최신 완주 회차의 파노(구분값 480 — 기본 300과 다름 → 올바른 회차에서 뽑음 확인)
+    expect(insight.lastFinishedPanoHz).toBe(480)
     // 입력 목록과 같은 최신순 — 재정렬 없음, 상한 5건에서 잘린다
     expect(insight.streak).toEqual(['finished', 'retired', 'finished', 'finished', 'retired'])
   })
@@ -112,6 +115,7 @@ describe('computeRaceInsight — ready 집계 (F3·F4·F6·보강A, REQ-RI-001·
     expect(insight.kind).toBe('ready')
     expect(insight.finishedBand).toBeNull()
     expect(insight.lastFinishedVoltage).toBeNull()
+    expect(insight.lastFinishedPanoHz).toBeNull() // R37 — 완주 0건이면 파노 기준점도 null
     expect(insight.streak).toEqual(['retired', 'retired', 'retired'])
     expect(insight.excluded.resultPending).toBe(1)
   })

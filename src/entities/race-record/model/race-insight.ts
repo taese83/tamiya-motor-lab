@@ -31,6 +31,8 @@ export interface RaceInsight {
   finishedBand: {minVoltage: number; maxVoltage: number; sampleCount: number} | null
   /** 가장 최근 완주 회차의 전압 — 최신순 첫 finished. finished 0건이면 null */
   lastFinishedVoltage: number | null
+  /** R37: 같은 최근 완주 회차의 파노(Hz) — 전압과 짝을 이루는 성공 세팅 기준점. finished 0건이면 null */
+  lastFinishedPanoHz: number | null
   /** 결과 흐름 — result 미정(undefined) 제외, 최신순, 표시 상한 STREAK_LIMIT(5)건 */
   streak: ReadonlyArray<'finished' | 'retired'>
   /** DL-013: 표본 = selectAdviceWindow(races). 지표 결측 회차 제외, 보유 표본 <3이면 null */
@@ -86,6 +88,7 @@ export function computeRaceInsight(races: ReadonlyArray<RaceRecord>): RaceInsigh
   let maxVoltage = Number.NEGATIVE_INFINITY
   let finishedCount = 0
   let lastFinishedVoltage: number | null = null
+  let lastFinishedPanoHz: number | null = null
   const streak: Array<'finished' | 'retired'> = []
   let resultPending = 0
   let lapTimeMissing = 0
@@ -98,7 +101,10 @@ export function computeRaceInsight(races: ReadonlyArray<RaceRecord>): RaceInsigh
     if (streak.length < STREAK_LIMIT) streak.push(race.result)
     if (race.result === 'finished') {
       finishedCount += 1
-      if (lastFinishedVoltage === null) lastFinishedVoltage = race.voltage // 최신순 첫 완주
+      if (lastFinishedVoltage === null) {
+        lastFinishedVoltage = race.voltage // 최신순 첫 완주
+        lastFinishedPanoHz = race.panoHz // R37: 같은 회차의 파노(성공 세팅 기준점)
+      }
       if (race.voltage < minVoltage) minVoltage = race.voltage
       if (race.voltage > maxVoltage) maxVoltage = race.voltage
       // 계약(D3): lapTimeMissing은 **finished 회차 중** 랩타임 결측 수 — 추세 표본 결측 고지용
@@ -119,6 +125,7 @@ export function computeRaceInsight(races: ReadonlyArray<RaceRecord>): RaceInsigh
     kind: resolveKind(races.length),
     finishedBand: finishedCount > 0 ? {minVoltage, maxVoltage, sampleCount: finishedCount} : null,
     lastFinishedVoltage,
+    lastFinishedPanoHz,
     streak,
     trend: {
       lapTimeMs: resolveTrend(lapTimesDesc, 'lower'),

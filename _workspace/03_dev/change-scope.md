@@ -2486,3 +2486,38 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - TEST_EVIDENCE: LOCAL — 어댑터 방향 방어 유닛(fetch mock: 위반 2.82→휴리스틱 / 2.5→AI / speed 3.2→AI) + 게이트 4종.
   실 LLM 응답 품질·프롬프트 준수는 DEPLOY_ONLY. 방향 방어는 LLM이 틀려도 결정론적으로 보장(유닛 커버).
 - tolerance: 0.06V(3스텝) — 미세 LLM 조정은 허용, 2.81 vs 2.6 같은 총체적 위반만 폴백.
+
+### R37 인사이트 카드 파노 히어로 (feature/ui, 2026-08-02)
+- TARGET_BEHAVIOR: 레이스 인사이트 카드에 "최근 완주 파노"를 "최근 완주 전압"과 나란히 동급 히어로로 표시
+  (사용자: "파노값도 아주 중요해"). 파노 = 최근 완주 전압과 같은 회차의 파노(성공 세팅 기준점).
+- ALLOWED_PATHS:
+  · src/entities/race-record/model/race-insight.ts — RaceInsight에 `lastFinishedPanoHz: number|null` additive,
+    computeRaceInsight가 최신순 첫 완주에서 전압과 함께 파노를 잡음(1-pass, 재정렬 없음).
+  · src/features/race-record/ui/RaceInsightCard.tsx — ready 1행을 [파노 히어로][전압 히어로] 2열로,
+    전압대는 전압 히어로 아래 보조로 이동. insufficient 축약도 "최근 완주 {파노} · {전압}"으로.
+  · 픽스처 갱신(신규 필수 필드): race-insight.test·RaceInsightCard.test·analyze-race-payload.test·
+    analyze-race.test·race-goal-recommend.test·race-analysis-gate.test.
+- PUBLIC_CONTRACTS_TO_PRESERVE: RaceInsight 기존 필드·kind 분기·finishedBand·trend·streak·excluded·
+  formatVoltage/formatFanoHz 자릿수·empty=null·완주0건 "완주 기록 없음"·onOpenHelp·[보는 법] 배선.
+- NON_GOALS: RaceRecordRow·RaceMotorList 레이아웃 변경(파노 이미 주값), 서버 동기화·스키마 변경, 파노 값 출처 변경(완주 파노 확정).
+- CHANGE_BUDGET: 소스 2 + 픽스처 6, 커밋 1. 직접 구현(엔티티 additive + 카드 레이아웃).
+- TEST_EVIDENCE: LOCAL — insight lastFinishedPanoHz 단언(구분값 480) + 카드 render(파노·전압 2 히어로, insufficient 짝) + 게이트.
+  실화면 레이아웃(2열 히어로 폭·정렬)은 로그인 게이트 뒤 DEPLOY_ONLY — 프리뷰 불가, render 테스트로 계약 고정. 배포 후 시각 튜닝 가능.
+
+## R40 — 모터 픽 드로어 높이 50vh 고정 + 리스트 내부 스크롤 (2026-08-02, ui-change)
+- CHANGE_MODE: existing-change
+- REQUEST(사용자): [기록] 눌렀을 때 뜨는 드로어 높이를 화면의 1/2(50vh)로 고정하고, 모터 리스트는 그 안에서 스크롤.
+- OBSERVED_BASELINE: BottomSheet는 콘텐츠 높이에 맞춰 자라며(고정 높이 없음), MotorPickSheet는 리스트만 maxHeight:50vh로 감쌌다 —
+  스냅샷/탭/버튼까지 더해지면 시트 총높이가 가변이고, 항목이 적으면 시트가 얇아 [기록] 흐름의 높이가 들쭉날쭉.
+- TARGET_BEHAVIOR:
+  ① BottomSheet에 선택적 `height` prop 추가 — 지정 시 Drawer paper를 그 높이로 고정하고 내부를 flex 컬럼으로 만들어
+     콘텐츠가 스크롤 영역을 소유하게 한다. 미지정(기본)이면 종전 콘텐츠 높이 자동(등록/목표/레이스 시트 무변).
+  ② MotorPickSheet가 height="50vh" 전달. 내부 재구성: 스냅샷/에러/탭/버튼은 flexShrink:0 고정,
+     모터 리스트 영역만 flex:1·minHeight:0·overflowY:auto로 스크롤. [+ 새 모터 추가]는 하단 고정 유지(R39 계약).
+- ALLOWED_PATHS: src/shared/ui/bottom-sheet/BottomSheet.tsx · src/features/collect-measure/ui/MotorPickSheet.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: BottomSheetProps 기존 필드(open/title/onClose/onOpened/children)·height는 선택(기본 동작 불변)·
+  MotorPickSheet props·R39 종류탭·하단 상시 버튼·스냅샷/에러/pending/onSelect/onRequestRegister·표시-기록 일치·정렬 금지.
+- NON_GOALS: 다른 3개 시트(폼·목표·레이스) 높이 변경, 픽 시트 로직/필터 변경, 테마 MuiDrawer 기본값 변경.
+- CHANGE_BUDGET: 소스 2, 커밋 1. 직접 구현(레이아웃/CSS).
+- TEST_EVIDENCE: LOCAL — 기존 MotorPickSheet render 6건·전체 게이트 4종 회귀 통과(구조 유지) + 프리뷰 미로그인 회귀(R39 캡션·무오류).
+  열린 시트의 50vh 고정·리스트 스크롤 실측은 DEPLOY_ONLY(로컬은 마이크·로그인 없이 [기록]→시트 오픈 불가) — 레이아웃은 결정론적 flex 계약.

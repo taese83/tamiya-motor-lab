@@ -3,7 +3,7 @@ import {Fragment, useId} from 'react'
 
 import {RACE_RESULT_LABELS} from '@shared/config/domain'
 import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
-import {formatVoltage} from '@shared/lib/format'
+import {formatFanoHz, formatVoltage} from '@shared/lib/format'
 
 import type {RaceInsight, TrendDir} from '@entities/race-record'
 
@@ -89,10 +89,10 @@ export function RaceInsightCard({
             fontVariantNumeric: 'tabular-nums lining-nums',
             wordBreak: 'keep-all',
           }}>
-          {insight.lastFinishedVoltage !== null && (
+          {insight.lastFinishedVoltage !== null && insight.lastFinishedPanoHz !== null && (
             <>
               <Box component="span" sx={{color: 'text.primary', fontWeight: 600}}>
-                최근 완주 {formatVoltage(insight.lastFinishedVoltage)}
+                최근 완주 {formatFanoHz(insight.lastFinishedPanoHz)} · {formatVoltage(insight.lastFinishedVoltage)}
               </Box>
               {' · '}
             </>
@@ -133,7 +133,7 @@ export function RaceInsightCard({
     )
   }
 
-  const {finishedBand, lastFinishedVoltage, streak, trend, excluded} = insight
+  const {finishedBand, lastFinishedVoltage, lastFinishedPanoHz, streak, trend, excluded} = insight
   // 추세 — 하나라도 non-null일 때만 줄 노출, 둘 다 null이면 줄 자체 생략(침묵 원칙)
   const trendParts: string[] = []
   if (trend.lapTimeMs !== null) trendParts.push(TREND_LAP_LABELS[trend.lapTimeMs])
@@ -145,38 +145,48 @@ export function RaceInsightCard({
       aria-label="레이스 요약"
       variant="outlined"
       sx={{px: 2, py: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75}}>
-      {/* 1행 — 주 강조(최근 완주 전압, 유일한 큰 수치) + 우측 보조(완주 전압대).
-          sr은 DOM 순서로 "최근 완주 전압 → 값"을 읽는다(라벨이 수치 맥락 제공). */}
+      {/* 1행 — 성공 세팅 기준점: 최근 완주 파노·전압을 나란히 큰 수치로(R37, "파노도 아주 중요").
+          전압대는 전압 히어로 아래 보조. sr은 DOM 순서로 라벨→값을 읽는다(라벨이 수치 맥락 제공). */}
       <Box sx={{display: 'flex', alignItems: 'flex-start', gap: 1.5}}>
         {lastFinishedVoltage !== null ? (
-          <Box sx={{minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 0.25}}>
-            <Typography
-              variant="overline"
-              component="span"
-              sx={{color: 'text.secondary', lineHeight: 1}}>
-              최근 완주 전압
-            </Typography>
-            <Typography component="span" sx={{...numericTypography.guideRange, color: 'primary.main'}}>
-              {formatVoltage(lastFinishedVoltage)}
-            </Typography>
-          </Box>
+          <>
+            {lastFinishedPanoHz !== null && (
+              <Box sx={{minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 0.25}}>
+                <Typography
+                  variant="overline"
+                  component="span"
+                  sx={{color: 'text.secondary', lineHeight: 1}}>
+                  최근 완주 파노
+                </Typography>
+                <Typography component="span" sx={{...numericTypography.guideRange, color: 'text.primary'}}>
+                  {formatFanoHz(lastFinishedPanoHz)}
+                </Typography>
+              </Box>
+            )}
+            <Box sx={{minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 0.25}}>
+              <Typography
+                variant="overline"
+                component="span"
+                sx={{color: 'text.secondary', lineHeight: 1}}>
+                최근 완주 전압
+              </Typography>
+              <Typography component="span" sx={{...numericTypography.guideRange, color: 'primary.main'}}>
+                {formatVoltage(lastFinishedVoltage)}
+              </Typography>
+              {finishedBand !== null && (
+                <Typography
+                  component="span"
+                  variant="body2"
+                  sx={{color: 'text.secondary', fontVariantNumeric: 'tabular-nums lining-nums'}}>
+                  {finishedBandLabel(finishedBand)}
+                </Typography>
+              )}
+            </Box>
+          </>
         ) : (
-          // ready인데 완주 0건(전부 이탈) — 강조 대신 조용히. finishedBand도 함께 null이라 우측 생략.
+          // ready인데 완주 0건(전부 이탈) — 강조 대신 조용히. 파노·finishedBand도 함께 null.
           <Typography variant="body2" sx={{flex: 1, color: 'text.secondary'}}>
             완주 기록 없음
-          </Typography>
-        )}
-        {finishedBand !== null && (
-          <Typography
-            component="span"
-            variant="body2"
-            sx={{
-              color: 'text.secondary',
-              flexShrink: 0,
-              textAlign: 'right',
-              fontVariantNumeric: 'tabular-nums lining-nums',
-            }}>
-            {finishedBandLabel(finishedBand)}
           </Typography>
         )}
       </Box>
