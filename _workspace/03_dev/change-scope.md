@@ -2444,3 +2444,45 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 파일 3, 커밋 1. 직접 구현(스키마 drift 정합 단일 수정).
 - TEST_EVIDENCE: LOCAL — 사용자 실제 /api/data 전체를 3 스키마로 검증(수정 후 0 실패) + summaryRaceRowSchema 회귀 unit
   (result 없는 레이스 통과) + 게이트 4종. 실기기 목록 로드는 DEPLOY_ONLY.
+
+## R39 — 측정 [기록] 로그인 게이트 + 모터 픽 드로어 종류탭·하단 추가버튼 (2026-08-02, feature/ui-change)
+- CHANGE_MODE: existing-change
+- REQUEST: ① 측정 [기록] 버튼은 로그인 전 미노출 ② 로그인 후 [기록] → 모터 있으면 종류별 탭 분류·선택 ③ [새 모터 추가]는 드로어 하단 항상 표시.
+- OBSERVED_BASELINE: deriveMeasureAction(view, handoff, persistenceReady)이 measuring이면 항상 record 액션(로그인 무관).
+  MotorPickSheet는 종류 탭 없음 + [+ 새 모터 추가]가 motors>0 else 분기에만(0개는 EmptyState 액션).
+- TARGET_BEHAVIOR:
+  ① deriveMeasureAction에 loggedIn 추가 — record 결과 && !loggedIn이면 `{kind:'login-hidden'}`. MeasureActionDock가
+     login-hidden이면 [기록] 버튼 대신 h56 고정 슬롯에 "로그인 후 기록할 수 있어요" 캡션(버튼 미노출·레이아웃 불변).
+     record 외 액션(activate/permission/resume/back-to-origin)은 로그인 무관 그대로.
+  ② MotorPickSheet: 서로 다른 종류 ≥2면 MUI Tabs [전체+존재 종류](인라인, FSD 상 feature 간 import 회피, MOTOR_KIND_LABELS 사용)
+     로 목록을 필터. 필터 결과 0이면 "이 종류의 모터가 없습니다". 목록은 스크롤 영역(maxHeight).
+  ③ [+ 새 모터 추가]를 조건부 밖으로 빼서 스크롤 영역 아래 **항상** 렌더. 0개는 EmptyState 액션 대신 중립 문구+하단 버튼.
+- ALLOWED_PATHS: src/features/measure-session/ui/MeasureActionDock.tsx · src/features/measure-session/ui/MeasureActionDock.test.tsx ·
+  src/pages/measure/ui/MeasurePage.tsx · src/features/collect-measure/ui/MotorPickSheet.tsx · src/features/collect-measure/ui/MotorPickSheet.test.tsx(신규)
+- PUBLIC_CONTRACTS_TO_PRESERVE: MeasureActionDock 슬롯 h56 고정·record 외 액션·MotorPickSheet 스냅샷/에러/pending/onSelect/onRequestRegister 계약·
+  BottomSheet·정렬(재정렬 금지)·왕복 모드 INV-21(시트 렌더 0)·표시-기록 일치.
+- NON_GOALS: 종류 탭 상태 영속(로컬 UI state), 모터 리스트 페이지 변경, 로그인 흐름 변경, 서버 변경.
+- CHANGE_BUDGET: 소스 3 + 테스트 2, 커밋 1. 실행: 위임(Slice A: MotorPickSheet component-builder) ∥ 직접(Slice B: 로그인 게이트 dock+page).
+- TEST_EVIDENCE: LOCAL — 게이트 4종 + deriveMeasureAction 로그인 게이트 unit + MotorPickSheet render(탭 필터·하단 버튼 상시·빈 상태) +
+  프리뷰(비로그인 측정 화면에서 [기록] 미노출·캡션 실측). 로그인 후 픽 시트 실동작은 DEPLOY_ONLY(계약은 render 테스트).
+
+### R35 AI 추천 방향 안전장치 + 프롬프트 강화 (bug-fix, 2026-08-02)
+- TARGET_BEHAVIOR: [AI 추천](LLM/Haiku) 버튼이 파노 상승 시 완주·안정 전압을 오히려 올리는 문제 수정
+  (사용자: 파노 474→526인데 완주 추천 2.81). 원인은 배선·휴리스틱이 아니라 **작은 모델이 프롬프트의
+  파노↑→전압↓ 원칙을 어기고 "파노 높음=고전압" 직관으로 회귀**. 프롬프트만으론 Haiku에 불안정하므로
+  결정론적 방향 안전장치를 어댑터에 추가(하이브리드 폴백 구조의 자연 확장).
+- ALLOWED_PATHS:
+  · api/recommend-voltage.js — SYSTEM_PROMPT만: 파노↑→전압↓ 원칙 전면화(워크드 예시), 오해 유발
+    "전압↔속도 비례" 줄 제거→앵커 규칙으로 교체, 이탈=과속이라 완주·안정은 그보다 낮추라 강화,
+    완주 없을 때 이탈 S를 유지 목표로 삼지 말라 명시.
+  · src/features/race-record/api/recommend-voltage.ts — 방향 안전장치: goal≠speed에서 LLM 전압이
+    같은 goal 휴리스틱보다 tolerance 이상 높으면(파노↑→전압↓ 위반) LLM 결과 폐기→휴리스틱 폴백
+    (전압·근거 일관 유지, source='heuristic'). speed는 예외(높음이 목표).
+  · [신규] src/features/race-record/api/recommend-voltage.test.ts — 위반→폴백 / 기준 이하→AI 유지 / speed 예외.
+- PUBLIC_CONTRACTS_TO_PRESERVE: recommendVoltage 시그니처·VoltageAdvice shape·기존 실패 폴백·clampVoltage 재방어·
+  aiAdviceSchema·서버 응답 계약·클라 배선(source/rationale=helperText). 프롬프트 출력 JSON 스키마 불변.
+- NON_GOALS: 휴리스틱 로직 변경, 하한 2.6 변경, R34 파노 과다 신호 변경, speed 목표 상한 방어, 서버 응답 형식 변경.
+- CHANGE_BUDGET: 소스 2 + 테스트 1, 커밋 1. 직접 구현.
+- TEST_EVIDENCE: LOCAL — 어댑터 방향 방어 유닛(fetch mock: 위반 2.82→휴리스틱 / 2.5→AI / speed 3.2→AI) + 게이트 4종.
+  실 LLM 응답 품질·프롬프트 준수는 DEPLOY_ONLY. 방향 방어는 LLM이 틀려도 결정론적으로 보장(유닛 커버).
+- tolerance: 0.06V(3스텝) — 미세 LLM 조정은 허용, 2.81 vs 2.6 같은 총체적 위반만 폴백.

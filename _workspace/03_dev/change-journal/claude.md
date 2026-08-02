@@ -309,3 +309,25 @@
 - 보존: canonical raceRecordSchema·부팅 검증·R35 sanitize·정렬·rollup·result 있는 레이스 표시 문구 불변.
 - 관계 정리: R34(no-store)·R35(sanitize)·R36(branch)·R37(ts 정규화)는 방어적 하드닝(각자 유효)이었고, **R38이 이 장애의 진짜 원인 수정**.
 - EVIDENCE: Node22 게이트 4종 PASS(268, 회귀 2 신규). 실기기 목록 로드는 DEPLOY_ONLY — 배포 후 확인.
+
+## 2026-08-02 R35 AI 추천 방향 안전장치 + 프롬프트 강화 — 직접 구현 (bug-fix)
+- **사용자 제보**: 레이스 입력 폼 [AI 추천](LLM/Haiku) 버튼 — 파노 474→526 상승인데 완주 추천 전압을 2.81로 **올림**.
+  ("진입"이 아니라 전압 아래 [AI 추천] 버튼 경로임을 사용자가 확정). 파노 배선(currentPanoHz=마지막 측정=526)·
+  휴리스틱은 정상 — **작은 모델이 프롬프트의 파노↑→전압↓ 원칙을 어기고 "파노 높음=강한 모터=고전압" 직관으로 회귀**.
+- **판단**: Haiku에 반직관 규칙을 프롬프트만으로 강제하는 건 불안정. 어댑터가 이미 실패 시 휴리스틱 폴백하는
+  하이브리드 구조라, **방향 위반도 폴백 조건에 추가**해 결정론적으로 원칙을 보장.
+- MODIFIED:
+  · api/recommend-voltage.js — SYSTEM_PROMPT만: ① 파노↑→전압↓ 전면화("절대 파노 높다고 전압 높이지 마라")+
+    워크드 예시(470/3.0V→520서 2.71V) ② 오해 유발 "전압↔속도 비례" 줄 **제거**→앵커 규칙(현재 파노>완주 파노면
+    추천은 완주 전압보다 반드시 낮다)으로 교체 ③ 이탈=과속이라 완주·안정은 그 속도를 유지 목표로 삼지 말고 낮추라
+    (도메인+절차 1단계). 출력 스키마·제약·R34 신호·나머지 안전규칙 불변.
+  · src/features/race-record/api/recommend-voltage.ts — 방향 안전장치: goal≠speed에서 clampVoltage된 LLM 전압이
+    같은 goal 휴리스틱보다 DIRECTION_TOLERANCE_V(0.06=3스텝) 넘게 높으면 LLM 폐기→recommendVoltageHeuristic(input)
+    반환(전압·근거 일관, source=heuristic). speed는 예외. 기존 실패 폴백·clampVoltage 재방어·계약 불변.
+  · [신규] src/features/race-record/api/recommend-voltage.test.ts — fetch mock 4케이스: 위반(2.82)→휴리스틱 2.6 /
+    허용오차 내(2.64)→AI 유지 / speed(3.2)→AI / 네트워크 실패→휴리스틱.
+- EVIDENCE: 내 3파일 lint 클린 + 어댑터 테스트 4/4 격리 PASS + 전체 typecheck 오류가 **동시 세션 파일 2건**
+  (MeasureActionDock.test.tsx·MeasurePage.tsx — measure 도메인, 내 변경 무관)뿐임을 확인(내 파일 오류 0).
+  ⚠️ 전체 게이트(typecheck·build·test)는 동시 세션 미커밋 작업으로 red — 내 파일만 격리 검증 후 선택 커밋(R29 선례).
+  실 LLM 프롬프트 준수 개선은 DEPLOY_ONLY이나, **방향 보장은 LLM이 틀려도 어댑터가 결정론적으로 잡음**(유닛 커버).
+- 라운드 note: 동시 세션과 커밋 엉킴 방지 — 내 소스 3 + change-scope + 본 저널만 스테이징(measure/MotorPickSheet 제외).
