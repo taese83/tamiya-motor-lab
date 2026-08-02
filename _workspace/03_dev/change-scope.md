@@ -2418,3 +2418,12 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - ALLOWED_PATHS: src/app/SyncManager.tsx (분기 1곳)
 - CHANGE_BUDGET: 파일 1, 커밋 1. 직접 구현.
 - TEST_EVIDENCE: 게이트 4종 + 기존 sanitize unit 3건 무회귀. 실동작 DEPLOY_ONLY.
+
+## R37 — 서버 타임스탬프 ISO(Z) 정규화: pull 격리 근본 원인 수정 (2026-08-02, bug-fix/프로덕션)
+- OBSERVED_BASELINE(실측 확정): /api/data JSON은 정상인데 앱이 표시 불가 + 원인 캡션 "저장된 데이터를 읽을 수 없습니다"(data-corrupt).
+  실증: 클라 z.iso.datetime()은 offset('...+00:00', 'YYYY-MM-DD HH:MM:SS+00')·마이크로초 형식을 **거부**. 서버 getUserData가
+  created_at/updated_at/measured_at을 raw 반환 → 그 형식이 하나라도 섞이면 pull 행이 통째로 격리(R35)→로컬 붕괴.
+- TARGET_BEHAVIOR: getUserData가 모든 타임스탬프를 `new Date(v).toISOString()`(밀리초 Z)로 정규화 — offset·μs·Date 객체 무엇이 와도 클라 통과.
+- ALLOWED_PATHS: api/_lib/db.js (isoZ 헬퍼 + 3필드 적용).
+- PUBLIC_CONTRACTS_TO_PRESERVE: 응답 필드·정렬·격리 로직·클라 스키마 불변. 시각 의미 동일(UTC 순간 보존, 표기만 통일). μs 정밀도 손실은 앱이 ms만 쓰므로 무해.
+- TEST_EVIDENCE: LOCAL — isoZ 정규화 후 motorSchema 통과 실증(offset·μs·Date 4종 전부 OK) + 게이트 4종(266). 실기기 회복은 DEPLOY_ONLY.

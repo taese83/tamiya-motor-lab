@@ -28,6 +28,19 @@ export async function upsertUser(user) {
 
 // ─── 도메인 전체 스냅샷 (v2.40 Phase B) — 컬럼을 앱(IndexedDB) 레코드 형태로 alias, null 옵션 필드는 생략 ───
 
+/**
+ * R37 — 타임스탬프를 앱 저장 형식(ISO 8601 UTC, 밀리초 Z)으로 정규화한다.
+ * 클라 zod 스키마(z.iso.datetime())는 offset 형식('...+00:00', 'YYYY-MM-DD HH:MM:SS+00')과
+ * 마이크로초를 거부한다. 컬럼이 TEXT여도 다른 앱에서 유입되거나 드라이버가 Date로 파싱한 값이
+ * offset 형식으로 직렬화되면 pull된 행이 통째로 격리→로컬 붕괴(data-corrupt)로 이어졌다.
+ * new Date(v).toISOString()으로 어떤 유효 시각이든 '...Z' 밀리초 형식으로 통일한다.
+ */
+function isoZ(v) {
+  if (v == null) return v
+  const d = v instanceof Date ? v : new Date(v)
+  return Number.isNaN(d.getTime()) ? v : d.toISOString()
+}
+
 /** 사용자의 전체 도메인 데이터 조회 → {motors, measures, races} (IndexedDB 레코드 형태) */
 export async function getUserData(userId) {
   const q = sql()
@@ -46,8 +59,8 @@ export async function getUserData(userId) {
       name: m.name,
       kind: m.kind,
       sortOrder: Number(m.sortOrder),
-      createdAt: m.createdAt,
-      updatedAt: m.updatedAt,
+      createdAt: isoZ(m.createdAt),
+      updatedAt: isoZ(m.updatedAt),
       // JSONB는 드라이버가 파싱해 배열로 반환 — number[]로 정규화
       ...(Array.isArray(m.stabilityBestCvs) ? {stabilityBestCvs: m.stabilityBestCvs.map(Number)} : {}),
     })),
@@ -56,7 +69,7 @@ export async function getUserData(userId) {
       motorId: r.motorId,
       panoHz: Number(r.panoHz),
       rpm: Number(r.rpm),
-      measuredAt: r.measuredAt,
+      measuredAt: isoZ(r.measuredAt),
       ...(r.stabilityCv != null ? {stabilityCv: Number(r.stabilityCv)} : {}),
     })),
     // null 옵션 필드(result·lapTimeMs·goal·retireReason)는 생략 — IndexedDB의 undefined 생략 규칙과 일치
@@ -65,7 +78,7 @@ export async function getUserData(userId) {
       motorId: r.motorId,
       panoHz: Number(r.panoHz),
       voltage: Number(r.voltage),
-      createdAt: r.createdAt,
+      createdAt: isoZ(r.createdAt),
       ...(r.result != null ? {result: r.result} : {}),
       ...(r.lapTimeMs != null ? {lapTimeMs: Number(r.lapTimeMs)} : {}),
       ...(r.goal != null ? {goal: r.goal} : {}),

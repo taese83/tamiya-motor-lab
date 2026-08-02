@@ -284,3 +284,14 @@
 - MODIFIED: src/app/SyncManager.tsx — serverHasData 분기를 sanitize 후 → **raw 기준**으로. 전 행 격리 시에도
   서버 우선 교체가 수행돼 오염된 로컬이 정화된다(이전엔 시드 push로 역오염 + 로컬 교체 불발).
 - EVIDENCE: Node22 게이트 4종 PASS + sanitize unit 3건 무회귀. 실동작 DEPLOY_ONLY.
+
+## 2026-08-02 R37 서버 타임스탬프 ISO(Z) 정규화 — pull 격리 근본 원인 — 직접 구현 (bug-fix/프로덕션)
+- **확정(사용자 실측)**: /api/data JSON 정상인데 앱 표시 불가, 원인 캡션 data-corrupt. 실증으로 범인 특정: 클라
+  z.iso.datetime()이 offset('...+00:00'·'YYYY-MM-DD HH:MM:SS+00')·마이크로초를 거부 → 서버 raw 타임스탬프가
+  그 형식이면 pull 행 전량 격리→로컬 붕괴. (컬럼은 TEXT지만 타 앱 유입·드라이버 Date 직렬화로 offset 혼입 가능)
+- MODIFIED: api/_lib/db.js — `isoZ(v)=new Date(v).toISOString()`(NaN이면 원본 유지) 헬퍼 + motors.createdAt/updatedAt,
+  measures.measuredAt, races.createdAt에 적용. offset·μs·Date 무엇이 와도 '...Z' ms로 통일.
+- 실증: offset/μs+offset(KST)/Date 객체 4종 전부 정규화 후 motorSchema 통과(임시 probe, 삭제).
+- 보존: 응답 필드·정렬·클라 스키마·R35 격리 로직 불변. UTC 순간 보존(표기만 통일), μs 손실 무해(앱 ms만 사용).
+- EVIDENCE: Node22 게이트 4종 PASS(266). 실기기 회복은 DEPLOY_ONLY — 배포 후 pull이 정규화 값을 주므로
+  R35 격리 없이 정상 로드 기대. 기존에 격리로 비워진 로컬도 이번 pull에서 서버 우선 교체로 복원.
