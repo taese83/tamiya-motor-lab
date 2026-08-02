@@ -205,3 +205,23 @@
   Node22 게이트 4종 PASS(255) — engine 스위트 27/27(⑤⑥⑧ 포함 무회귀).
   ⚠️ 실기기 깜빡임 소멸 체감은 DEPLOY_ONLY. 트레이드오프: 안정창 내 예측 프레임 비중 최대 20/60 — 정지 측정 전제, 실기기 재검증 대상.
 - 라운드 note: 동시 세션이 R30·R31 사용 → 본 라운드 R32. change-scope R32 항목은 동시 세션 커밋에 포함되어 반영됨.
+
+## 2026-08-02 R33 전압 입력 소수 2자리 — 직접 구현 (bug-fix)
+- **사용자 증상**: 레이스 입력 폼 전압 +/−가 소수 1자리로만 조정. AI 추천 2.58V가 2.6으로 표기.
+- **근본 원인(단일)**: src/shared/ui/voltage-stepper/VoltageStepper.tsx `stepFrom`이 `VOLTAGE_RANGE.step 0.1` +
+  `.toFixed(1)`. 스텝 0.1이라 1자리 이동 + toFixed(1)이 2번째 소수를 파괴(AI가 채운 2.68에서 − → (2.58).toFixed(1)="2.6").
+  스키마(voltageSchema.refine v*100 정수, maxDecimals 2)는 이미 소수 2자리 저장을 허용 — 스텝퍼만 불일치였다.
+- MODIFIED: src/shared/config/domain.ts — `VOLTAGE_RANGE.step 0.1→0.02`. grep상 step 소비처는 VoltageStepper 전용
+  (schema·use-race-entry는 min/max만 사용) → 타 경로 무영향. 추천 대역(VOLTAGE_ADVICE_RANGE 0.02)과 동일 단위로 정합.
+- MODIFIED: src/shared/ui/voltage-stepper/VoltageStepper.tsx — `stepFrom` `toFixed(1)→toFixed(VOLTAGE_RANGE.maxDecimals)`(=2),
+  주석 근거 기록. aria-label "0.1볼트 내리기/올리기"→"전압 내리기/올리기"(스텝 상수 변화에 무관·롱프레스 반복 오인 방지).
+- CREATED: src/shared/ui/voltage-stepper/VoltageStepper.test.tsx — 제어형 Harness로 +/− 계약 5건 고정:
+  2.58 +→2.60 / 2.68 −→2.66(2번째 소수 비파괴) / 1자리 2.6 −→2.58(이전엔 2.6으로 갇힘) / 빈 값 no-op / 상한 9.9 + disabled.
+- 보존: VoltageStepperProps·완전 제어형·onChange(raw)·롱프레스·키보드·clamp 대역(0.1~9.9)·voltageSchema·AI 배선(toFixed(2)) 불변.
+- 실행 사유: 단일 UI 상수 + 순수 함수 1곳 튜닝 → 직접(execution-contract §10).
+- EVIDENCE: Node22 게이트 typecheck·lint·test(**260**, 신규 5)·build PASS + check-iterate-scope OK(source 3건).
+  레이스 입력 폼은 로그인 게이트 뒤 → 프리뷰가 +/− 상호작용을 재현 불가(DEPLOY_ONLY, prior 라운드 동일). 실제
+  클릭→2자리 산출 경로는 유닛 5건이 정확히 커버. 실기기 +/− 2자리 조정·AI 추천 2자리 표기 체감은 DEPLOY_ONLY.
+- **별건 발견(scope 밖·보고)**: AI 추천 "2.58→2.6"은 **clampVoltage 바닥 클램프**(VOLTAGE_ADVICE_RANGE.min=2.6,
+  voltage-advisor.ts:87 / recommend-voltage.js:21). 의도된 도메인 규칙(하한 2.6V)이나 R31 속도 유지 이후 파노 높은
+  모터는 2.6 미만이 정당하게 산출될 수 있어 하한이 과할 수 있음 — 하향 여부는 도메인 결정 대상, 사용자 확인 후 별도 라운드.

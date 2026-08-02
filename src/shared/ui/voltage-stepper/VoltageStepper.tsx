@@ -25,7 +25,11 @@ export interface VoltageStepperProps {
 const LONG_PRESS_DELAY_MS = 400
 const LONG_PRESS_INTERVAL_MS = 100
 
-/** parse → VOLTAGE_RANGE clamp → toFixed(1). 빈 값·비수치는 no-op(null) — A5 */
+/**
+ * parse → VOLTAGE_RANGE clamp → maxDecimals 자리로 고정. 빈 값·비수치는 no-op(null) — A5.
+ * R33: step 0.02 + toFixed(maxDecimals=2). 이전 toFixed(1)은 2번째 소수를 파괴해(AI 추천 2.68에서
+ * −를 누르면 2.6으로 반올림) 입력이 1자리로 갇혔다. 스키마는 소수 2자리를 허용하므로 스텝퍼도 정합.
+ */
 function stepFrom(raw: string, direction: 1 | -1): string | null {
   if (raw.trim() === '') return null
   const parsed = Number(raw)
@@ -34,7 +38,7 @@ function stepFrom(raw: string, direction: 1 | -1): string | null {
     VOLTAGE_RANGE.max,
     Math.max(VOLTAGE_RANGE.min, parsed + direction * VOLTAGE_RANGE.step),
   )
-  return next.toFixed(1)
+  return next.toFixed(VOLTAGE_RANGE.maxDecimals)
 }
 
 /**
@@ -164,7 +168,7 @@ export function VoltageStepper({
           },
         ]}>
         <IconButton
-          aria-label="0.1볼트 내리기"
+          aria-label="전압 내리기"
           disabled={decrementDisabled}
           onPointerDown={handlePressStart(-1)}
           onPointerUp={stopRepeat}
@@ -210,7 +214,7 @@ export function VoltageStepper({
           }}
         />
         <IconButton
-          aria-label="0.1볼트 올리기"
+          aria-label="전압 올리기"
           disabled={incrementDisabled}
           onPointerDown={handlePressStart(1)}
           onPointerUp={stopRepeat}

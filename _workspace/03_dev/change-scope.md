@@ -2310,3 +2310,21 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - ALLOWED_PATHS 추가: api/analyze-race.js(SYSTEM_PROMPT 파노 도메인 1줄).
 - 내용: recommend-voltage 절차 1) S=파노×전압 완주 가중평균 2) V=S̄/파노 역산(파노↑→전압↓)로 정정(도메인 지식과 정합).
   analyze-race: "같은 전압이면 파노↑=속도↑, 회차 간 파노 변화를 이탈·이상 해석 핵심 신호로" 추가(DL-029 전압 수치 금지와 무충돌 — 해석용).
+
+### R33 전압 입력 소수 2자리 (bug-fix, 2026-08-02)
+- TARGET_BEHAVIOR: 레이스 입력 폼 전압 스텝퍼 +/−가 소수 1자리로만 조정·반올림하던 것을 소수 2자리로.
+  근본 원인: VoltageStepper.stepFrom이 step 0.1 + toFixed(1)로 2번째 소수를 파괴(AI 추천 2.68→ − → 2.6).
+  스키마는 이미 maxDecimals 2 허용 — 스텝퍼만 정합 맞춤.
+- ALLOWED_PATHS:
+  · src/shared/config/domain.ts — VOLTAGE_RANGE.step 0.1→0.02 (입력 스텝만; grep상 스텝퍼 전용 소비).
+  · src/shared/ui/voltage-stepper/VoltageStepper.tsx — stepFrom toFixed(1)→toFixed(maxDecimals=2), 주석·aria 라벨 갱신.
+  · [신규 테스트] src/shared/ui/voltage-stepper/VoltageStepper.test.tsx — +/− 2자리 유지·경계·no-op 계약 고정.
+- PUBLIC_CONTRACTS_TO_PRESERVE: VoltageStepperProps·완전 제어형 value·onChange(raw)·롱프레스 반복·키보드 조작·
+  clamp 대역(min 0.1/max 9.9)·voltageSchema(maxDecimals 2, min/max)·AI 추천 배선(toFixed(2)).
+- NON_GOALS: AI 추천 대역(VOLTAGE_ADVICE_RANGE 2.6~3.2/0.02) 변경, clampVoltage 바닥(2.6) 변경 — 별도 결정 대기.
+  전압 표시 포맷(formatVoltage), 저장 스키마 변경.
+- CHANGE_BUDGET: 소스 2 + 테스트 1, 커밋 1. 직접 구현(단일 UI 상수·순수 함수 튜닝).
+- TEST_EVIDENCE: LOCAL — VoltageStepper 신규 유닛(2.60↔2.58 스텝, 2.68−=2.66, 경계 clamp) + 게이트 4종.
+  실기기 +/− 2자리 조정 체감·AI 추천 2자리 표기는 DEPLOY_ONLY.
+- 별건 발견(보고): AI 추천 2.58→2.6은 clampVoltage 바닥 클램프(VOLTAGE_ADVICE_RANGE.min=2.6) — 의도된 규칙이나
+  R31 이후 파노 높은 모터에 과할 수 있음. 하한 하향 여부는 사용자 결정 대상(이번 scope 밖).

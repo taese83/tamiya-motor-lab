@@ -213,8 +213,9 @@ export const MEASURE_RECORD_LIMIT = 20
 // ── 레이스 랩타임 상한 (SC2-A2: ≤1시간 — 미니카 랩타임 sanity 상한, 상수 1곳)
 export const LAP_TIME_MAX_MS = 3_600_000
 
-// ── 전압 (A5 baseline — v1 유지)
-export const VOLTAGE_RANGE = {min: 0.1, max: 9.9, step: 0.1, maxDecimals: 2} as const
+// ── 전압 (A5 baseline). step은 스텝퍼 +/− 증분(R33: 0.1→0.02 — maxDecimals 2와 정합, 추천 대역
+// 0.02 그리드와 동일 단위). maxDecimals는 저장 스키마가 허용하는 소수 자리수(voltageSchema.refine).
+export const VOLTAGE_RANGE = {min: 0.1, max: 9.9, step: 0.02, maxDecimals: 2} as const
 
 // ── 전압 추천(권장) 대역 (v2.34 — 입력 허용 대역과 별개). 실사용상 풀충 배터리로도 ~3.2V가
 // 상한(모터 밀어넣기로 간신히 도달, 배터리 부담)이고 하한은 2.6V다. 추천기(휴리스틱·LLM)는
