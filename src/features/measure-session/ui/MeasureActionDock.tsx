@@ -1,4 +1,4 @@
-import {Box, Button} from '@mui/material'
+import {Box, Button, Typography} from '@mui/material'
 
 import type {MeasureView} from './measure-view'
 
@@ -15,6 +15,8 @@ export type MeasureAction =
   | {kind: 'resume'} // [탭하여 다시 시작] primary
   // 왕복 모드 — [레이스로/모터로 돌아가기] secondary. v2.5: 진입점이 2곳이라 origin으로 라벨 분기
   | {kind: 'back-to-origin'; motorName: string; origin: 'race' | 'motor'}
+  // R39(사용자): 미로그인이면 [기록] 버튼 미노출 — 기록은 로그인 필요(모터·서버 동기화). 캡션만 표시.
+  | {kind: 'login-hidden'}
 
 /**
  * view → action 순수 산출 (unit 대상 — §2.7).
@@ -27,6 +29,7 @@ export function deriveMeasureAction(
   view: MeasureView,
   handoffReturn: {motorName: string; origin: 'race' | 'motor'} | null,
   persistenceReady: boolean,
+  loggedIn: boolean,
 ): MeasureAction {
   if (handoffReturn !== null) {
     return {
@@ -35,6 +38,13 @@ export function deriveMeasureAction(
       origin: handoffReturn.origin,
     }
   }
+  const action = deriveBaseAction(view, persistenceReady)
+  // R39(사용자): [기록]은 로그인 필요(기록 대상 모터·서버 동기화가 로그인 전제) — 미로그인이면 버튼 미노출.
+  // record 외 액션(activate/permission/resume)은 측정·권한 흐름이라 로그인과 무관하게 유지한다.
+  return action.kind === 'record' && !loggedIn ? {kind: 'login-hidden'} : action
+}
+
+function deriveBaseAction(view: MeasureView, persistenceReady: boolean): MeasureAction {
   switch (view.status) {
     case 'starting':
     case 'insecure':
@@ -95,7 +105,11 @@ type SlotHandlers = Pick<
 
 // §2.2 표 — 슬롯 내용이 유일한 가변 요소. record 외 전부 primary contained(라임 컷코너 — theme 자동),
 // back-to-origin만 outlined secondary. 실패 톤 버튼 없음(awaiting-gesture 중립 계약 — M-1).
-function slotConfig(action: MeasureAction, handlers: SlotHandlers): SlotConfig {
+// R39: login-hidden은 버튼 슬롯이 아니라 캡션 — Dock이 slotConfig 이전에 early-return하므로 여기 제외.
+function slotConfig(
+  action: Exclude<MeasureAction, {kind: 'login-hidden'}>,
+  handlers: SlotHandlers,
+): SlotConfig {
   switch (action.kind) {
     case 'record':
       return {
@@ -161,6 +175,16 @@ export function MeasureActionDock({
   onResume,
   onBackToOrigin,
 }: MeasureActionDockProps) {
+  // R39(사용자): 미로그인 standalone 측정 — [기록] 버튼을 숨기고 안내 캡션만 둔다(h56 자리 유지).
+  if (action.kind === 'login-hidden') {
+    return (
+      <Box sx={{height: '3.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+        <Typography variant="body2" sx={{color: 'text.secondary'}}>
+          로그인 후 기록할 수 있어요
+        </Typography>
+      </Box>
+    )
+  }
   const slot = slotConfig(action, {
     onRecord,
     onActivate,

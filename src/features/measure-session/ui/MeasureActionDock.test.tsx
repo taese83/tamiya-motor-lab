@@ -36,35 +36,67 @@ const noopHandlers = {
 describe('deriveMeasureAction', () => {
   it('standalone 측정은 측정 시간과 무관하게 [기록] 즉시 활성 (v2.23 — 5초 하한 없음)', () => {
     // 측정 800ms(하한 미달급)여도 standalone이면 바로 기록 가능하다.
-    expect(deriveMeasureAction(MEASURING, null, true)).toEqual({kind: 'record', disabled: false})
+    expect(deriveMeasureAction(MEASURING, null, true, true)).toEqual({
+      kind: 'record',
+      disabled: false,
+    })
     const veryShort: MeasureView = {...MEASURING, measuredMs: 100}
-    expect(deriveMeasureAction(veryShort, null, true)).toEqual({kind: 'record', disabled: false})
+    expect(deriveMeasureAction(veryShort, null, true, true)).toEqual({
+      kind: 'record',
+      disabled: false,
+    })
   })
 
   it('measuring + persistence ready면 [기록] 활성', () => {
-    expect(deriveMeasureAction(MEASURING, null, true)).toEqual({kind: 'record', disabled: false})
+    expect(deriveMeasureAction(MEASURING, null, true, true)).toEqual({
+      kind: 'record',
+      disabled: false,
+    })
   })
 
   it('persistence가 준비되지 않으면 [기록] 비활성 — 사유는 전역 배너 소관', () => {
-    expect(deriveMeasureAction(MEASURING, null, false)).toEqual({kind: 'record', disabled: true})
+    expect(deriveMeasureAction(MEASURING, null, false, true)).toEqual({
+      kind: 'record',
+      disabled: true,
+    })
   })
 
   it('신호가 약하면 [기록] 비활성 (measuring 아님)', () => {
-    expect(deriveMeasureAction(WEAK, null, true)).toEqual({kind: 'record', disabled: true})
+    expect(deriveMeasureAction(WEAK, null, true, true)).toEqual({kind: 'record', disabled: true})
   })
 
   it('awaiting-gesture는 [탭하여 시작]으로 치환된다', () => {
-    expect(deriveMeasureAction({status: 'awaiting-gesture'}, null, true)).toEqual({
+    expect(deriveMeasureAction({status: 'awaiting-gesture'}, null, true, true)).toEqual({
       kind: 'activate',
     })
   })
 
   it('왕복 모드는 measuring이어도 복귀 액션으로 치환된다 — 왕복 중 기록 진입점 0개(INV-21)', () => {
-    expect(deriveMeasureAction(MEASURING, {motorName: '테스트', origin: 'motor'}, true)).toEqual({
-      kind: 'back-to-origin',
-      motorName: '테스트',
-      origin: 'motor',
+    expect(deriveMeasureAction(MEASURING, {motorName: '테스트', origin: 'motor'}, true, true)).toEqual(
+      {
+        kind: 'back-to-origin',
+        motorName: '테스트',
+        origin: 'motor',
+      },
+    )
+  })
+
+  // R39(사용자 ①): 미로그인이면 [기록] 결과 액션을 login-hidden으로 치환한다(버튼 미노출).
+  it('미로그인이면 measuring이어도 [기록]이 login-hidden으로 치환된다', () => {
+    expect(deriveMeasureAction(MEASURING, null, true, false)).toEqual({kind: 'login-hidden'})
+  })
+
+  it('미로그인 + 신호 약함(record 비활성)도 login-hidden으로 치환된다', () => {
+    expect(deriveMeasureAction(WEAK, null, true, false)).toEqual({kind: 'login-hidden'})
+  })
+
+  it('미로그인이라도 record 외 액션(activate·back-to-origin)은 로그인과 무관하게 유지된다', () => {
+    expect(deriveMeasureAction({status: 'awaiting-gesture'}, null, true, false)).toEqual({
+      kind: 'activate',
     })
+    expect(deriveMeasureAction(MEASURING, {motorName: '테스트', origin: 'race'}, true, false)).toEqual(
+      {kind: 'back-to-origin', motorName: '테스트', origin: 'race'},
+    )
   })
 })
 
@@ -105,6 +137,12 @@ describe('MeasureActionDock', () => {
     expect(button).toHaveAttribute('aria-disabled', 'true')
     await user.click(button)
     expect(onRecord).not.toHaveBeenCalled()
+  })
+
+  it('login-hidden은 버튼 대신 안내 캡션을 렌더한다 (R39 — 미로그인 [기록] 미노출)', () => {
+    render(<MeasureActionDock {...noopHandlers} action={{kind: 'login-hidden'}} />)
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByText('로그인 후 기록할 수 있어요')).toBeInTheDocument()
   })
 
   it('복귀 라벨은 origin별로 갈린다 (v2.5)', () => {

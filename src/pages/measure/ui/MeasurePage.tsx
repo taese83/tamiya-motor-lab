@@ -5,7 +5,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useNavigate, useOutletContext} from 'react-router'
 
 import {motorQueries} from '@entities/motor'
-import {AuthMenu} from '@features/auth'
+import {AuthMenu, useSession} from '@features/auth'
 import {MotorPickSheet, useCollectFlow} from '@features/collect-measure'
 import {
   restartCaptureOnVisible,
@@ -81,6 +81,9 @@ export function MeasurePage() {
   const navigate = useNavigate()
   const shell = useOutletContext<ShellOutletContext>()
   const persistenceReady = shell.persistenceStatus?.status === 'ready'
+  // R39(사용자 ①): 미로그인이면 [기록] 버튼 미노출 — 기록은 로그인 전제(모터·서버 동기화).
+  const {user} = useSession()
+  const loggedIn = user !== null
 
   // RV-1 왕복 slot — 존재 = 왕복 모드 (INV-21: [기록] 진입점 0개, deriveMeasureAction이 치환)
   const slot = useRaceMeasureSlot()
@@ -152,6 +155,7 @@ export function MeasurePage() {
     view,
     slot === null ? null : {motorName: slot.motorName, origin: slot.origin},
     persistenceReady,
+    loggedIn,
   )
 
   // [기록] 탭 시점 스냅샷 고정(SC2-A3·MR-2) — measuring 밖에서는 액션이 이미 disabled/치환

@@ -331,3 +331,25 @@
   ⚠️ 전체 게이트(typecheck·build·test)는 동시 세션 미커밋 작업으로 red — 내 파일만 격리 검증 후 선택 커밋(R29 선례).
   실 LLM 프롬프트 준수 개선은 DEPLOY_ONLY이나, **방향 보장은 LLM이 틀려도 어댑터가 결정론적으로 잡음**(유닛 커버).
 - 라운드 note: 동시 세션과 커밋 엉킴 방지 — 내 소스 3 + change-scope + 본 저널만 스테이징(measure/MotorPickSheet 제외).
+
+## R39 — 측정 [기록] 로그인 게이트 + 모터 픽 드로어 종류탭·하단 추가버튼 (2026-08-02, feature/ui-change · 직접+위임)
+- REQUEST: ① [기록] 버튼 로그인 전 미노출 ② 로그인 후 [기록] → 모터 있으면 종류별 탭 분류·선택 ③ [+ 새 모터 추가] 드로어 하단 상시.
+- CHANGED:
+  · src/features/measure-session/ui/MeasureActionDock.tsx — deriveMeasureAction에 4번째 인자 loggedIn 추가.
+    산출을 deriveBaseAction으로 분리하고, base가 record인데 !loggedIn이면 신규 `{kind:'login-hidden'}`로 치환.
+    Dock은 login-hidden이면 slotConfig 이전에 early-return하여 h56 슬롯에 "로그인 후 기록할 수 있어요" 캡션(버튼 미노출·레이아웃 불변).
+    slotConfig 인자는 `Exclude<MeasureAction,{kind:'login-hidden'}>`로 타이핑(exhaustive 유지). record 외 액션은 로그인 무관.
+  · src/features/measure-session/ui/MeasureActionDock.test.tsx — deriveMeasureAction 7콜에 loggedIn 인자 추가 +
+    login-hidden 치환 3케이스(measuring·weak-signal 미로그인 치환 / activate·back-to-origin은 미로그인에도 유지) +
+    Dock login-hidden 렌더(버튼 없음·캡션) 케이스.
+  · src/pages/measure/ui/MeasurePage.tsx — useSession 소비(const {user}=useSession(); loggedIn=user!==null), deriveMeasureAction 4번째 인자로 전달.
+  · src/features/collect-measure/ui/MotorPickSheet.tsx — MUI Tabs 인라인 종류 필터(서로 다른 종류 ≥2일 때만, FSD상 MotorKindFilter
+    import 회피·MOTOR_KIND_LABELS 사용·ALL sentinel), effectiveFilter 강등 방어(선택 종류 소멸 시 전체), 스크롤 영역(maxHeight 50vh),
+    [+ 새 모터 추가]를 조건부 밖으로 빼 상시 하단 렌더. 0개는 EmptyState 액션 대신 중립 문구+하단 버튼.
+  · [신규] src/features/collect-measure/ui/MotorPickSheet.test.tsx — 6케이스: 0개 중립문구+하단버튼·탭 라벨 순서(전체/토크튠/하이퍼대시)·
+    탭 선택 필터·모터 있어도 하단버튼 상시·종류 1개면 탭 없음·pending 시 행/버튼 비활성.
+- EVIDENCE: LOCAL — typecheck·lint 클린, 전체 vitest 35파일 282 PASS(R39 20건 포함), build OK.
+  프리뷰(:8082 미로그인 측정화면) 실측: [기록] 버튼 DOM 부재·캡션 노출·h56 슬롯 유지(스크린샷). 로그인 후 픽 시트 실동작은 DEPLOY_ONLY(render 테스트로 계약 고정).
+- 위임 note: Slice A(MotorPickSheet)를 component-builder(fable)에 위임 — 컴포넌트+테스트 작성 완료 후 Fable 5 한도로 종료.
+  산출물 검수(라벨·계약·마크업 보존) 후 오케스트레이터가 그대로 채택. Slice B(로그인 게이트)는 직접.
+- 라운드 note: 동시 세션 recommend-voltage(R35)가 8e95fba로 change-scope·claude.md 저널 포함 커밋됨 — 내 R39 소스 5파일만 스테이징.
