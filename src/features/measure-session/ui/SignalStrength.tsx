@@ -8,33 +8,38 @@ export interface SignalStrengthProps {
 
 type Tone = 'weak' | 'ok' | 'idle'
 
+/** 수신감도 막대 개수 — 5칸(휴대폰 신호 은유) */
+const BAR_COUNT = 5
+
 interface Strength {
   /** 실시간 신호 존재(measuring/weak-signal) — 아니면 빈 막대 dim */
   active: boolean
-  /** 0~100 막대 채움(confidence×100) */
-  pct: number
+  /** 켜진 막대 수(0~BAR_COUNT) — confidence를 5칸으로 양자화 */
+  bars: number
   /** 약함 / 양호 / 강 (비active면 '') */
   label: string
   tone: Tone
 }
 
+// confidence(0~1) → 켜진 막대 수(0~5). 반올림 양자화 — 0.2→1칸, 0.6→3칸, 0.9→5칸.
+const barsFrom = (confidence: number): number =>
+  Math.max(0, Math.min(BAR_COUNT, Math.round(Math.min(1, Math.max(0, confidence)) * BAR_COUNT)))
+
 // 상태 → 신호 세기 파생. weak-signal=약함(앰버), measuring=양호/강(라임, confidence로 분기), 그 외=idle(빈 막대).
 function strengthOf(view: MeasureView): Strength {
   if (view.status === 'weak-signal') {
-    return {active: true, pct: clampPct(view.confidence), label: '약함', tone: 'weak'}
+    return {active: true, bars: barsFrom(view.confidence), label: '약함', tone: 'weak'}
   }
   if (view.status === 'measuring') {
     return {
       active: true,
-      pct: clampPct(view.confidence),
+      bars: barsFrom(view.confidence),
       label: view.confidence >= 0.85 ? '강' : '양호',
       tone: 'ok',
     }
   }
-  return {active: false, pct: 0, label: '', tone: 'idle'}
+  return {active: false, bars: 0, label: '', tone: 'idle'}
 }
-
-const clampPct = (confidence: number): number => Math.round(Math.min(1, Math.max(0, confidence)) * 100)
 
 const TONE_COLOR: Record<Tone, string> = {
   weak: 'warning.main', // 앰버 — 신호 약함(더 가까이 유도)
@@ -67,26 +72,26 @@ export function SignalStrength({view}: SignalStrengthProps) {
       <Typography aria-hidden variant="caption" sx={{color: 'text.secondary', flexShrink: 0}}>
         신호 세기
       </Typography>
-      <Box
-        aria-hidden
-        sx={{
-          width: 'clamp(84px, 30vw, 148px)',
-          height: 6,
-          borderRadius: 3,
-          bgcolor: 'action.hover',
-          overflow: 'hidden',
-          opacity: s.active ? 1 : 0.6,
-        }}>
-        <Box
-          sx={{
-            height: '100%',
-            width: `${s.pct}%`,
-            bgcolor: color,
-            borderRadius: 3,
-            transition: 'width 120ms linear, background-color 140ms',
-            '@media (prefers-reduced-motion: reduce)': {transition: 'none'},
-          }}
-        />
+      {/* 수신감도 막대 — 왼→오른으로 높아지는 5칸(휴대폰 신호 은유). confidence만큼 켜지고, 켜진 칸은
+          tone색(약=앰버/양호·강=라임), 꺼진 칸은 dim 트랙. 하단 정렬(flex-end)로 계단 형태를 만든다. */}
+      <Box aria-hidden sx={{display: 'flex', alignItems: 'flex-end', gap: '3px', height: 18}}>
+        {Array.from({length: BAR_COUNT}, (_, i) => {
+          const on = i < s.bars
+          return (
+            <Box
+              key={i}
+              sx={{
+                width: 5,
+                height: `${((i + 1) / BAR_COUNT) * 100}%`,
+                borderRadius: 1,
+                bgcolor: on ? color : 'action.disabledBackground',
+                opacity: on ? 1 : 0.55,
+                transition: 'background-color 140ms, opacity 140ms',
+                '@media (prefers-reduced-motion: reduce)': {transition: 'none'},
+              }}
+            />
+          )
+        })}
       </Box>
       {/* 세기 라벨 — 폭 고정으로 막대 위치가 라벨 길이(약함/양호/강)에 흔들리지 않게 */}
       <Typography

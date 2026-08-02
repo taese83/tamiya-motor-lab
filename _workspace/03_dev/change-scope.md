@@ -2608,3 +2608,13 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - TEST_EVIDENCE: LOCAL — SignalStrength render 4건(약함/강/양호/비측정) + measure-view confidence 통과 typecheck +
   StabilityGauge·MeasureActionDock fixture 갱신 + 전체 게이트. 프리뷰(측정 대기): 신호 세기 미터 안정도 하단 렌더·"더 가까이" 제거·상단 "측정 대기"·무오류.
   실측 활성 미터(약함/양호/강·막대 채움)와 Z1 세션 중 "측정 중" 고정은 마이크 필요라 DEPLOY_ONLY(unit이 파생 고정).
+
+## R46 — 신호 세기를 수신감도 게이지바(신호 바)로 (2026-08-03, ui-change)
+- REQUEST(사용자): 단순 막대 대신 게이지바 느낌(수신감도) 형태.
+- TARGET_BEHAVIOR: SignalStrength의 단일 채움 막대 → 왼→오른 증가형 5칸 신호 바(휴대폰 수신감도 은유).
+  confidence를 5칸으로 반올림 양자화(barsFrom), 켜진 칸=tone색(약=앰버/양호·강=라임), 꺼진 칸=dim 트랙. 하단 정렬 계단.
+- ALLOWED_PATHS: src/features/measure-session/ui/SignalStrength.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: role="img"+aria-label("신호 세기 {label}")·라벨(약함/양호/강)·tone 색·비측정 dim·안정도 하단 배치.
+- NON_GOALS: confidence 파생 임계 변경, 다른 게이지/뷰 변경.
+- CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
+- TEST_EVIDENCE: LOCAL — SignalStrength 4건 통과(라벨·aria 불변) + 게이트. 프리뷰(측정 대기): 5칸 계단 바 렌더(높이 4·7·11·14·18px 증가). 활성 색상은 DEPLOY_ONLY.

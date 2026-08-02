@@ -440,3 +440,9 @@
 - EVIDENCE: typecheck·lint 클린, 전체 vitest 37파일 296 PASS(+4), build OK. 프리뷰(측정 대기): 신호 세기 미터 안정도 하단·"더 가까이" 제거·상단 "측정 대기"·콘솔 무오류, 스크린샷.
   활성 미터·Z1 "측정 중" 고정은 마이크 필요 DEPLOY_ONLY(unit 파생 고정). announcement.ts(SR)·엔진 임계 무접촉.
 - note: 동시 세션 무관, HEAD=R44 위에 쌓음.
+
+## R46 — 신호 세기를 수신감도 게이지바로 (2026-08-03, ui-change · 직접)
+- REQUEST(사용자): 단순 막대 → 게이지바 느낌(수신감도).
+- CHANGED: src/features/measure-session/ui/SignalStrength.tsx — 단일 채움 막대를 증가형 5칸 신호 바로 교체.
+  barsFrom(confidence)로 켜질 칸 수 양자화, flex-end 계단, 켜진 칸 tone색(앰버/라임)·꺼진 칸 dim. 라벨·aria-label·파생 tone 불변.
+- EVIDENCE: typecheck·lint·build 클린, SignalStrength 4건 통과. 프리뷰: 5칸 계단 바(높이 4/7/11/14/18px 증가) 안정도 하단 렌더, 스크린샷. 활성 색상은 마이크 필요 DEPLOY_ONLY.
