@@ -403,3 +403,10 @@
 - EVIDENCE: LOCAL — typecheck·lint 클린, 전체 vitest 36파일 292 PASS(신규 10: LapTimerDialog 5·RaceRecordRow 3·repository.summary 2), build OK.
   프리뷰: 모터 하나 시드 후 모터 상세에서 "레이스 기록 보기 →" 노출·클릭 시 /race/:id 이동·콘솔 무오류 실측(시드 원복). 로그인 필요한 레이스 목록/상세/타이머 실동작(②③④⑤⑥)은 DEPLOY_ONLY — 단위/render/상태기계 테스트로 계약 고정.
 - 라운드 note: 동시 세션 신규 커밋 없음(HEAD=R40). 내 R41 15파일만 스테이징. race-record/ui/index.ts 무접촉(LapTimerDialog는 시트 내부 사용).
+
+## R42 — 레이스 진입점 위치·스타일 변경 (2026-08-03, ui-change · 직접)
+- REQUEST(사용자): "레이스 기록 보기"를 측정 기록 타이틀과 같은 라인 오른쪽 끝, 언더라인 버튼으로.
+- CHANGED: src/pages/motor-detail/ui/MotorDetailPage.tsx — R41의 고정영역 풀-width outlined 버튼 제거,
+  측정 기록 SectionHeading의 action 슬롯(ml:auto "Show All" 자리)에 언더라인 text Button으로 이동(→ 화살표 제거). navigate 대상 불변.
+- EVIDENCE: typecheck·lint·build 클린. 프리뷰: 측정 기록 라인 우측 끝 언더라인 링크(textDecoration underline·fullWidth false·같은 라인 top 일치)·클릭 시 /race/:id, 스크린샷. 시드 원복.
+- note: 측정 기록 헤딩은 records>0에서만 렌더 → 링크도 그 조건(0측정 모터는 레이스 데이터도 거의 없어 수용). 동시 세션 무관, HEAD=R41 위에 쌓음.

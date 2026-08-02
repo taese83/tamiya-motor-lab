@@ -2551,3 +2551,13 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 소스 ~11 + 테스트 ~4, 커밋 1(직접). 동시 세션(R37 race-insight) 커밋 완료·트리 깨끗 — 내 파일만 스테이징.
 - TEST_EVIDENCE: LOCAL — repository.summary lastFinishedRace 회귀 + RaceRecordRow 클릭·삭제 render + RaceInsightCard 단위/색 render +
   LapTimerDialog 상태기계(시작/정지/완주/이탈/취소) render + 게이트 4종. 로그인 필요한 레이스 실화면(목록/상세/타이머 실동작)은 DEPLOY_ONLY.
+
+## R42 — 레이스 진입점 위치·스타일 변경 (2026-08-03, ui-change)
+- REQUEST(사용자): "레이스 기록 보기"를 측정 기록 타이틀과 같은 라인 오른쪽 끝으로, 언더라인(텍스트) 버튼으로.
+- TARGET_BEHAVIOR: R41의 고정영역 풀-width outlined 버튼 제거 → 측정 기록 SectionHeading의 action 슬롯("Show All" 자리)에
+  언더라인 text Button으로 이동. navigate('/race/:motorId') 동작·의미 불변. 측정 기록 헤딩은 records>0일 때 렌더되므로 링크도 그 조건.
+- ALLOWED_PATHS: src/pages/motor-detail/ui/MotorDetailPage.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: SectionHeading action 계약(기존)·navigate 대상·나머지 R41 무변경.
+- NON_GOALS: SectionHeading 컴포넌트 변경, 레이스/목록/카드 변경, 0측정 상태 별도 진입점 신설.
+- CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
+- TEST_EVIDENCE: LOCAL — typecheck·lint·build 클린(전체 테스트 무영향) + 프리뷰 실측(측정 기록 라인 우측 언더라인 링크·풀width 제거·같은 라인 top 일치·클릭 /race/:id).

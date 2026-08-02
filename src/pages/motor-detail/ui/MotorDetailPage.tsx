@@ -314,28 +314,6 @@ export function MotorDetailPage() {
                   </Box>
                 )}
               </Box>
-
-              {/* R41 ①(사용자): 모터 상세 → 레이스 상세 진입점. 라우트는 이미 존재(/race/:motorId)하고
-                  history push라 뒤로가기로 이 화면에 복귀한다. 진입점은 항상 노출(발견성) — 레이스는
-                  로그인 필수라 미로그인 시 대상 화면이 로그인 게이트를 보여준다. */}
-              <Button
-                variant="outlined"
-                fullWidth
-                onClick={() => void navigate(`/race/${motor.id}`)}
-                endIcon={
-                  <Box component="span" aria-hidden sx={{fontSize: '1.1rem', lineHeight: 1}}>
-                    →
-                  </Box>
-                }
-                sx={{
-                  mt: 1.5,
-                  justifyContent: 'space-between',
-                  textTransform: 'none',
-                  px: 2,
-                  py: 1.25,
-                }}>
-                레이스 기록 보기
-              </Button>
             </Box>
 
             {/* ── 스크롤 영역: 파노 추세 그래프 + 기록 목록 (R18) ──
@@ -360,7 +338,26 @@ export function MotorDetailPage() {
               )}
               {records !== undefined && records.length > 0 && (
                 <Box sx={{mt: 2, mb: 0.5}}>
-                  <SectionHeading meta={`${records.length}건`}>측정 기록</SectionHeading>
+                  {/* R41→R42(사용자): 레이스 진입점을 이 섹션 헤딩 우측 "Show All" 자리로 이동 —
+                      측정 기록 타이틀과 같은 라인 오른쪽 끝, 언더라인 텍스트 버튼(navigate /race/:motorId). */}
+                  <SectionHeading
+                    meta={`${records.length}건`}
+                    action={
+                      <Button
+                        variant="text"
+                        onClick={() => void navigate(`/race/${motor.id}`)}
+                        sx={{
+                          minWidth: 0,
+                          p: 0,
+                          textTransform: 'none',
+                          textDecoration: 'underline',
+                          '&:hover': {backgroundColor: 'transparent', textDecoration: 'underline'},
+                        }}>
+                        레이스 기록 보기
+                      </Button>
+                    }>
+                    측정 기록
+                  </SectionHeading>
                 </Box>
               )}
               {recordsQuery.isPending ? (
