@@ -10,13 +10,20 @@ import type {RaceGoal} from '@shared/config/domain'
 // 전압 추천 휴리스틱 (v2.31 / v2.33 상관 학습) — 순수 함수. 하이브리드 추천기의 폴백/기준선이자
 // LLM 경로(api/recommend-voltage)가 실패·오프라인·키없음일 때의 보증 경로다.
 //
-// v2.33: 이 모터의 **레이스 기록에서 파노↔전압 상관을 학습**한다(측정 기록엔 전압이 없어 유일한
-// (전압,파노) 표본은 레이스뿐). 각 레이스 = (전압 Vᵢ, 파노 Pᵢ). 현재(재)측정 파노 P에 대해:
-//   - 0건: 목표 기준값
-//   - 1건: 비례 추정 V = (V₁/P₁)·P (원점 통과 — 파노 0이면 전압 0의 물리 근사)
-//   - 2건+: 최소제곱 선형적합 V ≈ a·P + b 를 데이터에서 학습(방향·절편 포함)해 P에서 평가
+// R31(DL-040) — **속도 유지(speed-holding) 모델**. v2.33의 "파노↔전압 상관 학습"(V≈aP+b, 1건은
+// 순수 비례)은 인과 방향이 뒤집혀 있었다: 전압을 올리면 파노가 오르는 건 맞지만, 여기서 P는
+// "만들 결과"가 아니라 **레이스 전에 이미 측정된 모터 상태**다. 모터가 좋아져 파노가 올랐다면
+// 같은 전압에서 이미 더 빠르므로, 전압을 따라 올리면 과속이 가중된다(사용자 관찰: 안정 목표인데
+// 파노 300→320에서 3.00→3.20V로 상승). 안정 목표는 GOAL_DELTA가 0이라 상쇄 장치도 없었다.
+//
+// 새 모델: 속도 지표 **S = panoHz × voltage**(모터 강도 × 공급 전압 ≈ 주행 속도의 1차 근사)를
+// 이력에서 학습하고, 현재 파노 P에서 V = S/P로 역산한다.
+//   - 0건: 목표 기준값(NEUTRAL_BASE)
+//   - 1건+: S_target = 가중 평균(Σw·PᵢVᵢ / Σw) → V = S_target / P
+//   - 표본은 **완주 기록 우선**(이탈 기록의 S는 과속 영역이라 상향 편향). 완주 0건이면 전체 폴백.
+// 결과: 파노 동일 → 직전 전압 유지, 파노 상승 → 전압 하락(속도 유지), 파노 하락 → 전압 상승.
 // 그 위에 목표 보정(속도 +, 완주 −)과 이탈 회피(비슷한 파노에서 이탈했던 전압 이상 회피)를 얹고
-// 0.1~9.9로 클램프한다. 파노가 바뀌면 이 함수를 새 파노로 다시 부르면 그에 맞게 재추천된다.
+// 권장 대역으로 클램프한다.
 
 /** 추천 입력에 필요한 과거 레이스 최소 형태(엔티티 RaceRecord의 부분집합) */
 export interface VoltageAdviceRace {
@@ -81,39 +88,32 @@ export function clampVoltage(v: number): number {
 }
 
 /**
- * 파노 P에서의 전압을 이력으로 학습해 추정 — 1건=비례, 2건+=**가중** 최소제곱 선형적합.
- * weight(v2.37, 최근일수록 큼)를 표본 가중치로 써 최근 기록을 더 크게 반영한다(없으면 1=등가중).
+ * R31 — 속도 유지 역산. 이력에서 속도 지표 S = panoHz × voltage의 **가중 평균**을 학습하고
+ * 현재 파노 P에서 V = S/P로 되돌린다(weight는 최근일수록 큼, 없으면 1=등가중).
+ * 표본은 **완주 기록 우선** — 이탈 기록의 S는 과속 영역이라 목표 속도를 위로 끌어올린다.
+ * 완주가 하나도 없으면 전체 기록으로 폴백하되 근거 문구로 그 사실을 밝힌다.
  */
 function fitVoltageForPano(
   pts: ReadonlyArray<VoltageAdviceRace>,
   panoHz: number,
 ): {voltage: number; reason: string} {
-  if (pts.length === 1) {
-    const {voltage, panoHz: p0} = pts[0]!
-    return {voltage: (voltage / p0) * panoHz, reason: '파노 비례 추정'}
-  }
-  // 가중 최소제곱: Σw(V − (aP+b))² 최소화
+  const finished = pts.filter(r => r.result === 'finished')
+  const sample = finished.length > 0 ? finished : pts
+  const sampleLabel = finished.length > 0 ? '완주 기록' : '전체 기록(완주 없음)'
+
+  // 가중 평균 속도 지표 S̄ = Σw·(Pᵢ·Vᵢ) / Σw
   let sW = 0
-  let sP = 0
-  let sV = 0
-  let sPP = 0
-  let sPV = 0
-  for (const {voltage, panoHz: p, weight} of pts) {
+  let sS = 0
+  for (const {voltage, panoHz: p, weight} of sample) {
     const w = weight ?? 1
     sW += w
-    sP += w * p
-    sV += w * voltage
-    sPP += w * p * p
-    sPV += w * p * voltage
+    sS += w * p * voltage
   }
-  const mean = sV / sW // 가중 평균
-  const denom = sW * sPP - sP * sP
-  if (Math.abs(denom) < 1e-6) return {voltage: mean, reason: '가중 평균(파노 동일)'}
-  const a = (sW * sPV - sP * sV) / denom
-  const b = (sV - a * sP) / sW
-  const est = a * panoHz + b
-  if (!Number.isFinite(est) || est <= 0) return {voltage: mean, reason: '가중 평균'}
-  return {voltage: est, reason: '가중 파노-전압 추세선'}
+  if (sW <= 0 || sS <= 0) return {voltage: NEUTRAL_BASE, reason: '표본 없음'}
+  const targetSpeed = sS / sW
+  const est = targetSpeed / panoHz
+  if (!Number.isFinite(est) || est <= 0) return {voltage: NEUTRAL_BASE, reason: '역산 불가'}
+  return {voltage: est, reason: `${sampleLabel} 속도 유지`}
 }
 
 /** 현재 파노와 비슷한 조건에서 이탈했던 최소 전압 — 그 이상은 회피(과속 재현 방지) */

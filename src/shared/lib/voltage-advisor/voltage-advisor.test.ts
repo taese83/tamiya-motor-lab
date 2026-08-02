@@ -8,8 +8,9 @@ import {
 
 import type {VoltageAdviceRace} from './voltage-advisor'
 
-// 전압 추천 휴리스틱 unit (v2.31 상관 학습 / v2.34 권장 대역 2.6~3.2 + 속도 다운그레이드).
-// 추천값·상관 학습은 매 입력마다 사용자에게 보이는 숫자라 규칙을 고정한다.
+// 전압 추천 휴리스틱 unit (R31 속도 유지 모델 / v2.34 권장 대역 2.6~3.2 + 속도 다운그레이드).
+// 핵심 계약: 속도 지표 S=파노×전압을 완주 기록에서 학습해 V=S/파노로 역산 — **파노가 오르면
+// 전압은 내려간다**(같은 전압에서 이미 빨라졌으므로 속도 유지). 매 입력마다 보이는 숫자라 고정한다.
 
 const race = (over: Partial<VoltageAdviceRace> = {}): VoltageAdviceRace => ({
   voltage: 2.9,
@@ -40,8 +41,9 @@ describe('recommendVoltageHeuristic — 목표 기준값(이력 0건)', () => {
   })
 })
 
-describe('recommendVoltageHeuristic — 파노↔전압 상관', () => {
+describe('recommendVoltageHeuristic — 파노↔전압 속도 유지(R31)', () => {
   it('이력 1건, 같은 파노·안정이면 직전 전압을 그대로', () => {
+    // S=400×3.0=1200, V(400)=1200/400=3.0 → 파노 동일이면 성공했던 전압 유지
     const advice = recommendVoltageHeuristic({
       goal: 'stability',
       currentPanoHz: 400,
@@ -50,19 +52,32 @@ describe('recommendVoltageHeuristic — 파노↔전압 상관', () => {
     expect(advice.voltage).toBe(3.0)
   })
 
-  it('이력 2건, 학습한 추세선을 현재 파노에서 평가', () => {
-    // (400,2.7),(500,3.1) → 기울기 0.004/Hz, 절편 1.1 → V(450)=2.9
+  it('이력 2건, 완주 속도 S̄를 현재 파노에서 역산', () => {
+    // 완주 S=(500×3.1)+(400×2.7)=2630, S̄=1315, V(450)=1315/450≈2.92
     const history = [race({voltage: 3.1, panoHz: 500}), race({voltage: 2.7, panoHz: 400})]
     expect(recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 450, history}).voltage).toBe(
-      2.9,
+      2.92,
     )
   })
 
-  it('파노가 오르면 추세선을 따라 전압도 오른다', () => {
+  it('파노가 오르면 전압은 내려간다 (속도 유지 — R31 핵심)', () => {
+    // 같은 목표 속도 S̄를 유지하려면 V=S̄/파노 — 파노가 클수록 전압이 낮아진다(과속 방지).
     const history = [race({voltage: 3.1, panoHz: 500}), race({voltage: 2.7, panoHz: 400})]
-    const low = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 420, history}).voltage
-    const high = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 480, history}).voltage
-    expect(high).toBeGreaterThan(low)
+    const lowPano = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 420, history}).voltage
+    const highPano = recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 480, history}).voltage
+    expect(highPano).toBeLessThan(lowPano)
+  })
+
+  it('속도 학습은 완주 기록만 사용 — 이탈(과속 편향)은 목표 속도를 끌어올리지 않는다', () => {
+    // 완주 400×2.7(S=1080) + 이탈 400×3.2(S=1280). 이탈까지 쓰면 목표가 올라가지만,
+    // 완주만 쓰므로 V(400)=1080/400=2.7 (이탈 회피 cap 3.2는 2.7 미만이라 미적용)
+    const history = [
+      race({voltage: 2.7, panoHz: 400, result: 'finished'}),
+      race({voltage: 3.2, panoHz: 400, result: 'retired'}),
+    ]
+    expect(
+      recommendVoltageHeuristic({goal: 'stability', currentPanoHz: 400, history}).voltage,
+    ).toBe(2.7)
   })
 })
 

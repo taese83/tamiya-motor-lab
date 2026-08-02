@@ -2270,3 +2270,43 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CHANGE_BUDGET: 신규 7(selector 2+test 2+체크리스트 컴포넌트+컴포넌트 test 2) + 수정 6. 커밋 1~2.
 - 구현 주의(plan-review): ① R2의 "최신 이탈"은 races[0]이 아니라 **result 확정 첫 회차** ② 근거 카피는 "직전 이탈 — 안정 권장"(속도 단정 회피) ③ N04 a11y 테스트 케이스 포함.
 - TEST_EVIDENCE: selector unit(R1~R5 전 분기·침묵 경계·매핑·dedupe·상한 3) + 컴포넌트 render(추천 병기·자동선택 없음·체크리스트 비노출·ephemeral·a11y) + 기존 회귀 + 게이트 4종 + check-iterate-scope. 실화면은 로그인 게이트 뒤 DEPLOY_ONLY.
+
+## R31 — 전압 추천 모델 반전(속도 유지) (2026-08-02, bug-fix/도메인 로직)
+- REQUEST: DL-040 — 파노 상승 시 전압이 따라 오르던 동작을 "속도 유지"(파노↑ → 전압↓)로 반전. 세 목표 모두.
+- OBSERVED_BASELINE: `recommendVoltageHeuristic`이 `fitVoltageForPano`로 V≈aP+b 학습·평가(1건은 순수 비례). 재현: 1건 이력에서 파노 300→320 시 3.00→3.20V.
+- TARGET_BEHAVIOR: 속도 지표 `S = panoHz × voltage`를 완주 기록 우선·지수 가중으로 학습 → `V = S/현재파노`. 파노 동일이면 직전 전압 유지, 파노 상승이면 하락. 목표 보정·이탈 회피 cap·클램프(2.6~3.2)·source·rationale 형식은 현행 유지. LLM 프롬프트도 동일 모델로 정정.
+- ALLOWED_PATHS: src/shared/lib/voltage-advisor/voltage-advisor.ts · 동 voltage-advisor.test.ts · api/recommend-voltage.js(프롬프트 §도메인·분석 절차).
+- PUBLIC_CONTRACTS_TO_PRESERVE: 공개 API 시그니처(`recommendVoltageHeuristic`·`assignExponentialWeights`·`clampVoltage`·타입) 불변 · 반환 shape{voltage, rationale, source} 불변 · 클램프 대역·step·GOAL_DELTA 값 불변 · 이탈 회피 규칙 불변 · 소비처(use-race-entry·recommend-voltage 클라/서버) 수정 0 · R30 목표 추천/체크리스트 무관.
+- NON_GOALS: GOAL_DELTA 값 조정 · 클램프 대역 변경 · 이탈 회피 로직 변경 · UI 변경 · R30 산출물 변경.
+- CHANGE_BUDGET: 파일 3, 커밋 1. 직접 구현 사유: 모델 반전이 로직·테스트 기대값·LLM 프롬프트에 원자적으로 걸쳐 분할 시 두 추천 경로가 반대 방향을 말하는 중간 상태 발생.
+- TEST_EVIDENCE: 기존 13 케이스 중 파노 방향 케이스 **의미 반전**(파노↑→전압↓) + 파노 동일 시 직전 전압 유지 보존 + 완주 우선 표본·완주 0건 폴백 케이스 추가. 게이트 4종 + scope. 실주행 체감은 DEPLOY_ONLY.
+
+## R32 — 측정 깜빡임 보정: 게이트 결손 coast 연장 (2026-08-02, bug-fix)
+- CHANGE_MODE: existing-change
+- REQUEST: 측정 중 파노 수치가 보였다 "—"로 사라졌다를 반복(깜빡임)해 측정이 안 됨 — 소리가 잠깐 끊겨도 보정 필요.
+- OBSERVED_BASELINE: track.ts coast가 missTolerance 8프레임(≈200ms)뿐 — 실기기에서 게이트 결손이 200ms를 넘으면
+  weak-signal("—") 전환 + clearTrack으로 **안정창(1.5s) 리셋** → 재획득해도 stable/자동확정(RV-1)이 계속 무산.
+  세션 타이머는 이미 1200ms 유예(MEASURING_GAP_TOLERANCE_MS) — 표시 계층만 200ms로 빡빡한 비대칭.
+- TARGET_BEHAVIOR: `missTolerance 8→20`(≈500ms) — ≤500ms 끊김은 Kalman coast로 수치·안정창 연속 유지(깜빡임 소멸),
+  >500ms는 종전대로 weak-signal(D-9 stale 방지 계약 유지). 세션 유예 1200ms 안쪽이라 타이머 계약과 정합.
+- ALLOWED_PATHS: src/shared/lib/audio-analysis/types.ts (상수 1개)
+  · [scope 확대] src/shared/lib/audio-analysis/engine.fixtures.test.ts — D-9 테스트 무음 구간 1.0s→1.5s.
+    deadline은 missTolerance에서 동적 계산되나 무음이 짧아 coast 연장 후 tail 표본이 10개(>10 sanity 미달).
+    stale 검증 자체는 통과 — 검증 창 확보용 fixture 길이만 조정(계약 불변).
+- PUBLIC_CONTRACTS_TO_PRESERVE: DisplayEstimate 계약·INV-13(weak⇒null)·게이트 임계(SNR8/고조파2/voicing0.08)·
+  fixture ⑤⑥(무음·잡음은 트랙 없음 → coast 미적용, 전 프레임 weak 유지)·⑧(coast 보고값=kf≈300 근방, 계약 내)·세션 1200ms 유예.
+- NON_GOALS: 게이트 임계 변경, 세션 유예 변경, UI 변경, 안정 판정 창·CV 변경.
+- CHANGE_BUDGET: 파일 1(상수 1), 커밋 1. 직접 구현(단일 상수 튜닝).
+- 트레이드오프(명시): coast 연장은 예측값(kf)을 더 오래 표시하고 안정창에 예측 프레임 비중을 늘린다(최대 20/60프레임).
+  정지 상태 측정이 주 사용처라 드리프트 위험 낮음 — 실기기 재검증 대상.
+- TEST_EVIDENCE: LOCAL — 간헐 끊김 합성신호 A/B(끊김 ≤500ms에서 old=깜빡임/new=연속, >500ms는 양쪽 weak) +
+  게이트 4종(engine fixture 무회귀). 실기기 깜빡임 소멸 체감은 DEPLOY_ONLY.
+- 라운드 note: 동시 세션이 R30·R31 사용 → 본 라운드 R32. (R29 번호는 양 세션이 중복 사용 — 커밋 해시로 구분.)
+
+### R31 scope 확장 (2026-08-02) — 원칙을 AI 분석·추천 절차에도 반영
+- 사용자: "파노가 높아지면 같은 전압이면 속도가 올라간다. 이를 바탕으로 분석해야해" — 원칙(파노↑=같은 전압서 속도↑)이
+  추천 도메인 지식뿐 아니라 ① recommend-voltage 프롬프트의 [분석 절차] 1~2단계(아직 옛 "파노↔전압 관계 추정"으로
+  자기모순) ② analyze-race 프롬프트의 파노 서술("높을수록 빠르다"만, 인과 누락)에도 반영돼야 함.
+- ALLOWED_PATHS 추가: api/analyze-race.js(SYSTEM_PROMPT 파노 도메인 1줄).
+- 내용: recommend-voltage 절차 1) S=파노×전압 완주 가중평균 2) V=S̄/파노 역산(파노↑→전압↓)로 정정(도메인 지식과 정합).
+  analyze-race: "같은 전압이면 파노↑=속도↑, 회차 간 파노 변화를 이탈·이상 해석 핵심 신호로" 추가(DL-029 전압 수치 금지와 무충돌 — 해석용).

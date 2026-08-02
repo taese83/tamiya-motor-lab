@@ -180,3 +180,14 @@
 - 직접 적용(hook 차단분): `src/shared/config/domain.ts`의 RETIRE_REASON_PRERUN_ITEMS 상수 맵(entity-query-builder 반환 원문).
 - **사용자 파일 처리**: 세션 중 `_scratch_multimotor.test.ts`·`_scratch_multidetect.test.ts`(사용자 실험, 미추적)가 게이트를 두 번 막음 — 임의 수정·삭제하지 않고 사용자에게 확인. 두 번 모두 사용자가 직접 정리해 해소(내 코드는 각 시점 오류 0건으로 분리 확인).
 - EVIDENCE: Node22 게이트 typecheck·lint·**test 254**(신규 38)·build PASS + check-iterate-scope OK(source 14건). 스키마·repository·migration·서버 동기화·use-race-entry·voltage-advisor **변경 0**(체크 상태 비저장을 타입으로 차단). 실화면은 로그인 게이트 뒤 DEPLOY_ONLY.
+
+## 2026-08-02 R31 전압 추천 모델 반전(속도 유지) + AI 분석 파노 원칙 — 직접 구현 (bug-fix/도메인)
+- **사용자 관찰**: 파노 상승 시 '안정' 추천 전압이 오히려 상승(재현: 1건 이력 파노 300→320서 3.00→3.20V). 이어 원칙 재확인: "파노↑ = 같은 전압서 속도↑, 이를 바탕으로 분석해야해".
+- **원인(개념 오류)**: v2.33 휴리스틱이 V≈aP+b(1건은 순수 비례)를 학습 — 파노↔전압 인과가 뒤집힘. 파노는 "만들 결과"가 아니라 레이스 전 측정된 모터 상태다. 안정 목표는 GOAL_DELTA=0이라 상쇄 장치도 없었다.
+- MODIFIED:
+  · src/shared/lib/voltage-advisor/voltage-advisor.ts — fitVoltageForPano를 **속도 유지 역산**으로 교체: 완주 기록 우선 가중평균 S̄=Σw·(파노×전압)/Σw → V=S̄/파노. 파노 동일→전압 유지, 파노↑→전압↓. NEUTRAL_BASE 폴백. 공개 API·GOAL_DELTA·이탈 회피 cap·클램프·반환 shape 불변.
+  · src/shared/lib/voltage-advisor/voltage-advisor.test.ts — 헤더 갱신, "파노↑→전압↑" 테스트를 **"파노↑→전압↓"으로 반전**, 2건 역산 기대값 2.9→2.92, **완주-우선 표본** 테스트 신규. 나머지 11 케이스는 새 모델서도 통과(수치 재검증).
+  · api/recommend-voltage.js — 프롬프트: 도메인 지식(측정 상태·파노↑→전압↓·S=파노×전압)은 이미 R31 초반 반영, **[분석 절차] 1~2단계가 옛 "파노↔전압 관계 추정"으로 자기모순이던 것을 S̄ 가중평균·V=S̄/파노 역산으로 정정**(도메인과 정합).
+  · api/analyze-race.js — 파노 도메인 서술에 "**같은 전압이면 파노↑=속도↑**, 회차 간 파노 변화를 이탈·이상 해석 핵심 신호로" 추가(사용자 "분석해야해" 직접 반영, DL-029 전압 수치 금지와 무충돌 — 해석용).
+- 보존: 세 추천 경로(휴리스틱·recommend-voltage·analyze-race)가 이제 **동일 원칙**을 말함(반대 방향 상충 제거). GOAL_DELTA 값·클램프 대역·이탈 회피·공개 API·소비처 무변경. R30 산출물 무관.
+- EVIDENCE: Node22 게이트 typecheck·lint·test(255, 반전+완주우선 포함)·build PASS + check-iterate-scope OK(source 6건). 수치 재현: 1건 이력 파노 300·3.0V → 파노 320서 2.82V(이전 3.20V). 실주행 체감·LLM 응답은 DEPLOY_ONLY.
