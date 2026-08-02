@@ -2386,3 +2386,25 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   rationale에 append만, 필드 추가 없음)·finish/stability/speed 상대순서·클라 배선(rationale=helperText) 전부 불변.
 - NON_GOALS(갱신): 하한 값 변경, VoltageAdvice에 구조 필드 추가, 신규 화면/배지, UI 컴포넌트 변경.
 - 부수효과: 파노 정상 모터·이력 0건은 문구 없음(오탐 0). 실 LLM이 규칙을 따르는지는 DEPLOY_ONLY.
+
+## R35 — pull 데이터 검증(불량 행 격리) + 목록 에러 원인 표시 + 세션 allowlist 통일 (2026-08-02, bug-fix/프로덕션)
+- CHANGE_MODE: existing-change
+- REQUEST(사용자 실측): 캐시 삭제 후에도 "모터 목록을 불러오지 못했습니다" 재발 + /api/data 여전히 304.
+- OBSERVED_BASELINE(진단): ① replaceDomainSnapshot이 서버 행을 **무검증 저장** — 서버 DB에 현행 클라 스키마 위반 행이
+  있으면 pull 성공 시마다 로컬 재오염 → 읽기 data-corrupt throw → 목록 에러 고착(캐시 삭제 무효). ② 목록 Alert가
+  원인 없이 고정 문구만 표시 — 기기에서 data-corrupt/storage-unavailable 구분 불가. ③ session.js는 allowlist 미검사 —
+  로그인처럼 보이는데 데이터 API만 403인 불일치 상태 가능. (304 잔존은 iOS PWA의 분리 저장소가 옛 번들 유지 — 재설치 안내)
+- TARGET_BEHAVIOR:
+  ① SyncManager pull 후 서버 스냅샷을 entity 스키마(motorSchema·measureRecordSchema·raceRecordSchema)로 행 단위
+    safeParse — 실패 행은 **격리(drop)** + console.warn(store·id) 후 유효 행만 replaceDomainSnapshot. 불량 행이 있어도 앱 동작.
+  ② MotorsPage·RacePage 목록 Alert에 DomainError message 한 줄 추가(예: "저장된 데이터를 읽을 수 없습니다") — 기기 자가 진단.
+  ③ api/auth/session.js가 isAllowedEmail 검사 — 불허 세션은 authenticated:false(데이터 API 403과 상태 일치).
+- ALLOWED_PATHS: src/app/SyncManager.tsx · src/pages/motors/ui/MotorsPage.tsx · src/pages/race/ui/RacePage.tsx · api/auth/session.js
+- PUBLIC_CONTRACTS_TO_PRESERVE: pull 실패=null 조용 수렴 · 서버 우선 교체 흐름 · mirror push 계약 · Alert 재시도 버튼 ·
+  세션 응답 스키마(authenticated/user) · FSD(app→entities import 허용 경로 사용).
+- NON_GOALS: 서버 DB 행 직접 수정, ETag 커스텀, PWA 갱신 로직.
+- CHANGE_BUDGET: 파일 4, 커밋 1. 직접 구현(프로덕션 장애 대응 단일 체인).
+- ⚠️ 데이터 트레이드오프(명시): 격리된 불량 행은 다음 mirror push에서 서버에서도 제거된다 — 해당 행은 현행 앱이 어차피
+  읽지 못하는 행(지금은 그 행 때문에 전체가 불능)이므로 수용. 격리 발생 시 console.warn으로 어떤 행인지 기록.
+- TEST_EVIDENCE: LOCAL — 게이트 4종 + SyncManager 격리 로직 unit(불량 행 섞인 스냅샷 → 유효 행만 저장) 가능 범위.
+  실기기 회복·304 소멸은 DEPLOY_ONLY — PWA 재설치(홈 화면 삭제 후 재추가) 안내 포함.

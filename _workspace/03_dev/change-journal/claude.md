@@ -262,3 +262,20 @@
 - EVIDENCE: Node22 게이트 typecheck·lint·test(**263**, 신규 3)·build PASS + check-iterate-scope OK(source 4건).
   수치 재현: 400Hz 2.9V 완주 → 파노 480서 baseV≈2.42<2.6 → voltage 2.6 + "더 낮은 파노 모터" 문구. 파노 400 유지·이력0은 문구 없음.
   실 LLM이 규칙을 따라 저파노 모터를 권하는지, 폼 helperText 실노출은 DEPLOY_ONLY(서버리스+로그인 게이트).
+
+## 2026-08-02 R35 pull 격리 + 목록 에러 원인 표시 + 세션 allowlist 통일 — 직접 구현 (bug-fix/프로덕션)
+- **사용자 실측**: 캐시 삭제 후에도 목록 에러 재발 + /api/data 여전히 304 → 진단 확정: 서버 DB에 현행 클라 스키마
+  위반 행 존재 시 pull이 로컬을 재오염(replaceDomainSnapshot 무검증 저장) → 읽기 data-corrupt 고착. 304 잔존은
+  iOS PWA 분리 저장소의 옛 번들(R34 client no-store 미적용) 추정 — 재설치 안내.
+- MODIFIED: src/app/SyncManager.tsx — `sanitizeSnapshot` 신설(export): 서버 행을 entity 스키마(motor·measure·race)로
+  행 단위 safeParse, 위반 행 격리 + console.warn(store·id). **FK 연쇄**: 격리된 모터를 참조하는 기록도 격리(INV-03 —
+  잔존 시 부팅 full-scan corrupted). pull 직후 sanitize 후 replaceDomainSnapshot.
+- CREATED: src/app/SyncManager.test.tsx — 격리 계약 3케이스(전부 유효 통과 / 위반만 격리 / FK 연쇄 격리).
+- MODIFIED: src/pages/motors/ui/MotorsPage.tsx·src/pages/race/ui/RacePage.tsx — 목록 Alert에 DomainError message
+  캡션 추가(data-corrupt vs storage 실패를 기기에서 자가 진단).
+- MODIFIED: api/auth/session.js — isAllowedEmail 검사 추가: 불허 세션은 authenticated:false(데이터 API 403과 상태 일치 —
+  "로그인처럼 보이는데 데이터만 403" 불일치 제거).
+- ⚠️ 트레이드오프(brief 명시): 격리된 불량 행은 다음 mirror push에서 서버에서도 제거 — 현행 앱이 어차피 읽지 못하는
+  행(지금은 그 행 때문에 전체 불능)이므로 수용. console.warn으로 격리 행 id 기록.
+- EVIDENCE: Node22 게이트 4종 PASS(266, sanitize 3 신규). 실기기 회복·격리 발동은 DEPLOY_ONLY —
+  PWA 재설치(홈 화면 삭제→Safari 확인→재추가) 후 목록 로드·Alert 캡션 확인 위임.

@@ -197,6 +197,12 @@ export function MotorsPage() {
               </Button>
             }>
             모터 목록을 불러오지 못했습니다
+            {/* R35: 원인 문구 표면화 — 기기에서 data-corrupt(데이터)와 storage(저장소) 실패를 구분해 진단 */}
+            {summariesQuery.error instanceof Error && summariesQuery.error.message !== '' && (
+              <Box component="span" sx={{display: 'block', mt: 0.5, typography: 'caption', opacity: 0.85}}>
+                {summariesQuery.error.message}
+              </Box>
+            )}
           </Alert>
         </Box>
       ) : summaries === undefined || summaries.length === 0 ? (
