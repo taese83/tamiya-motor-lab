@@ -249,11 +249,13 @@ export function MeasurePage() {
           <StabilityGauge view={view} />
         </Box>
 
-        {/* [Z2c] 신호 세기 미터 (R45 사용자) — 안정도 하단. "신호 약함"·"더 가까이"를 하나로 통일 */}
-        <Box sx={{mt: 0.5}}>
+        <Box sx={{flex: 1}} />
+
+        {/* [Z2c] 신호 세기 미터 (R45→R46 수신감도 바→R47 사용자: 더 아래로) — 안정도와 액션 도크 사이
+            하단 영역 중앙에 배치(위아래 flex 스페이서 균형). "신호 약함"·"더 가까이"를 하나로 통일 */}
+        <Box>
           <SignalStrength view={view} />
         </Box>
-
 
         <Box sx={{flex: 1}} />
 

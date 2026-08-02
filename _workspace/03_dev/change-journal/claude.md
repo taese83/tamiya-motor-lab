@@ -446,3 +446,9 @@
 - CHANGED: src/features/measure-session/ui/SignalStrength.tsx — 단일 채움 막대를 증가형 5칸 신호 바로 교체.
   barsFrom(confidence)로 켜질 칸 수 양자화, flex-end 계단, 켜진 칸 tone색(앰버/라임)·꺼진 칸 dim. 라벨·aria-label·파생 tone 불변.
 - EVIDENCE: typecheck·lint·build 클린, SignalStrength 4건 통과. 프리뷰: 5칸 계단 바(높이 4/7/11/14/18px 증가) 안정도 하단 렌더, 스크린샷. 활성 색상은 마이크 필요 DEPLOY_ONLY.
+
+## R47 — 신호 세기 위치 하향 (2026-08-03, ui-change · 직접)
+- REQUEST(사용자): 좀더 아래쪽으로.
+- CHANGED: src/pages/measure/ui/MeasurePage.tsx — 신호 세기 Box를 안정도 직하(mt:0.5)에서 안정도↔도크 사이 하단으로,
+  위아래 flex 스페이서로 균형 배치(뷰포트 ~74%).
+- EVIDENCE: typecheck·lint·build 클린. 프리뷰: 신호 세기 top 74%·안정도 아래 101px 간격·액션 위, 스크린샷.

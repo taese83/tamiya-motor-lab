@@ -2618,3 +2618,13 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - NON_GOALS: confidence 파생 임계 변경, 다른 게이지/뷰 변경.
 - CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
 - TEST_EVIDENCE: LOCAL — SignalStrength 4건 통과(라벨·aria 불변) + 게이트. 프리뷰(측정 대기): 5칸 계단 바 렌더(높이 4·7·11·14·18px 증가). 활성 색상은 DEPLOY_ONLY.
+
+## R47 — 신호 세기 위치 하향 (2026-08-03, ui-change)
+- REQUEST(사용자): 신호 세기를 좀더 아래쪽으로.
+- TARGET_BEHAVIOR: MeasurePage에서 신호 세기를 안정도 바로 아래(mt:0.5) → 안정도와 액션 도크 사이 하단 영역 중앙으로
+  이동(위아래 flex 스페이서 균형). 뷰포트 ~74% 지점. 상태 전환에도 위치 불변.
+- ALLOWED_PATHS: src/pages/measure/ui/MeasurePage.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: SignalStrength 계약·Z1/Z2/Z3 고정·측정 왕복.
+- NON_GOALS: SignalStrength 내부/뷰 변경.
+- CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
+- TEST_EVIDENCE: LOCAL — typecheck·lint·build 클린(테스트 무영향) + 프리뷰(신호 세기 top 뷰포트 74%·안정도 아래 101px·액션 위).
