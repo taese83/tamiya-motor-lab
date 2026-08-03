@@ -2637,3 +2637,39 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - ALLOWED_PATHS: src/pages/measure/ui/MeasurePage.tsx
 - CHANGE_BUDGET: 소스 1, 커밋 1. 직접.
 - TEST_EVIDENCE: LOCAL — typecheck·lint·build 클린 + 프리뷰(신호 67%·안정도 아래 58px·375×812·360×600 스크롤 0·CTA 겹침 없음).
+
+## R49 — 목록 탭·필터 고정 + 레이스 상세 상단 카드 고정 (2026-08-03, ui-change)
+- REQUEST(사용자): ① 레이스 상세의 상단 카드는 스크롤 안 되고 고정 ② 모터/레이스 목록의 탭이랑 필터는 스크롤 안 되고 고정.
+- OBSERVED_BASELINE:
+  ① RaceDetailPage는 이미 고정 셸(pageShellSx: 헤더 고정 / scrollAreaSx: 목록 스크롤 / footerSx: 초기화 고정)이나,
+     상단 인사이트 카드(RaceInsightCard)가 scrollAreaSx 안에 있어 회차 목록과 함께 스크롤된다.
+  ② MotorsPage·RacePage는 문서 스크롤(고정 셸 아님). 헤더(PageHeader)는 sticky top:0로 이미 고정이지만,
+     탭(MotorKindFilter=MUI scrollable Tabs)과 정렬 필터(SegmentControl)는 본문 Box 자연 흐름에 있어 목록과 함께 스크롤된다.
+- TARGET_BEHAVIOR:
+  ① 인사이트 카드를 scrollAreaSx 밖 상단 고정 블록(fixedInsightSx, flexShrink:0)으로 이동 — 모터 상세 fixedTopSx와 동일 관례.
+     기록이 있을 때만(racesQuery.isSuccess && races.length>0) 렌더. 로딩/오류/0건은 종전대로 스크롤 영역이 담당. AI 분석 카드(가변·확장형)는 스크롤 영역에 유지.
+  ② 탭+정렬을 sticky 블록으로 감싸 고정 헤더(높이 calc(3.5rem + safe-top)) 바로 아래에 붙인다.
+     불투명 배경(background.default) + z-index(appBar-1)로 목록이 뒤로 비치지 않고 컨트롤 밑을 지나가게 한다. 문서 스크롤 구조는 유지(PageHeader sticky와 동일 메커니즘).
+- ALLOWED_PATHS: src/pages/race-detail/ui/RaceDetailPage.tsx · src/pages/motors/ui/MotorsPage.tsx · src/pages/race/ui/RacePage.tsx
+- PUBLIC_CONTRACTS_TO_PRESERVE: RaceInsightCard/MotorKindFilter/SegmentControl props·의미·순서·aria 불변, 안정 흐름 배치 여백(필터↔정렬↔목록 12px) 유지,
+  RaceDetail 초기화 푸터·AI 분석 aria-live 상시 렌더·목록 정렬/필터 상태 공유(useMotorSort/useMotorKindFilter) 불변, 로그인·corrupt·loading·empty 분기 불변.
+- NON_GOALS: 리스트 페이지를 고정 셸(내부 스크롤)로 전면 전환, 컨트롤 컴포넌트 내부 변경, 카드/행 시각 변경, 정렬·필터 로직 변경, 다른 화면 변경.
+- CHANGE_BUDGET: 소스 3(페이지 3), 테스트 무영향(레이아웃 sx만). 커밋 1(직접).
+- CAPABILITY_ESCALATION: none — 서버 실행 경로·인증·DB·외부 키 신규 없음. 순수 클라 레이아웃 sx 변경.
+- DOCS_TO_UPDATE: none — layout-spec의 고정 헤더/스크롤 목록 원칙과 정합(상단 카드·컨트롤 고정은 기존 고정 셸 관례의 적용). 계약 충돌 없음.
+- TEST_EVIDENCE: LOCAL_VERIFIABLE(레이아웃) — typecheck·lint·build 클린 + 프리뷰 실측(스크롤 시 인사이트 카드·목록 탭/필터 고정, 목록만 스크롤, 헤더 밑 정렬).
+  단, 로그인 게이트 뒤 실데이터 화면(모터/레이스 목록·레이스 상세)은 로컬 정적 서버에서 미로그인 수렴이라 실기록 스크롤은 DEPLOY_ONLY — 프리뷰 fixture로 외형 확인.
+
+## R50 — packageManager 깨진 핀 교정 (2026-08-04, infrastructure)
+- REQUEST(사용자): 릴리스 게이트 사전 조건 해소 착수 → 확인 후 "pnpm 핀만 고치고 종료" 선택.
+- OBSERVED_BASELINE: package.json `packageManager: pnpm@11.13.0` + `engines.pnpm: 11.13.0`. 11.13.0은 broken release
+  (@pnpm/exe 바이너리 누락)라 pnpm 자기 전환이 실패 → 로컬 pnpm 명령·격리 CI 품질 러너의 packageManager 매칭 게이트가 모두 막힘.
+- TARGET_BEHAVIOR: 핀을 동작 버전 11.18.0으로 교정(메모리 node-toolchain-constraint 근거). pnpm이 프로젝트에서 clean resolve.
+- ALLOWED_PATHS: workspace/tamiya-motor-lab/package.json
+- PUBLIC_CONTRACTS_TO_PRESERVE: engines.node 범위·나머지 스크립트/의존성 불변. 코드 동작 무관.
+- NON_GOALS: 의존성 업그레이드, lockfile 재생성, 다른 toolchain 필드 변경.
+- 검증: pinned Node 22.22.3에서 `pnpm -v` → 11.18.0 clean(이전 broken-release 에러 제거).
+- 남은 릴리스 블로커(미해결, 사용자 합의로 중단): 이 앱은 Vite SPA + serverless(api/*.js — LLM/OAuth) + client sync의
+  **hybrid-serverless**다. ① 릴리스 품질 러너의 external-ingestion 감지가 이들 outbound fetch를 오탐(크롤/스크랩 아님)
+  ② 오케스트레이터가 hybrid-serverless를 built-in adapter 범위 밖 BLOCKED로 분류, locked profile(csr/static-build)이 serverless 계층 미모델.
+  → 정식 서명 릴리스 attestation은 계약 위조(게이트 우회) 없이는 현 하네스에서 도달 불가. 재프로파일(next BFF 등)은 별도 큰 작업.
