@@ -97,6 +97,18 @@ const scrollAreaSx = {
   overscrollBehaviorY: 'contain',
 } as const
 
+// ── R49 인사이트 카드 고정 블록 ─────────────────────────────────────────────
+// 상단 인사이트 카드를 스크롤 영역 밖으로 빼 고정한다(회차 목록만 스크롤). 모터 상세
+// (MotorDetailPage) fixedTopSx와 동일 관례: flexShrink 0으로 셸 상단에 붙이고 좌우/상단
+// 패딩은 스크롤 영역과 맞춘다. AI 분석 카드(가변 높이·확장형)는 이 고정 대상이 아니라
+// 스크롤 영역에 남는다 — 펼치면 뷰포트를 크게 먹어 고정에 부적합하다.
+const fixedInsightSx = {
+  px: 2,
+  pt: 2,
+  pb: 1,
+  flexShrink: 0,
+} as const
+
 // 하단 고정 초기화 도크 — 모터 상세 [측정] 푸터와 동일 배치·헤어라인. 버튼 색은 파괴 톤을
 // 유지한다(측정=라임 primary와 동일 색을 쓰면 전체 초기화가 안전한 주 행동으로 오독된다 —
 // 위치·크기만 통일, 톤은 error outlined 유지가 req8의 안전한 해석).
@@ -413,6 +425,21 @@ export function RaceDetailPage() {
           />
         ) : (
           <>
+            {/* R49 — 인사이트 카드를 스크롤 영역 밖 상단에 고정한다(회차 목록만 스크롤).
+                기록이 있을 때만 렌더 — 로딩/오류/0건은 아래 스크롤 영역이 담당한다.
+                empty insight면 카드가 스스로 null을 반환하지만, races>0 게이트로 이미 배제된다. */}
+            {racesQuery.isSuccess && races.length > 0 && (
+              <Box sx={fixedInsightSx}>
+                <RaceInsightCard
+                  insight={insight}
+                  onOpenHelp={() => setInsightHelpOpen(true)}
+                  onAnalyze={handleAnalyze}
+                  analyzeDisabledReason={analyzeDisabledReason}
+                  analyzePending={analysis.pending}
+                  onCancelAnalyze={analysis.cancel}
+                />
+              </Box>
+            )}
             <Box sx={scrollAreaSx}>
               {racesQuery.isPending ? (
                 <Typography color="text.secondary">기록 불러오는 중…</Typography>
@@ -438,18 +465,8 @@ export function RaceDetailPage() {
                 </Typography>
               ) : (
                 <>
-                  {/* R22 인사이트 카드 — 스크롤 영역 상단, 회차 목록 바로 위(목록은 그 아래 스크롤).
-                      empty면 카드가 스스로 null 반환. loading/error/gate/notFound 경로 미렌더. */}
-                  <Box sx={{mb: 1}}>
-                    <RaceInsightCard
-                      insight={insight}
-                      onOpenHelp={() => setInsightHelpOpen(true)}
-                      onAnalyze={handleAnalyze}
-                      analyzeDisabledReason={analyzeDisabledReason}
-                      analyzePending={analysis.pending}
-                      onCancelAnalyze={analysis.cancel}
-                    />
-                  </Box>
+                  {/* R22 인사이트 카드는 R49에서 스크롤 영역 밖 상단 고정 블록으로 이동했다
+                      (위 fixedInsightSx 참조 — 회차 목록만 스크롤). 여기서는 AI 분석 응답부터 렌더. */}
                   {/* R25 U6 — AI 분석 응답 슬롯: aria-live 래퍼는 상시 렌더(빈 상태 0px — 라이브
                       리전은 DOM 선존재해야 낭독), 카드는 success·insufficient·error일 때만(§2).
                       펼침 자동 스크롤은 이번 라운드 생략 — 카드 자체 scrollMarginTop 유지. */}

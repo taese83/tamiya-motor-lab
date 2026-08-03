@@ -49,6 +49,24 @@ interface ShellOutletContext {
 /** 필터 훅 입력 안정 참조 — pending/error 시 매 렌더 새 배열을 만들지 않게 한다 */
 const EMPTY_SUMMARIES: ReadonlyArray<never> = []
 
+// ── R49 목록 컨트롤 고정 ─────────────────────────────────────────────────────
+// 탭(MotorKindFilter=MUI scrollable Tabs)과 정렬 필터(SegmentControl)를 고정 헤더 바로
+// 아래에 sticky로 붙인다 — 목록만 스크롤하고 컨트롤은 항상 보인다. 문서 스크롤 구조는
+// 유지하고(PageHeader가 이미 쓰는 sticky top:0와 동일 메커니즘) 헤더 높이만큼 오프셋한다.
+// 불투명 배경으로 스크롤되는 목록이 뒤로 비치지 않게 하고, z-index로 목록이 컨트롤 밑을
+// 지나가게 한다. 내부 gap과 pb로 안정 흐름 시의 필터↔정렬↔목록 여백(각 12px)을 보존한다.
+// RacePage에도 동일 상수를 둔다(loginGateSx처럼 화면별 로컬 — pages는 공유 모듈을 새로 만들지 않는다).
+const stickyControlsSx = {
+  position: 'sticky',
+  top: 'calc(3.5rem + var(--mml-safe-top, 0px))',
+  zIndex: (theme: {zIndex: {appBar: number}}) => theme.zIndex.appBar - 1,
+  backgroundColor: 'background.default',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 1.5,
+  pb: 1.5,
+} as const
+
 // v2.x(사용자) — 모터도 레이스와 동일하게 로그인 필수. 비로그인 시 본문 대체 중앙 게이트.
 // RacePage.loginGateSx와 동일 규칙(콘텐츠 영역 높이 채워 세로 중앙 정렬).
 const loginGateSx = {
@@ -214,26 +232,31 @@ export function MotorsPage() {
           onAction={openCreateSheet}
         />
       ) : (
-        <Box sx={{px: 2, py: 2, display: 'flex', flexDirection: 'column', gap: 1.5}}>
-          {/* 종류 필터 — 모터가 1건 이상일 때만 노출(빈 목록에 죽은 컨트롤 금지) */}
-          <MotorKindFilter
-            options={kindFilter.options}
-            selectedKind={kindFilter.selectedKind}
-            onSelect={kindFilter.select}
-            onClear={kindFilter.clear}
-          />
+        /* R49: 컨트롤(탭+정렬)은 sticky로 고정, 목록만 스크롤. 안정 흐름 여백은 sticky 블록의
+           gap/pb가 소유하므로 바깥 Box의 gap은 제거한다(이중 여백 방지). */
+        <Box sx={{px: 2, py: 2, display: 'flex', flexDirection: 'column'}}>
+          {/* R49 고정 컨트롤 블록 — 헤더 아래 sticky. 종류 필터 탭 + 정렬 세그먼트. */}
+          <Box sx={stickyControlsSx}>
+            {/* 종류 필터 — 모터가 1건 이상일 때만 노출(빈 목록에 죽은 컨트롤 금지) */}
+            <MotorKindFilter
+              options={kindFilter.options}
+              selectedKind={kindFilter.selectedKind}
+              onSelect={kindFilter.select}
+              onClear={kindFilter.clear}
+            />
 
-          {/* v2.26 정렬 — 최근 등록순(기본)·파노 높은순·이름순. 선택은 영속(재시작 유지).
-              v2.27: rounded — 위 종류 필터 칩과 동일한 pill 톤으로 세그먼트 바깥 모서리를 라운딩 */}
-          <SegmentControl
-            aria-label="모터 정렬"
-            rounded
-            options={motorSort.options.map(o => ({value: o.key, label: o.label}))}
-            value={motorSort.sort}
-            onChange={next => {
-              if (next !== null) motorSort.setSort(next)
-            }}
-          />
+            {/* v2.26 정렬 — 최근 등록순(기본)·파노 높은순·이름순. 선택은 영속(재시작 유지).
+                v2.27: rounded — 위 종류 필터 칩과 동일한 pill 톤으로 세그먼트 바깥 모서리를 라운딩 */}
+            <SegmentControl
+              aria-label="모터 정렬"
+              rounded
+              options={motorSort.options.map(o => ({value: o.key, label: o.label}))}
+              value={motorSort.sort}
+              onChange={next => {
+                if (next !== null) motorSort.setSort(next)
+              }}
+            />
+          </Box>
 
           {kindFilter.filtered.length === 0 ? (
             // 필터 결과 0건 — 전체 0건(EmptyState)과 다른 경로. 빠져나갈 액션을 반드시 제공한다
@@ -254,6 +277,8 @@ export function MotorsPage() {
                 <Alert
                   severity="error"
                   role="alert"
+                  // R49: 바깥 Box의 gap을 제거했으므로 목록과의 간격(12px)을 여기서 명시한다
+                  sx={{mb: 1.5}}
                   action={
                     <Button color="inherit" size="small" onClick={deleteFlow.retryCount}>
                       다시 시도

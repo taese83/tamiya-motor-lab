@@ -40,6 +40,21 @@ interface ShellOutletContext {
 /** 필터 훅 입력 안정 참조 — pending/error 시 매 렌더 새 배열을 만들지 않게 한다 */
 const EMPTY_SUMMARIES: ReadonlyArray<never> = []
 
+// ── R49 목록 컨트롤 고정 ─────────────────────────────────────────────────────
+// 탭(MotorKindFilter=MUI scrollable Tabs)과 정렬 필터(SegmentControl)를 고정 헤더 바로
+// 아래에 sticky로 붙인다 — 목록만 스크롤하고 컨트롤은 항상 보인다. MotorsPage.stickyControlsSx와
+// 동일 규칙(loginGateSx처럼 화면별 로컬 상수 — pages는 공유 모듈을 새로 만들지 않는다).
+const stickyControlsSx = {
+  position: 'sticky',
+  top: 'calc(3.5rem + var(--mml-safe-top, 0px))',
+  zIndex: (theme: {zIndex: {appBar: number}}) => theme.zIndex.appBar - 1,
+  backgroundColor: 'background.default',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 1.5,
+  pb: 1.5,
+} as const
+
 // v2.43 — 레이스는 로그인 필수. 비로그인 시 본문을 대체하는 중앙 게이트 안내.
 // 콘텐츠 영역(헤더·탭 바 제외) 높이를 채워 세로 중앙 정렬한다.
 const loginGateSx = {
@@ -154,33 +169,38 @@ export function RacePage() {
           }}
         />
       ) : (
-        <Box sx={{px: 2, py: 2, display: 'flex', flexDirection: 'column', gap: 1.5}}>
-          {/*
-            v2.17 종류 필터 — 모터 목록과 **같은 컴포넌트·같은 상태**를 쓴다.
-            칩 UI를 이 화면에 다시 만들지 않는 이유: 같은 필터를 두 번 구현하면 옵션 산출·
-            0건 처리·정렬 정규화가 화면마다 미묘하게 갈린다. 상태도 공유라 한쪽에서 고르면
-            다른 쪽에 그대로 반영된다(사용자 결정).
-          */}
-          <MotorKindFilter
-            options={kindFilter.options}
-            selectedKind={kindFilter.selectedKind}
-            onSelect={kindFilter.select}
-            onClear={kindFilter.clear}
-          />
-
-          {/* v2.44 정렬 — 모터 목록과 같은 컴포넌트·같은 store(영속·공유). 최근 등록순(기본)·
-              파노 높은순·이름순. 필터 결과가 1건 이상일 때만 노출(죽은 컨트롤 방지). */}
-          {kindFilter.filtered.length > 0 && (
-            <SegmentControl
-              aria-label="레이스 모터 정렬"
-              rounded
-              options={motorSort.options.map(o => ({value: o.key, label: o.label}))}
-              value={motorSort.sort}
-              onChange={next => {
-                if (next !== null) motorSort.setSort(next)
-              }}
+        /* R49: 컨트롤(탭+정렬)은 sticky로 고정, 목록만 스크롤. 안정 흐름 여백은 sticky 블록의
+           gap/pb가 소유하므로 바깥 Box의 gap은 제거한다(이중 여백 방지). */
+        <Box sx={{px: 2, py: 2, display: 'flex', flexDirection: 'column'}}>
+          {/* R49 고정 컨트롤 블록 — 헤더 아래 sticky. 종류 필터 탭 + 정렬 세그먼트. */}
+          <Box sx={stickyControlsSx}>
+            {/*
+              v2.17 종류 필터 — 모터 목록과 **같은 컴포넌트·같은 상태**를 쓴다.
+              칩 UI를 이 화면에 다시 만들지 않는 이유: 같은 필터를 두 번 구현하면 옵션 산출·
+              0건 처리·정렬 정규화가 화면마다 미묘하게 갈린다. 상태도 공유라 한쪽에서 고르면
+              다른 쪽에 그대로 반영된다(사용자 결정).
+            */}
+            <MotorKindFilter
+              options={kindFilter.options}
+              selectedKind={kindFilter.selectedKind}
+              onSelect={kindFilter.select}
+              onClear={kindFilter.clear}
             />
-          )}
+
+            {/* v2.44 정렬 — 모터 목록과 같은 컴포넌트·같은 store(영속·공유). 최근 등록순(기본)·
+                파노 높은순·이름순. 필터 결과가 1건 이상일 때만 노출(죽은 컨트롤 방지). */}
+            {kindFilter.filtered.length > 0 && (
+              <SegmentControl
+                aria-label="레이스 모터 정렬"
+                rounded
+                options={motorSort.options.map(o => ({value: o.key, label: o.label}))}
+                value={motorSort.sort}
+                onChange={next => {
+                  if (next !== null) motorSort.setSort(next)
+                }}
+              />
+            )}
+          </Box>
 
           {/* v2.2: [기록 초기화]는 모터별 처리로 이동 — 레이스 상세(/race/:motorId) 하단 */}
           {kindFilter.filtered.length === 0 ? (
