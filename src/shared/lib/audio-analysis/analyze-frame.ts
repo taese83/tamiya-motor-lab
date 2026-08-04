@@ -46,30 +46,55 @@ function emptyAnalysis(rms: number, reject: GateReject): FrameAnalysis {
 }
 
 
-/* ── 옥타브 하향 오판 교정 (v2.x — 실기기 확정) ──────────────────────────────── *
- * 증상: 같은 모터인데 폰을 밀착하면 후보 583Hz(정답), 떼면 후보 291Hz(=583/2)로 미끄러진다.
+/* ── 서브하모닉 하향 오판 교정 (v2.x ×2 → R55 ×3 일반화, 실기기 확정) ─────────── *
+ * ×2 증상: 같은 모터인데 폰을 밀착하면 후보 583Hz(정답), 떼면 후보 291Hz(=583/2)로 미끄러진다.
  * 판별 근거: 291의 배음을 보면 582(2배)·1747(6배)·2329(8배)·3493(12배)로 **짝수 배만** 있고
  * 홀수 배(873=3배·1455=5배)에는 에너지가 없다. 진짜 기본파라면 3배·5배에도 에너지가 있어야
  * 하므로, "짝수 배만 강하다"는 것은 실제 기본파가 2f0라는 직접 증거다.
- * 반례 보호: 정상 모터(기본파 514)는 3배(1542, 32dB)가 뚜렷해 교정되지 않는다. */
-const OCTAVE_EVEN_MIN_SNR_DB = 12
-const OCTAVE_ODD_MARGIN_DB = 10
+ * 반례 보호: 정상 모터(기본파 514)는 3배(1542, 32dB)가 뚜렷해 교정되지 않는다.
+ *
+ * ×3(R55, 실기기 확정): 스펙트럼이 546·1092(=f0·2f0) 두 피크뿐일 때 ÷3 후보 182는
+ * 3배(546)·6배(1092) 대역이 그 피크들을 정확히 덮어 **신뢰 게이트까지 통과**한다(harm 2·
+ * snr 9.1 실측). 판별 근거는 동일 논리: 182가 진짜라면 1·2·4·5배(182·364·728·910)에도
+ * 에너지가 있어야 한다 — "3의 배수 배음만 강하다"는 것은 실제 기본파가 3f0라는 직접 증거다. */
+const SUBHARMONIC_STRIDE_MIN_SNR_DB = 12
+const SUBHARMONIC_OTHERS_MARGIN_DB = 10
 
-function correctOctaveDown(
+function maxSnr(measurements: readonly HarmonicMeasurement[]): number {
+  let best = 0
+  for (const m of measurements) best = Math.max(best, m.snrDb)
+  return best
+}
+
+function correctSubharmonicUp(
   power: Float64Array,
   binHz: number,
   sampleRate: number,
   f0: number,
   fMax: number,
 ): number {
+  // ×2: 짝수 배 지배 → 실제 기본파 2f0
   const doubled = 2 * f0
-  if (doubled > fMax) return f0 // 대역 밖으로는 승격하지 않는다
-  const [h2, h4] = measureHarmonics(power, binHz, sampleRate, f0, [2, 4])
-  const [h3, h5] = measureHarmonics(power, binHz, sampleRate, f0, [3, 5])
-  const evenSnr = Math.max(h2?.snrDb ?? 0, h4?.snrDb ?? 0)
-  const oddSnr = Math.max(h3?.snrDb ?? 0, h5?.snrDb ?? 0)
-  const evenDominant = evenSnr >= OCTAVE_EVEN_MIN_SNR_DB && oddSnr < evenSnr - OCTAVE_ODD_MARGIN_DB
-  return evenDominant ? doubled : f0
+  if (doubled <= fMax) {
+    const evenSnr = maxSnr(measureHarmonics(power, binHz, sampleRate, f0, [2, 4]))
+    const oddSnr = maxSnr(measureHarmonics(power, binHz, sampleRate, f0, [3, 5]))
+    if (evenSnr >= SUBHARMONIC_STRIDE_MIN_SNR_DB && oddSnr < evenSnr - SUBHARMONIC_OTHERS_MARGIN_DB) {
+      return doubled
+    }
+  }
+  // ×3: 3의 배수 배 지배(3·6) + 나머지(1·2·4·5) 공백 → 실제 기본파 3f0
+  const tripled = 3 * f0
+  if (tripled <= fMax) {
+    const strideSnr = maxSnr(measureHarmonics(power, binHz, sampleRate, f0, [3, 6]))
+    const othersSnr = maxSnr(measureHarmonics(power, binHz, sampleRate, f0, [1, 2, 4, 5]))
+    if (
+      strideSnr >= SUBHARMONIC_STRIDE_MIN_SNR_DB &&
+      othersSnr < strideSnr - SUBHARMONIC_OTHERS_MARGIN_DB
+    ) {
+      return tripled
+    }
+  }
+  return f0
 }
 
 /** 검출 고조파 피크들의 f0 환산 가중 평균 — VP 탐색 시작점을 서브빈 정밀도로 당긴다 */
@@ -154,7 +179,7 @@ export function createFrameAnalyzer(
       // 게이트가 모두 교정된 f₀ 기준으로 계산돼야 SNR·고조파 판정이 정상화된다.
       const evaluate = (candidate: ScoredCandidate): CandidateEvaluation => {
         const start = options.octaveCorrection
-          ? correctOctaveDown(
+          ? correctSubharmonicUp(
               spectrum.power,
               spectrum.binHz,
               decimatedRate,
@@ -250,10 +275,16 @@ export function createFrameAnalyzer(
       }
 
       const chosen = evaluations[chosenIdx]!
-      // Viterbi 후보 격자: 채택 후보는 VP 정밀값, 나머지는 피크 가중값 (전량 VP는 예산 초과, v2 §4)
+      // Viterbi 후보 격자: 채택 후보는 VP 정밀값, 나머지는 피크 가중값 (전량 VP는 예산 초과, v2 §4).
+      // R55: 채택 후보에 **격자 최상위 emission**을 부여한다 — comb 순위가 ÷3으로 미끄러진
+      // 프레임에서 게이트는 옳은 후보를 채택해도, 격자에 comb 점수를 그대로 실으면 Viterbi가
+      // 최고점(÷3) 경로에 눌러앉아 표시가 틀린 값에 고정된다(실기기: ev 544 통과에도 181.5 표시).
+      // 게이트(엄격/추적 유지)를 통과한 후보가 더 강한 증거이므로 emission이 comb 순위를 이긴다.
+      const topScore = scored[0]!.combScore
+      const CHOSEN_SCORE_MARGIN = 10 // EMISSION_SCALE_DB 1단위 — lag 5 내 오경로 탈출 보장
       const candidates: TrackCandidate[] = scored.map((c, i) => ({
         f0: i === chosenIdx ? chosen.finalF0 : peakWeightedF0(c),
-        score: c.combScore,
+        score: i === chosenIdx ? topScore + CHOSEN_SCORE_MARGIN : c.combScore,
       }))
       return {
         gatePassed: true,
