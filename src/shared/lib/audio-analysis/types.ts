@@ -211,6 +211,17 @@ export interface EngineTuning {
   harmonicJumpExtraPenalty: number
   /** 게이트 실패 연속 허용 프레임 수 — 초과 시 weak-signal 전환 (D-9 stale 방지) */
   missTolerance: number
+  /**
+   * R54 추적 유지 게이트 — 전 후보가 엄격 게이트를 기각당해도, **추적 중인 f0 부근** 후보는
+   * 완화 임계로 승인해 track을 잇는다. 신규 획득(acquisition)은 여전히 엄격 게이트만 통과
+   * 가능하므로 "틀린 값 통과" 위험이 낮다 — 완화는 이미 검증된 추적의 연속성 증거에만 적용.
+   */
+  /** 추적 유지 게이트 SNR 임계 (dB) — 엄격(gateSnrDb=8)보다 낮다 */
+  continueSnrDb: number
+  /** 추적 유지 게이트 최소 검출 고조파 수 */
+  continueMinHarmonics: number
+  /** 추적 f0 대비 허용 편차 비율 — 이 밖의 후보(÷3 등)는 완화 대상이 아니다 */
+  continueTolRatio: number
   /** 안정 판정 창 (s) — v2 §1: 1.5 */
   stabilitySeconds: number
   /** 안정 판정 변동계수 임계 — v2 §1: 1.5% */
@@ -241,8 +252,17 @@ export const DEFAULT_TUNING: EngineTuning = {
   fMax: 800,
   pitchDivisors: [1, 3, 6],
   octaveCorrection: true,
-  scoredHarmonics: [1, 3, 6],
-  harmonicWeights: [1, 1, 0.7],
+  /**
+   * comb 채점 고조파 — v2 §1 원안 1·3·6에 **2를 추가** (R54, 실기기 rejF0 진단 확정).
+   * 원안은 3극 정류 물리(3·6배 지배) 가정이었으나, 실측 스펙트럼(514 모터: 514·1028·1542·
+   * 2056·3085 = 1·2·3·4·6배)은 **2배음이 항상 강하다**. 1·3·6만 채점하면 2배음(2f₀)이 있는
+   * 프레임에서 진짜 f₀는 2f₀를 점수에 못 넣는데 ÷3 후보는 같은 피크를 6배(k6)로 흡수해
+   * **÷3이 comb 1위를 빼앗는다** — 546Hz 모터가 기각 프레임 100%에서 182Hz(=546/3)를
+   * 평가하던 실기기 증상의 직접 원인. k2(가중 1)를 채점하면 진짜 f₀가 2f₀를 정가중으로
+   * 흡수해 역전이 사라지고, 게이트 검출 고조파 수(≥2)도 1·2배만으로 충족된다.
+   */
+  scoredHarmonics: [1, 2, 3, 6],
+  harmonicWeights: [1, 1, 1, 0.7],
   maxCandidates: 5,
   nonHarmonicPenaltyWeight: 0.5,
   /**
@@ -293,6 +313,11 @@ export const DEFAULT_TUNING: EngineTuning = {
   // weak 전환+안정창 리셋이 반복돼 stable/자동확정이 무산됐다. 세션 타이머 유예(1200ms) 안쪽이고
   // >500ms 결손은 종전대로 weak(D-9 stale 방지). coast 보고값은 Kalman 예측(kf) — 정지 측정 전제.
   missTolerance: 20,
+  // R54 추적 유지 게이트(실기기: 3·6배음이 수백 ms 단위로 사라져 pass 12~45%에 그침) —
+  // 추적 중 f0 ±12% 후보는 SNR 4dB·고조파 1개면 잇는다. ÷3(1.58옥타브 밖)은 대상 아님.
+  continueSnrDb: 4,
+  continueMinHarmonics: 1,
+  continueTolRatio: 0.12,
   stabilitySeconds: 1.5,
   stabilityCv: 0.015,
 }

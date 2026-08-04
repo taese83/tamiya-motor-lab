@@ -28,6 +28,9 @@ const TUNING_NUMBER_KEYS = [
   'jumpPenalty',
   'harmonicJumpExtraPenalty',
   'missTolerance',
+  'continueSnrDb',
+  'continueMinHarmonics',
+  'continueTolRatio',
   'stabilitySeconds',
   'stabilityCv',
 ] as const satisfies readonly (keyof EngineTuning)[]

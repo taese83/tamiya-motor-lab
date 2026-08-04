@@ -23,7 +23,11 @@ import type {
 
 export interface FrameAnalyzer {
   readonly frameLength: number
-  analyze(frame: Float32Array): FrameAnalysis
+  /**
+   * @param hintF0 추적 계층이 현재 잠근 f0 (없으면 null) — R54 추적 유지 게이트의 기준.
+   *   전 후보가 엄격 게이트에 기각돼도 hint ±continueTolRatio 안의 후보는 완화 임계로 승인한다.
+   */
+  analyze(frame: Float32Array, hintF0?: number | null): FrameAnalysis
 }
 
 function emptyAnalysis(rms: number, reject: GateReject): FrameAnalysis {
@@ -97,9 +101,21 @@ export function createFrameAnalyzer(
     subHarmonicPenaltyWeight: options.subHarmonicPenaltyWeight,
   }
 
+  // R54: 후보 1개의 전체 평가 파이프라인 (옥타브 교정 → 일치도 → VP 정밀 → 게이트 계측).
+  // 종전에는 comb 1위만 평가해, 1위가 틀리면(÷3 미끄러짐) 프레임 전체가 기각됐다.
+  interface CandidateEvaluation {
+    finalF0: number
+    usedHarmonics: number[]
+    snrDb: number
+    detectedHarmonics: number[]
+    voicedProb: number
+    /** 엄격 게이트 기각 사유 — 빈 배열이면 통과 */
+    rejects: GateReject[]
+  }
+
   return {
     frameLength,
-    analyze(frame) {
+    analyze(frame, hintF0 = null) {
       let sumSq = 0
       for (let i = 0; i < frame.length; i++) sumSq += frame[i]! * frame[i]!
       const rms = Math.sqrt(sumSq / Math.max(1, frame.length))
@@ -129,7 +145,6 @@ export function createFrameAnalyzer(
       )
       const winner = scored[0]
       if (winner === undefined) return emptyAnalysis(rms, 'no-winner')
-      const voicedProb = winner.voicedProb
 
       // 일치도 검사 기준은 **VP 이전** 값이어야 한다 (v2 §1).
       // VP를 먼저 전 고조파로 돌리면 오염 성분(예: 6f₀ 근처 독립 톤)까지 함께 적합되어
@@ -137,83 +152,119 @@ export function createFrameAnalyzer(
       // 피크 가중 평균은 각 고조파의 implied f₀를 독립 평균하므로 그 결합이 없다.
       // 옥타브 하향 오판 교정을 VP·게이트보다 **먼저** 적용한다 — 이후 일치도 검사·정밀 추정·
       // 게이트가 모두 교정된 f₀ 기준으로 계산돼야 SNR·고조파 판정이 정상화된다.
-      const start = options.octaveCorrection
-        ? correctOctaveDown(
-            spectrum.power,
-            spectrum.binHz,
-            decimatedRate,
-            peakWeightedF0(winner),
-            options.fMax,
-          )
-        : peakWeightedF0(winner)
-      const measured: HarmonicMeasurement[] = measureHarmonics(
-        spectrum.power,
-        spectrum.binHz,
-        decimatedRate,
-        start,
-        options.scoredHarmonics,
-      )
-      const usedHarmonics = checkHarmonicConsistency(
-        measured,
-        start,
-        options.consistencyTolRatio,
-      )
-
-      // VP 정밀 추정: 일치 판정된 고조파만으로 comb 승자 ±1 bin 탐색 (v2 §1)
-      const final = refine(frame, decimatedRate, start, {
-        harmonics: usedHarmonics,
-        searchHalfWidthHz: 1.5 * spectrum.binHz,
-      })
-
-      // 신뢰 게이트 (v2 §1): SNR ≥ 8 dB & 검출 고조파 ≥ 2 & voicing 임계.
-      // 예외: 순음(§3 fixture 1)은 고조파가 1개뿐이므로 강한 SNR(≥ gateStrongSnrDb)이면 통과.
-      const gate = computeGateMetrics(
-        spectrum.power,
-        spectrum.binHz,
-        decimatedRate,
-        final.f0,
-        combOptions,
-      )
-      const harmonicCountOk =
-        gate.detectedHarmonics.length >= options.gateMinHarmonics ||
-        (gate.detectedHarmonics.length >= 1 && gate.snrDb >= options.gateStrongSnrDb)
-      // R53 진단: 신뢰 게이트는 조건별 동시 기각이 가능 — 실패한 조건을 전부 계상한다
-      const rejects: GateReject[] = []
-      if (voicedProb < options.gateVoicingThreshold) rejects.push('voicing')
-      if (gate.snrDb < options.gateSnrDb) rejects.push('snr')
-      if (!harmonicCountOk) rejects.push('harmonics')
-      const gatePassed = rejects.length === 0
-
-      if (!gatePassed) {
+      const evaluate = (candidate: ScoredCandidate): CandidateEvaluation => {
+        const start = options.octaveCorrection
+          ? correctOctaveDown(
+              spectrum.power,
+              spectrum.binHz,
+              decimatedRate,
+              peakWeightedF0(candidate),
+              options.fMax,
+            )
+          : peakWeightedF0(candidate)
+        const measured: HarmonicMeasurement[] = measureHarmonics(
+          spectrum.power,
+          spectrum.binHz,
+          decimatedRate,
+          start,
+          options.scoredHarmonics,
+        )
+        const usedHarmonics = checkHarmonicConsistency(measured, start, options.consistencyTolRatio)
+        // VP 정밀 추정: 일치 판정된 고조파만으로 후보 ±1 bin 탐색 (v2 §1)
+        const final = refine(frame, decimatedRate, start, {
+          harmonics: usedHarmonics,
+          searchHalfWidthHz: 1.5 * spectrum.binHz,
+        })
+        // 신뢰 게이트 (v2 §1): SNR ≥ 8 dB & 검출 고조파 ≥ 2 & voicing 임계.
+        // 예외: 순음(§3 fixture 1)은 고조파가 1개뿐이므로 강한 SNR(≥ gateStrongSnrDb)이면 통과.
+        const gate = computeGateMetrics(
+          spectrum.power,
+          spectrum.binHz,
+          decimatedRate,
+          final.f0,
+          combOptions,
+        )
+        const harmonicCountOk =
+          gate.detectedHarmonics.length >= options.gateMinHarmonics ||
+          (gate.detectedHarmonics.length >= 1 && gate.snrDb >= options.gateStrongSnrDb)
+        // R53 진단: 신뢰 게이트는 조건별 동시 기각이 가능 — 실패한 조건을 전부 계상한다
+        const rejects: GateReject[] = []
+        if (candidate.voicedProb < options.gateVoicingThreshold) rejects.push('voicing')
+        if (gate.snrDb < options.gateSnrDb) rejects.push('snr')
+        if (!harmonicCountOk) rejects.push('harmonics')
         return {
-          gatePassed: false,
-          rejects,
-          evalF0: final.f0,
-          f0: null,
-          candidates: [],
-          voicedProb,
+          finalF0: final.f0,
+          usedHarmonics,
           snrDb: gate.snrDb,
           detectedHarmonics: gate.detectedHarmonics,
-          usedHarmonics,
+          voicedProb: candidate.voicedProb,
+          rejects,
+        }
+      }
+
+      // R54 다후보 게이트: comb 순위대로 평가해 **엄격 게이트를 통과하는 첫 후보**를 채택한다.
+      // 종전엔 1위만 평가해 1위가 틀리면(÷3 미끄러짐) 옳은 차순위 후보까지 통째로 기각됐다.
+      // 통과 즉시 중단하므로 정상 프레임 비용은 종전과 동일(1회 평가)이다.
+      const evaluations: CandidateEvaluation[] = []
+      let chosenIdx = -1
+      for (let i = 0; i < scored.length; i++) {
+        const evaluation = evaluate(scored[i]!)
+        evaluations.push(evaluation)
+        if (evaluation.rejects.length === 0) {
+          chosenIdx = i
+          break
+        }
+      }
+
+      // R54 추적 유지 게이트: 전 후보가 엄격 게이트에 기각돼도, 추적 중 f0(hint) ±tol 안의
+      // 후보는 완화 임계(continueSnrDb·continueMinHarmonics)로 승인해 track을 잇는다.
+      // 신규 획득은 여전히 엄격 게이트 전용 — ÷3 후보는 hint에서 1.58옥타브 밖이라 대상 아님.
+      if (chosenIdx < 0 && hintF0 !== null && hintF0 > 0) {
+        let bestIdx = -1
+        for (let i = 0; i < evaluations.length; i++) {
+          const evaluation = evaluations[i]!
+          if (Math.abs(evaluation.finalF0 - hintF0) > options.continueTolRatio * hintF0) continue
+          if (evaluation.voicedProb < options.gateVoicingThreshold) continue
+          if (evaluation.snrDb < options.continueSnrDb) continue
+          if (evaluation.detectedHarmonics.length < options.continueMinHarmonics) continue
+          if (bestIdx < 0 || evaluation.snrDb > evaluations[bestIdx]!.snrDb) bestIdx = i
+        }
+        chosenIdx = bestIdx
+      }
+
+      if (chosenIdx < 0) {
+        // 전 후보 기각 — 계측·기각 사유는 comb 1위 기준으로 보고한다 (진단 관측성 유지)
+        const first = evaluations[0]!
+        return {
+          gatePassed: false,
+          rejects: first.rejects,
+          evalF0: first.finalF0,
+          f0: null,
+          candidates: [],
+          voicedProb: first.voicedProb,
+          snrDb: first.snrDb,
+          detectedHarmonics: first.detectedHarmonics,
+          usedHarmonics: first.usedHarmonics,
           rms,
         }
       }
 
-      // Viterbi 후보 격자: 승자는 VP 정밀값, 나머지는 피크 가중값 (전량 VP는 예산 초과, v2 §4)
+      const chosen = evaluations[chosenIdx]!
+      // Viterbi 후보 격자: 채택 후보는 VP 정밀값, 나머지는 피크 가중값 (전량 VP는 예산 초과, v2 §4)
       const candidates: TrackCandidate[] = scored.map((c, i) => ({
-        f0: i === 0 ? final.f0 : peakWeightedF0(c),
+        f0: i === chosenIdx ? chosen.finalF0 : peakWeightedF0(c),
         score: c.combScore,
       }))
       return {
         gatePassed: true,
         rejects: [],
-        evalF0: final.f0,
-        f0: final.f0,
+        evalF0: chosen.finalF0,
+        f0: chosen.finalF0,
         candidates,
-        voicedProb,
-        snrDb: gate.snrDb,
-        detectedHarmonics: gate.detectedHarmonics,
-        usedHarmonics,
+        voicedProb: chosen.voicedProb,
+        snrDb: chosen.snrDb,
+        detectedHarmonics: chosen.detectedHarmonics,
+        usedHarmonics: chosen.usedHarmonics,
         rms,
       }
     },

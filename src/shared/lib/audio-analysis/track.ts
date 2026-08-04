@@ -14,6 +14,8 @@ import type {
 
 export interface Tracker {
   push(analysis: FrameAnalysis): DisplayEstimate
+  /** R54: 현재 잠근 f0 (Kalman 상태) — 추적 없으면 null. analyze-frame 추적 유지 게이트 hint */
+  currentF0(): number | null
   reset(): void
 }
 
@@ -285,6 +287,9 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
         microVariation: microOf(full, median),
         debug: debugOf(analysis),
       }
+    },
+    currentF0() {
+      return hasTrack ? kf : null
     },
     reset() {
       clearTrack()

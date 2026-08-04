@@ -58,7 +58,9 @@ export function createAnalysisEngine(options: EngineOptions): AnalysisEngine {
       const estimates: DisplayEstimate[] = []
       while (bufferFill >= frameLength) {
         frame.set(buffer.subarray(0, frameLength))
-        estimates.push(tracker.push(analyzer.analyze(frame)))
+        // R54: 추적 중 f0를 hint로 되먹인다 — 전 후보 엄격 게이트 기각 시 hint 부근 후보를
+        // 완화 임계(추적 유지 게이트)로 승인해 track 연속성을 지킨다 (analyze-frame 참조)
+        estimates.push(tracker.push(analyzer.analyze(frame, tracker.currentF0())))
         buffer.copyWithin(0, hopLength, bufferFill)
         bufferFill -= hopLength
       }
