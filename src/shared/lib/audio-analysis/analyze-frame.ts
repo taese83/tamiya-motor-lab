@@ -69,6 +69,8 @@ const GROUP_EVIDENCE_MARGIN_DB = 10
  * 마모 모터의 약한 반차수 사이드밴드(584의 292: 전력 ≈5%, 582의 291: ≈9%)는 걸러진다.
  */
 const DESCEND_EVIDENCE_POWER_RATIO = 0.1
+/** R65: 하강 목적지(f0/n)가 추적값에서 이 비율 이내일 때만 하강 허용 (YIN_HINT_TOL_RATIO와 동일) */
+const DESCEND_HINT_TOL_RATIO = 0.08
 /** 정수배 관계 판정 허용 오차 (배수당 상대) — VP 정밀값 기준이라 좁게 잡는다 */
 const GROUP_RATIO_TOL = 0.05
 /** 그룹핑·증거 검사에 쓰는 최대 배수 (게이트 대역과 동일 범위) */
@@ -225,15 +227,22 @@ export function createFrameAnalyzer(
         // 기본파의 n배(2·3)라면, f0/n의 **비공유 배음 대역**(n=2: 0.5·1.5·2.5f0 / n=3:
         // 1/3·2/3·4/3·5/3f0 — f0 계열에는 존재할 수 없는 자리)에 실제 에너지가 있어야 한다.
         // 시간영역 dip으로는 구분 불가(n배 주기 신호의 1/n dip은 수학적으로 동일)라 이 검사만이
-        // 판별 근거다. 조건: 국소 SNR ≥12dB(실피크) **그리고** 메인 라인 대비 전력 ≥10% —
-        // 하이퍼의 약한 반차수 사이드밴드(전력 수 % 수준)는 문턱이 걸러 445를 건드리지 않는다.
+        // 판별 근거다. 조건: 국소 SNR ≥12dB(실피크) **그리고** 메인 라인 대비 전력 ≥10%.
+        // R65 힌트 게이트: 하강 목적지(f0/n)가 **현재 추적값 부근일 때만** 하강한다 — 이 검사는
+        // "추적 중인 값에서 위로 튄 픽을 되돌리는" 방어이지 새 값을 만드는 게 아니다. R62가
+        // 추적값의 서브하모닉으로 미끄러지는 걸 막는 것과 상하 대칭 원리. 게이트가 없으면
+        // 반차수 사이드밴드가 순간 10%를 넘는 프레임에서 정상 추적(445)이 반토막(222)으로
+        // 하강해 버린다(실기기 확인). 추적이 없으면 하강 없음 — 초기 획득은 YIN 최단 lag +
+        // 비정수배 반증 가드가 담당한다.
         const descendFundamental = (f0: number): number => {
+          if (hintF0 === null || hintF0 <= 0) return f0
           const main = measureHarmonics(spectrum.power, spectrum.binHz, decimatedRate, f0, [1])[0]
           const mainPower = main?.peakPower ?? 0
           if (mainPower <= 0) return f0
           for (const n of [2, 3]) {
             const base = f0 / n
             if (base < options.fMin) continue
+            if (Math.abs(base / hintF0 - 1) > DESCEND_HINT_TOL_RATIO) continue
             const ks = n === 2 ? [1, 3, 5] : [1, 2, 4, 5]
             const evidence = measureHarmonics(spectrum.power, spectrum.binHz, decimatedRate, base, ks)
             for (const h of evidence) {
