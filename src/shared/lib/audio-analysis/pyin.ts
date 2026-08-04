@@ -94,7 +94,17 @@ export interface YinPickOptions {
   fMax?: number
   /** dip 깊이 절대 임계 — 이하만 유효 주기로 인정 (YIN step 4, 튜너 관행 0.1~0.3) */
   threshold?: number
+  /**
+   * R59 추적 히스테리시스 — 추적 중인 f0. 이 부근(±8%) dip이 완화 임계(threshold+0.15,
+   * 상한 0.5) 안에 있으면 표준 규칙보다 우선해 유지한다. 하이퍼 모터 실기기: 반차수
+   * 성분이 순간 커지면 445 dip 깊이가 임계를 스치듯 넘어 222(2T)로 플립했다 돌아오는
+   * 증상 — 추적이 살아 있는 동안은 그 주기가 완전히 사라졌을 때만 놓는다(튜너의 홀드).
+   */
+  hintF0?: number | null
 }
+
+/** 추적 히스테리시스 허용 편차 (추적 f0 대비 상대) */
+const YIN_HINT_TOL_RATIO = 0.08
 
 export interface YinPick {
   f0: number
@@ -131,7 +141,24 @@ export function pickYinPitch(
   const fMin = options.fMin ?? DEFAULT_FMIN
   const fMax = options.fMax ?? DEFAULT_FMAX
   const threshold = options.threshold ?? 0.2
+  const hintF0 = options.hintF0 ?? null
   const dips = collectDips(frame, sampleRate, fMin, fMax, 1)
+
+  // R59 추적 히스테리시스: 추적 f0 부근 dip이 완화 임계 안에 살아 있으면 그대로 유지 —
+  // 표준 규칙(아래)이 순간적으로 다른 주기(반차수 강화 시 2T 등)로 플립하는 것을 막는다.
+  // 추적 주기가 진짜 사라지면(깊이 > 완화 임계) 자연히 표준 규칙으로 넘어간다.
+  if (hintF0 !== null && hintF0 > 0) {
+    const relaxed = Math.min(0.5, threshold + 0.15)
+    let near: Dip | null = null
+    for (const dip of dips) {
+      if (Math.abs(dip.freq - hintF0) > YIN_HINT_TOL_RATIO * hintF0) continue
+      if (dip.depth >= relaxed) continue
+      if (dip.freq < fMin || dip.freq > fMax) continue
+      if (near === null || dip.depth < near.depth) near = dip
+    }
+    if (near !== null) return {f0: near.freq, depth: near.depth}
+  }
+
   const eligible = dips
     .filter(dip => dip.depth < threshold && dip.freq >= fMin && dip.freq <= fMax)
     .sort((a, b) => a.lag - b.lag)

@@ -197,6 +197,7 @@ export function createFrameAnalyzer(
           fMin: options.fMin,
           fMax: options.fMax,
           threshold: options.yinThreshold,
+          hintF0, // R59 추적 히스테리시스 — 추적 중 주기를 순간 플립(445↔222)에서 지킨다
         })
         if (yin === null) {
           // dip은 있으나 임계 이하 명료 주기가 없음 — 무성(voicing) 기각
