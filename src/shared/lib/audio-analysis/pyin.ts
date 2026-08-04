@@ -95,16 +95,18 @@ export interface YinPickOptions {
   /** dip 깊이 절대 임계 — 이하만 유효 주기로 인정 (YIN step 4, 튜너 관행 0.1~0.3) */
   threshold?: number
   /**
-   * R59 추적 히스테리시스 — 추적 중인 f0. 이 부근(±8%) dip이 완화 임계(threshold+0.15,
-   * 상한 0.5) 안에 있으면 표준 규칙보다 우선해 유지한다. 하이퍼 모터 실기기: 반차수
-   * 성분이 순간 커지면 445 dip 깊이가 임계를 스치듯 넘어 222(2T)로 플립했다 돌아오는
-   * 증상 — 추적이 살아 있는 동안은 그 주기가 완전히 사라졌을 때만 놓는다(튜너의 홀드).
+   * R62(사용자 확정) — 현재 추적 중인 f0. 이 값의 **서브하모닉 부근**(f0/n ±8%, n=2..6)
+   * dip은 측정 대상에서 제외한다. 히스테리시스(값 유지)가 아니라 후보 제외라, 매 프레임
+   * 산출은 항상 순수 측정값이고 반차수 순간 강화(하이퍼 445↔222 플립)·스핀업 서브하모닉
+   * 덫이 모두 원천 차단된다. 제외로 유효 dip이 없는 프레임은 무성 — coast(0.2s)가 잇는다.
    */
   hintF0?: number | null
 }
 
-/** 추적 히스테리시스 허용 편차 (추적 f0 대비 상대) */
+/** 서브하모닉 제외 허용 편차 (해당 서브하모닉 주파수 대비 상대) */
 const YIN_HINT_TOL_RATIO = 0.08
+/** 서브하모닉 제외 최대 차수 — 추적 f0의 1/2 ~ 1/6 */
+const YIN_SUBHARMONIC_MAX_DIVISOR = 6
 
 export interface YinPick {
   f0: number
@@ -144,10 +146,28 @@ export function pickYinPitch(
   const hintF0 = options.hintF0 ?? null
   const dips = collectDips(frame, sampleRate, fMin, fMax, 1)
 
-  // 표준 규칙: 임계 이하 dip 최단 lag + 비정수배 반증 가드
-  let standard: Dip | null = null
+  // R62(사용자 확정: 히스테리시스 대신 서브하모닉 제외) — 현재 추적값의 1/2~1/6 부근 dip은
+  // 측정하지 않는다. n배 주기 신호는 1/n 주파수 주기로도 완벽히 반복되므로 그 자리의 dip은
+  // 대부분 수학적 인공물이고, 제외하면 표준 규칙이 자연히 가장 정확한(최단 주기) 파노만
+  // 측정한다. 값 유지·완화 임계 같은 보정 없이 매 프레임이 순수 측정값이다.
+  // 모터가 진짜로 절반 회전수로 바뀐 경우: 제외로 무성 프레임이 이어지다 coast(0.2s) 초과 시
+  // 추적이 풀리고(hint 소멸) 다음 프레임부터 새 값이 그대로 잡힌다 — 복구 자연스러움.
+  const excluded = (dip: Dip): boolean => {
+    if (hintF0 === null || hintF0 <= 0) return false
+    for (let n = 2; n <= YIN_SUBHARMONIC_MAX_DIVISOR; n++) {
+      const sub = hintF0 / n
+      if (sub < fMin * 0.9) break
+      if (Math.abs(dip.freq - sub) <= YIN_HINT_TOL_RATIO * sub) return true
+    }
+    return false
+  }
+
+  // 표준 규칙: 임계 이하 dip 최단 lag + 비정수배 반증 가드 (반증은 원본 dip 전체를 본다 —
+  // 제외된 서브하모닉도 "픽이 참 주기가 아니다"의 증거로는 유효하다)
   const eligible = dips
-    .filter(dip => dip.depth < threshold && dip.freq >= fMin && dip.freq <= fMax)
+    .filter(
+      dip => dip.depth < threshold && dip.freq >= fMin && dip.freq <= fMax && !excluded(dip),
+    )
     .sort((a, b) => a.lag - b.lag)
   for (const pick of eligible) {
     let refuted = false
@@ -161,42 +181,9 @@ export function pickYinPitch(
         break
       }
     }
-    if (!refuted) {
-      standard = pick
-      break
-    }
+    if (!refuted) return {f0: pick.freq, depth: pick.depth}
   }
-
-  // R59 추적 히스테리시스: 추적 f0 부근 dip이 완화 임계 안에 살아 있으면 유지 — 표준 규칙이
-  // 순간적으로 **아래 주기**(반차수 강화 시 2T 등)로 플립하는 것을 막는다(하이퍼 445↔222).
-  //
-  // R61 상향 탈출(사용자: 스핀업 중 200대에서 잡히면 400대로 못 올라감): n배 주기 신호는
-  // 수학적으로 1/n 주파수 주기로도 완벽히 반복되므로, 표적이 2배로 올라가도 추적값 부근
-  // dip은 깊게 남는다 — 히스테리시스가 그 서브하모닉을 "유지"로 오인해 절반에 눌러앉는 덫.
-  // 그래서 히스테리시스는 **아래 방향만** 방어한다: 표준 픽이 추적값의 정수배(≥2) 주파수를
-  // 유효 주기로 찾으면 추적값은 상위 진짜 주기의 서브하모닉이므로 표준 픽(위쪽)이 이긴다.
-  if (hintF0 !== null && hintF0 > 0) {
-    const relaxed = Math.min(0.5, threshold + 0.15)
-    let near: Dip | null = null
-    for (const dip of dips) {
-      if (Math.abs(dip.freq - hintF0) > YIN_HINT_TOL_RATIO * hintF0) continue
-      if (dip.depth >= relaxed) continue
-      if (dip.freq < fMin || dip.freq > fMax) continue
-      if (near === null || dip.depth < near.depth) near = dip
-    }
-    if (near !== null) {
-      if (standard !== null && standard.freq > near.freq * 1.5) {
-        const ratio = standard.freq / near.freq
-        const n = Math.round(ratio)
-        if (n >= 2 && Math.abs(ratio - n) <= YIN_INTEGER_RATIO_TOL * n) {
-          return {f0: standard.freq, depth: standard.depth} // 상향 탈출 — near는 서브하모닉
-        }
-      }
-      return {f0: near.freq, depth: near.depth}
-    }
-  }
-
-  return standard === null ? null : {f0: standard.freq, depth: standard.depth}
+  return null
 }
 
 /** CMNDF 국소 최소 dip을 임계 분포로 집계하고 ÷3·÷6 확장한 후보를 반환한다 (순수 함수) */
