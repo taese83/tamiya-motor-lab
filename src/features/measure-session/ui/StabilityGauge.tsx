@@ -54,7 +54,6 @@ const bandArc = (fromCv: number, toCv: number): string => {
 }
 
 // 4구간 = 등급 4단계와 1:1 (STABILITY_LEVELS).
-// v2.x(사용자: 흐릿해서 촌스러움) — 반투명·저채도 제거, **불투명 쨍한 원색**으로 렌더한다.
 type BandKey = 'excellent' | 'good' | 'fair' | 'high'
 const BANDS: ReadonlyArray<{from: number; to: number; key: BandKey}> = [
   {from: 0, to: STABILITY_EXCELLENT_MAX_CV, key: 'excellent'},
@@ -63,12 +62,17 @@ const BANDS: ReadonlyArray<{from: number; to: number; key: BandKey}> = [
   {from: STABILITY_HIGH_MIN_CV, to: MAX_CV, key: 'high'},
 ]
 
-/** 쨍한 고채도 등급색 (사용자 req) — 테마 팔레트의 흐린 톤 대신 원색 고정 */
-const VIVID_BAND_COLOR: Record<BandKey, string> = {
-  excellent: '#00E5A0', // 선명한 민트그린 — 최상
-  good: '#3DDC46', // 쨍한 그린
-  fair: '#FFB300', // 쨍한 앰버
-  high: '#FF3B30', // 쨍한 레드
+// 등급 → 시맨틱 severity (단일 출처). 밴드 아크와 아래 캡션이 이 한 맵을 공유해 **같은 등급 =
+// 같은 색**이 보장된다. 이전 하드코딩 원색(#00E5A0 등)은 ① hex 직접 사용 금지 규칙 위반 ②
+// 모드 무반응 — 라이트 흰 히어로 면에서 비텍스트 대비 3:1 미달 ③ 캡션 색과 불일치라 테마
+// 토큰으로 전환한다. 다크(기본 모드)의 success/warning/error.main = green400/amber400/red400은
+// 여전히 선명하므로 "쨍한 색" 의도는 주 모드에서 유지된다. 더 강한 채도가 필요하면
+// design-tokens에 모드별 grade 토큰을 신설해 이 맵과 캡션이 함께 소비할 것.
+const GRADE_SEVERITY: Record<StabilityLevel, 'success' | 'warning' | 'error'> = {
+  excellent: 'success',
+  good: 'success',
+  fair: 'warning',
+  high: 'error',
 }
 
 // 눈금·라벨 — 파노와 같은 룩(주 눈금 라벨 + 보조 눈금). 라벨은 % 정수(0·1·2).
@@ -76,12 +80,7 @@ const NEEDLE_POINTS = [`${CX},${CY - NEEDLE_TIP_R}`, `${CX + 2},${CY + 1.5}`, `$
 const TICK_CVS = [0, 0.005, 0.01, 0.015, 0.02] as const
 const LABELED_CVS = new Set([0, 0.01, 0.02])
 
-const LEVEL_COLOR: Record<StabilityLevel, string> = {
-  excellent: 'success.main',
-  good: 'success.main',
-  fair: 'warning.main',
-  high: 'error.main',
-}
+// 캡션 등급 색은 GRADE_SEVERITY(위) 단일 출처를 `${severity}.main`으로 소비한다.
 
 /**
  * S1 변동률 게이지 — 파노 게이지 아래 별도 축소 아크(사용자 req). 트랙=등급색 3구간,
@@ -90,6 +89,12 @@ const LEVEL_COLOR: Record<StabilityLevel, string> = {
 export function StabilityGauge({view}: StabilityGaugeProps) {
   const theme = useTheme()
   const palette = (theme.vars ?? theme).palette
+  // 밴드·캡션이 공유하는 등급색 — GRADE_SEVERITY 단일 출처를 실제 팔레트 값으로 해석
+  const gradeColor = {
+    success: palette.success.main,
+    warning: palette.warning.main,
+    error: palette.error.main,
+  } as const
   const measuring = view.status === 'measuring'
   const cv = measuring ? view.stabilityCv : null
   const rpm = measuring ? view.rpm : 0
@@ -108,7 +113,7 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
       <Box aria-hidden="true" sx={{width: 'clamp(148px, 46vw, 208px)'}}>
         <svg viewBox={VIEW_BOX} style={{display: 'block', width: '100%', height: '100%'}}>
           <g style={{opacity: dim ? DIM_OPACITY : 1}}>
-            {/* 등급 밴드 4구간 — 불투명 쨍한 원색(사용자 req: 흐린 색감 제거) */}
+            {/* 등급 밴드 4구간 — 캡션과 동일한 시맨틱 토큰(GRADE_SEVERITY), 모드 적응 */}
             {BANDS.map(band => (
               <path
                 key={band.key}
@@ -116,7 +121,7 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
                 fill="none"
                 strokeWidth={STROKE_W}
                 strokeLinecap="butt"
-                style={{stroke: VIVID_BAND_COLOR[band.key], opacity: 1}}
+                style={{stroke: gradeColor[GRADE_SEVERITY[band.key]], opacity: 1}}
               />
             ))}
             {/* 눈금 + % 라벨 (0·1·2) — 파노와 같은 룩 */}
@@ -191,7 +196,7 @@ export function StabilityGauge({view}: StabilityGaugeProps) {
         {level !== null && cv !== null ? (
           <>
             안정도{' '}
-            <Box component="span" sx={{color: LEVEL_COLOR[level], fontWeight: 700}}>
+            <Box component="span" sx={{color: `${GRADE_SEVERITY[level]}.main`, fontWeight: 700}}>
               {STABILITY_LEVEL_LABELS[level]}
             </Box>
             {' · '}

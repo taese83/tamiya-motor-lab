@@ -292,7 +292,7 @@ export function RaceInsightCard({
               size="small"
               variant="text"
               onClick={onOpenHelp}
-              sx={{flexShrink: 0, mr: -1, my: -0.5, minHeight: 0, py: 0.25}}>
+              sx={{flexShrink: 0, mr: -1, my: -0.5, minHeight: layoutTokens.touchTargetMin, py: 0.25}}>
               보는 법
             </Button>
           </>
@@ -309,7 +309,7 @@ export function RaceInsightCard({
               size="small"
               variant="text"
               onClick={onOpenHelp}
-              sx={{ml: 'auto', flexShrink: 0, mr: -1, my: -0.5, minHeight: 0, py: 0.25}}>
+              sx={{ml: 'auto', flexShrink: 0, mr: -1, my: -0.5, minHeight: layoutTokens.touchTargetMin, py: 0.25}}>
               보는 법
             </Button>
           </>

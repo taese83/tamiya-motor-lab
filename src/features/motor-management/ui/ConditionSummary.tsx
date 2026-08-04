@@ -1,5 +1,6 @@
 import {Box, Button, Typography} from '@mui/material'
 
+import {layoutTokens} from '@shared/config/design-tokens'
 import {
   CONDITION_LEVEL_LABELS,
   STABILITY_HIGH_MIN_CV,
@@ -111,7 +112,7 @@ export function ConditionSummary({records, baseline, onOpenHelp}: ConditionSumma
         size="small"
         variant="text"
         onClick={onOpenHelp}
-        sx={{flexShrink: 0, mr: -1, minHeight: 0, py: 0.25}}>
+        sx={{flexShrink: 0, mr: -1, my: -0.75, minHeight: layoutTokens.touchTargetMin, py: 0.25}}>
         보는 법
       </Button>
     </Box>

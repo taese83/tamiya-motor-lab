@@ -172,17 +172,9 @@ export function MotorsPage() {
         <Typography color="text.secondary" sx={{px: 2, py: 2}}>
           확인 중…
         </Typography>
-      ) : !loggedIn ? (
-        // v2.x 로그인 게이트(레이스와 동일) — 모터 목록은 로그인 이후에만. 우상단 아바타로 로그인 진입.
-        <Box sx={loginGateSx}>
-          <Typography variant="h2" component="p">
-            로그인 후에 사용하세요
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            오른쪽 위 프로필을 눌러 로그인하면 모터 목록을 볼 수 있습니다
-          </Typography>
-        </Box>
       ) : corrupted ? (
+        // 저장소 손상 복구는 로그인 게이트보다 우선한다 — 로컬 IndexedDB 복구는 계정과 무관하므로
+        // 미로그인 상태에서도 전역 배너 [복구 옵션] → 이 패널에 도달해야 한다(게이트가 가리면 데드엔드).
         <Box sx={{px: 2, py: 2}}>
           <RecoveryPanel
             onRetry={shell.retryPersistence}
@@ -194,6 +186,16 @@ export function MotorsPage() {
               return ok
             }}
           />
+        </Box>
+      ) : !loggedIn ? (
+        // v2.x 로그인 게이트(레이스와 동일) — 모터 목록은 로그인 이후에만. 우상단 아바타로 로그인 진입.
+        <Box sx={loginGateSx}>
+          <Typography variant="h2" component="p">
+            로그인 후에 사용하세요
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            오른쪽 위 프로필을 눌러 로그인하면 모터 목록을 볼 수 있습니다
+          </Typography>
         </Box>
       ) : summariesQuery.isPending ? (
         <Typography color="text.secondary" sx={{px: 2, py: 2}}>

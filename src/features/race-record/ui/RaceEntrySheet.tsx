@@ -332,7 +332,7 @@ export function RaceEntrySheet({
                 size="small"
                 onClick={onRequestAiVoltage}
                 disabled={pending || recommendPending}
-                sx={{minHeight: 36}}>
+                sx={{my: -0.5, minHeight: layoutTokens.touchTargetMin}}>
                 {recommendPending ? 'AI 추천 요청 중…' : 'AI 추천'}
               </Button>
             </Box>
