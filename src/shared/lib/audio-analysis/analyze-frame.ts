@@ -46,55 +46,31 @@ function emptyAnalysis(rms: number, reject: GateReject): FrameAnalysis {
 }
 
 
-/* ── 서브하모닉 하향 오판 교정 (v2.x ×2 → R55 ×3 일반화, 실기기 확정) ─────────── *
- * ×2 증상: 같은 모터인데 폰을 밀착하면 후보 583Hz(정답), 떼면 후보 291Hz(=583/2)로 미끄러진다.
- * 판별 근거: 291의 배음을 보면 582(2배)·1747(6배)·2329(8배)·3493(12배)로 **짝수 배만** 있고
- * 홀수 배(873=3배·1455=5배)에는 에너지가 없다. 진짜 기본파라면 3배·5배에도 에너지가 있어야
- * 하므로, "짝수 배만 강하다"는 것은 실제 기본파가 2f0라는 직접 증거다.
- * 반례 보호: 정상 모터(기본파 514)는 3배(1542, 32dB)가 뚜렷해 교정되지 않는다.
+/* ── R56 소리원 그룹 선택 (사용자 확정: "가장 크게 들리는 소리원 안에서 최고 파노") ── *
+ * pYIN/자기상관의 태생상 가짜 후보는 **아래 방향**(÷2·÷3 lag 배수 dip)으로 생긴다. 스펙트럼
+ * 피크 {546, 1092}를 설명하는 후보는 182·273·546 모두지만 최대공약수인 546이 진짜 기본파다.
+ * 그래서 게이트 통과 후보를 정수배 관계(같은 소리원)로 묶고, 그룹 간에는 comb(소리 크기)로
+ * 소리원을 고른 뒤(다중 모터 계약: 가장 크게 들리는 모터 우선), 그룹 안에서는 최고 f0를
+ * 채택한다. ×2/×3 서브하모닉 승격 휴리스틱(R55)은 이 선택 규칙이 대체한다.
  *
- * ×3(R55, 실기기 확정): 스펙트럼이 546·1092(=f0·2f0) 두 피크뿐일 때 ÷3 후보 182는
- * 3배(546)·6배(1092) 대역이 그 피크들을 정확히 덮어 **신뢰 게이트까지 통과**한다(harm 2·
- * snr 9.1 실측). 판별 근거는 동일 논리: 182가 진짜라면 1·2·4·5배(182·364·728·910)에도
- * 에너지가 있어야 한다 — "3의 배수 배음만 강하다"는 것은 실제 기본파가 3f0라는 직접 증거다. */
-const SUBHARMONIC_STRIDE_MIN_SNR_DB = 12
-const SUBHARMONIC_OTHERS_MARGIN_DB = 10
+ * 단 "무조건 최고"는 역방향 오판이 있다: 2배음이 강한 저속 모터(f0<400이면 2f0가 대역 안)는
+ * 2f0에도 dip·게이트 통과가 생겨 그룹 최고가 2f0가 된다. 그래서 그룹 안에서 내려갈지는
+ * **실제 스펙트럼 증거**로 판정한다 — 하위 후보 p(=top/n)가 top과 공유하지 않는 배음
+ * (n의 배수가 아닌 k·p 대역)에 강한 에너지를 가지면 p가 진짜 기본파고 top은 그 배음이다.
+ * 예: {300, 600} 그룹에서 300의 1배(300 자체)가 강하면 600은 2배음 → 300 채택.
+ *     {546, 182} 그룹에서 182의 1·2·4·5배(182·364·728·910)가 비면 182는 인공물 → 546 채택.
+ * 마모 모터의 약한 하위 사이드밴드(584 모터의 292 성분)는 상대 마진(-10dB)이 걸러낸다. */
+const GROUP_EVIDENCE_MIN_SNR_DB = 12
+const GROUP_EVIDENCE_MARGIN_DB = 10
+/** 정수배 관계 판정 허용 오차 (배수당 상대) — VP 정밀값 기준이라 좁게 잡는다 */
+const GROUP_RATIO_TOL = 0.05
+/** 그룹핑·증거 검사에 쓰는 최대 배수 (게이트 대역과 동일 범위) */
+const GROUP_MAX_MULTIPLE = 6
 
 function maxSnr(measurements: readonly HarmonicMeasurement[]): number {
   let best = 0
   for (const m of measurements) best = Math.max(best, m.snrDb)
   return best
-}
-
-function correctSubharmonicUp(
-  power: Float64Array,
-  binHz: number,
-  sampleRate: number,
-  f0: number,
-  fMax: number,
-): number {
-  // ×2: 짝수 배 지배 → 실제 기본파 2f0
-  const doubled = 2 * f0
-  if (doubled <= fMax) {
-    const evenSnr = maxSnr(measureHarmonics(power, binHz, sampleRate, f0, [2, 4]))
-    const oddSnr = maxSnr(measureHarmonics(power, binHz, sampleRate, f0, [3, 5]))
-    if (evenSnr >= SUBHARMONIC_STRIDE_MIN_SNR_DB && oddSnr < evenSnr - SUBHARMONIC_OTHERS_MARGIN_DB) {
-      return doubled
-    }
-  }
-  // ×3: 3의 배수 배 지배(3·6) + 나머지(1·2·4·5) 공백 → 실제 기본파 3f0
-  const tripled = 3 * f0
-  if (tripled <= fMax) {
-    const strideSnr = maxSnr(measureHarmonics(power, binHz, sampleRate, f0, [3, 6]))
-    const othersSnr = maxSnr(measureHarmonics(power, binHz, sampleRate, f0, [1, 2, 4, 5]))
-    if (
-      strideSnr >= SUBHARMONIC_STRIDE_MIN_SNR_DB &&
-      othersSnr < strideSnr - SUBHARMONIC_OTHERS_MARGIN_DB
-    ) {
-      return tripled
-    }
-  }
-  return f0
 }
 
 /** 검출 고조파 피크들의 f0 환산 가중 평균 — VP 탐색 시작점을 서브빈 정밀도로 당긴다 */
@@ -178,15 +154,7 @@ export function createFrameAnalyzer(
       // 옥타브 하향 오판 교정을 VP·게이트보다 **먼저** 적용한다 — 이후 일치도 검사·정밀 추정·
       // 게이트가 모두 교정된 f₀ 기준으로 계산돼야 SNR·고조파 판정이 정상화된다.
       const evaluate = (candidate: ScoredCandidate): CandidateEvaluation => {
-        const start = options.octaveCorrection
-          ? correctSubharmonicUp(
-              spectrum.power,
-              spectrum.binHz,
-              decimatedRate,
-              peakWeightedF0(candidate),
-              options.fMax,
-            )
-          : peakWeightedF0(candidate)
+        const start = peakWeightedF0(candidate)
         const measured: HarmonicMeasurement[] = measureHarmonics(
           spectrum.power,
           spectrum.binHz,
@@ -227,18 +195,82 @@ export function createFrameAnalyzer(
         }
       }
 
-      // R54 다후보 게이트: comb 순위대로 평가해 **엄격 게이트를 통과하는 첫 후보**를 채택한다.
-      // 종전엔 1위만 평가해 1위가 틀리면(÷3 미끄러짐) 옳은 차순위 후보까지 통째로 기각됐다.
-      // 통과 즉시 중단하므로 정상 프레임 비용은 종전과 동일(1회 평가)이다.
-      const evaluations: CandidateEvaluation[] = []
-      let chosenIdx = -1
-      for (let i = 0; i < scored.length; i++) {
-        const evaluation = evaluate(scored[i]!)
-        evaluations.push(evaluation)
-        if (evaluation.rejects.length === 0) {
-          chosenIdx = i
-          break
+      // R56: 통과 후보 → 소리원 그룹핑(정수배 관계) → 그룹 간 comb(소리 크기) →
+      // 그룹 내 증거 기반 최고 f0 선택 (파일 상단 R56 주석 참조)
+      const selectBySourceGroups = (
+        passing: readonly number[],
+        all: readonly CandidateEvaluation[],
+      ): number => {
+        interface SourceGroup {
+          memberIdx: number[]
+          bestScore: number
         }
+        const sorted = [...passing].sort((a, b) => all[b]!.finalF0 - all[a]!.finalF0)
+        const groups: SourceGroup[] = []
+        for (const idx of sorted) {
+          const f0 = all[idx]!.finalF0
+          let attached = false
+          for (const group of groups) {
+            const top = all[group.memberIdx[0]!]!.finalF0
+            const ratio = top / f0
+            const n = Math.round(ratio)
+            if (n >= 1 && n <= GROUP_MAX_MULTIPLE && Math.abs(ratio - n) <= GROUP_RATIO_TOL * n) {
+              group.memberIdx.push(idx)
+              group.bestScore = Math.max(group.bestScore, scored[idx]!.combScore)
+              attached = true
+              break
+            }
+          }
+          if (!attached) groups.push({memberIdx: [idx], bestScore: scored[idx]!.combScore})
+        }
+        // 소리원 선택: comb 최고 = 가장 크게 들리는 모터 (다중 모터 계약 유지)
+        let best = groups[0]!
+        for (const group of groups) {
+          if (group.bestScore > best.bestScore) best = group
+        }
+        // 그룹 내: 최고 f0에서 시작해, 하위 멤버(top/n)가 top과 공유하지 않는 배음 대역에
+        // 강한 실증거를 가질 때만 내려간다 — {300,600}은 300의 1배 실피크로 300 채택,
+        // {546,182}는 182의 1·2·4·5배 공백으로 546 유지. 약한 사이드밴드는 마진이 거른다.
+        let pickIdx = best.memberIdx[0]!
+        for (let m = 1; m < best.memberIdx.length; m++) {
+          const lowIdx = best.memberIdx[m]!
+          const pickF0 = all[pickIdx]!.finalF0
+          const lowF0 = all[lowIdx]!.finalF0
+          const n = Math.round(pickF0 / lowF0)
+          if (n < 2 || n > GROUP_MAX_MULTIPLE) continue
+          const nonSharedKs: number[] = []
+          for (let k = 1; k <= GROUP_MAX_MULTIPLE; k++) {
+            if (k % n !== 0) nonSharedKs.push(k)
+          }
+          const evidenceSnr = maxSnr(
+            measureHarmonics(spectrum.power, spectrum.binHz, decimatedRate, lowF0, nonSharedKs),
+          )
+          const pickFundamentalSnr = maxSnr(
+            measureHarmonics(spectrum.power, spectrum.binHz, decimatedRate, pickF0, [1]),
+          )
+          if (
+            evidenceSnr >= GROUP_EVIDENCE_MIN_SNR_DB &&
+            evidenceSnr >= pickFundamentalSnr - GROUP_EVIDENCE_MARGIN_DB
+          ) {
+            pickIdx = lowIdx
+          }
+        }
+        return pickIdx
+      }
+
+      // R54 다후보 게이트: 전 후보를 평가한다 — 1위가 틀려도(÷3 미끄러짐) 옳은 차순위
+      // 후보가 살아남고, 통과 후보 전체가 그룹 선택(R56)의 입력이 된다.
+      const evaluations: CandidateEvaluation[] = scored.map(candidate => evaluate(candidate))
+      const passingIdx: number[] = []
+      for (let i = 0; i < evaluations.length; i++) {
+        if (evaluations[i]!.rejects.length === 0) passingIdx.push(i)
+      }
+
+      let chosenIdx = -1
+      if (passingIdx.length > 0) {
+        chosenIdx = options.octaveCorrection
+          ? selectBySourceGroups(passingIdx, evaluations)
+          : passingIdx[0]! // 레거시(fixture ⑧ 하위 옥타브 고정): comb 순위 첫 통과 유지
       }
 
       // R54 추적 유지 게이트: 전 후보가 엄격 게이트에 기각돼도, 추적 중 f0(hint) ±tol 안의
