@@ -209,6 +209,48 @@ export function createFrameAnalyzer(
           hintF0, // R62 서브하모닉 제외 — 추적값의 1/2~1/6 부근 dip은 측정하지 않는다
         })
         if (yin === null) {
+          // R66 추적 유지 게이트(comb의 R54를 tuner로 이식) — R62 제외로 무성이 된 프레임
+          // (반차수 우세 순간: 픽 dip은 임계 초과, 서브하모닉 dip은 제외)이 coast(0.2s)를
+          // 넘겨 이어지면 추적이 풀려 "측정되다 값이 사라지는" 실기기 증상이 된다. 추적 f0의
+          // 스펙트럼 라인이 **아직 실재하는지 측정**해(완화 임계 continueSnrDb·continueMin
+          // Harmonics, ±continueTolRatio) 실재하면 그 정밀값으로 잇는다 — 값 유지가 아니라
+          // 매 프레임 라인 실측이므로, 모터가 진짜 절반 회전수로 바뀌면(라인 소멸) 즉시
+          // 실패해 자연 재획득으로 넘어간다. 신규 획득은 여전히 YIN 픽 전용.
+          if (hintF0 !== null && hintF0 > 0) {
+            const cont: ScoredCandidate = {
+              f0: hintF0,
+              combScore: 0,
+              harmonics: measureHarmonics(
+                spectrum.power,
+                spectrum.binHz,
+                decimatedRate,
+                hintF0,
+                options.scoredHarmonics,
+              ),
+              voicedProb,
+              salience: 0,
+            }
+            const evaluation = evaluate(cont)
+            if (
+              Math.abs(evaluation.finalF0 - hintF0) <= options.continueTolRatio * hintF0 &&
+              evaluation.voicedProb >= options.gateVoicingThreshold &&
+              evaluation.snrDb >= options.continueSnrDb &&
+              evaluation.detectedHarmonics.length >= options.continueMinHarmonics
+            ) {
+              return {
+                gatePassed: true,
+                rejects: [],
+                evalF0: evaluation.finalF0,
+                f0: evaluation.finalF0,
+                candidates: [{f0: evaluation.finalF0, score: 20}],
+                voicedProb,
+                snrDb: evaluation.snrDb,
+                detectedHarmonics: evaluation.detectedHarmonics,
+                usedHarmonics: evaluation.usedHarmonics,
+                rms,
+              }
+            }
+          }
           // dip은 있으나 임계 이하 명료 주기가 없음 — 무성(voicing) 기각
           return {
             gatePassed: false,
