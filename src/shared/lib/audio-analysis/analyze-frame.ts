@@ -62,6 +62,13 @@ function emptyAnalysis(rms: number, reject: GateReject): FrameAnalysis {
  * 마모 모터의 약한 하위 사이드밴드(584 모터의 292 성분)는 상대 마진(-10dB)이 걸러낸다. */
 const GROUP_EVIDENCE_MIN_SNR_DB = 12
 const GROUP_EVIDENCE_MARGIN_DB = 10
+/**
+ * R63 상향 오판 하강의 전력 문턱 — f0/n 비공유 대역 피크 전력이 메인 라인(f0)의 이 비율
+ * 이상이어야 "진짜 기본파의 실증거"로 인정한다(≈ −10dB). 합성 fixture처럼 노이즈 플로어가
+ * 0에 가까우면 SNR이 40dB로 포화돼 상대 마진이 무의미해지므로, 전력 **비율**로 판정한다.
+ * 마모 모터의 약한 반차수 사이드밴드(584의 292: 전력 ≈5%, 582의 291: ≈9%)는 걸러진다.
+ */
+const DESCEND_EVIDENCE_POWER_RATIO = 0.1
 /** 정수배 관계 판정 허용 오차 (배수당 상대) — VP 정밀값 기준이라 좁게 잡는다 */
 const GROUP_RATIO_TOL = 0.05
 /** 그룹핑·증거 검사에 쓰는 최대 배수 (게이트 대역과 동일 범위) */
@@ -214,14 +221,38 @@ export function createFrameAnalyzer(
             rms,
           }
         }
+        // R63 상향 오판 하강(사용자: 위로 잘못되는 경우를 잡아야 함) — 픽 f0가 사실 진짜
+        // 기본파의 n배(2·3)라면, f0/n의 **비공유 배음 대역**(n=2: 0.5·1.5·2.5f0 / n=3:
+        // 1/3·2/3·4/3·5/3f0 — f0 계열에는 존재할 수 없는 자리)에 실제 에너지가 있어야 한다.
+        // 시간영역 dip으로는 구분 불가(n배 주기 신호의 1/n dip은 수학적으로 동일)라 이 검사만이
+        // 판별 근거다. 조건: 국소 SNR ≥12dB(실피크) **그리고** 메인 라인 대비 전력 ≥10% —
+        // 하이퍼의 약한 반차수 사이드밴드(전력 수 % 수준)는 문턱이 걸러 445를 건드리지 않는다.
+        const descendFundamental = (f0: number): number => {
+          const main = measureHarmonics(spectrum.power, spectrum.binHz, decimatedRate, f0, [1])[0]
+          const mainPower = main?.peakPower ?? 0
+          if (mainPower <= 0) return f0
+          for (const n of [2, 3]) {
+            const base = f0 / n
+            if (base < options.fMin) continue
+            const ks = n === 2 ? [1, 3, 5] : [1, 2, 4, 5]
+            const evidence = measureHarmonics(spectrum.power, spectrum.binHz, decimatedRate, base, ks)
+            for (const h of evidence) {
+              if (h.snrDb < GROUP_EVIDENCE_MIN_SNR_DB) continue
+              if (h.peakPower >= DESCEND_EVIDENCE_POWER_RATIO * mainPower) return base
+            }
+          }
+          return f0
+        }
+        const pickedF0 = descendFundamental(yin.f0)
+
         const topScored: ScoredCandidate = {
-          f0: yin.f0,
+          f0: pickedF0,
           combScore: 0,
           harmonics: measureHarmonics(
             spectrum.power,
             spectrum.binHz,
             decimatedRate,
-            yin.f0,
+            pickedF0,
             options.scoredHarmonics,
           ),
           voicedProb,

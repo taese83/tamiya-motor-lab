@@ -29,6 +29,14 @@ const EMISSION_SCALE_DB = 10 // comb 점수 차이 → emission log 단위 환�
 const KALMAN_ACCEL_STD = 400 // Hz/s² — 스핀업(150 Hz/s) 추종 여유
 const KALMAN_MEASUREMENT_VAR = 0.25 // (0.5 Hz)² — VP 프레임 추정 분산 상한
 const KALMAN_RELOCK_OCTAVES = 0.25 // Viterbi 출력이 이 이상 점프하면 재잠금
+/**
+ * R64 재잠금 확인 프레임 수 (튜너의 노트 확인과 동일 원리) — 큰 점프(재잠금)는 이 수만큼
+ * **연속** 관측될 때만 반영한다(6프레임 ≈ 150ms). 순간 스퀄음·오픽 스파이크(하이퍼 700대
+ * 순간 표시)는 1~2프레임짜리라 확인을 못 넘겨 무시되고, 진짜 회전수 변화(스핀업 등)는
+ * 연속 관측이므로 150ms 안에 정상 재잠금된다. 확인 대기 중에는 기존 추적을 coast처럼
+ * 유지한다 — 값 보정이 아니라 "표시 갱신 조건"이다.
+ */
+const RELOCK_CONFIRM_FRAMES = 6
 
 function weakEstimate(
   confidence: number,
@@ -72,6 +80,8 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
   let missCount = 0
   let hasTrack = false
   let lastConfidence = 0
+  /** R64: 재잠금 후보(0.25옥타브 초과 점프) 연속 관측 수 — RELOCK_CONFIRM_FRAMES 도달 시 재잠금 */
+  let relockCount = 0
   // Kalman 상태 [f, ḟ]와 공분산 (p00, p01, p11)
   let kf = 0
   let kv = 0
@@ -87,6 +97,7 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
     layers = []
     hasTrack = false
     missCount = 0
+    relockCount = 0
     stabilityIdx = 0
     stabilityFill = 0
   }
@@ -251,17 +262,30 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
 
       missCount = 0
       const viterbiF0 = pushLayer(analysis.candidates)
+      let confirmingRelock = false
       if (!hasTrack) {
         initKalman(viterbiF0)
+        relockCount = 0
       } else if (Math.abs(Math.log2(viterbiF0 / kf)) > KALMAN_RELOCK_OCTAVES) {
-        // Viterbi가 이산 점프를 확정한 경우: 재잠금 + 안정 창 초기화
-        initKalman(viterbiF0)
-        stabilityIdx = 0
-        stabilityFill = 0
+        // R64: 큰 점프는 즉시 반영하지 않고 연속 RELOCK_CONFIRM_FRAMES 관측 후 재잠금.
+        // 대기 중에는 coast처럼 예측만 유지 — 순간 스파이크(스퀄음 오픽)는 확인을 못 넘긴다.
+        relockCount += 1
+        if (relockCount >= RELOCK_CONFIRM_FRAMES) {
+          initKalman(viterbiF0)
+          relockCount = 0
+          stabilityIdx = 0
+          stabilityFill = 0
+        } else {
+          confirmingRelock = true
+          kalmanPredict()
+        }
       } else {
+        relockCount = 0
         kalmanUpdate(viterbiF0)
       }
-      pushStability(kf)
+      // 확인 대기 프레임은 안정 창에 넣지 않는다 — 예측 상수(kf)가 쌓이면 CV가 인위적으로
+      // 낮아져 가짜 stable이 뜰 수 있다 (R52 coast와 동일 원칙).
+      if (!confirmingRelock) pushStability(kf)
 
       const {full, cv, median} = stabilityStats()
       const isStable = full && cv < options.stabilityCv
