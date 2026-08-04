@@ -144,8 +144,28 @@ export interface FrameAnalysis {
   rms: number
 }
 
+/**
+ * R57 검출 모드 (사용자 확정: "그냥 파노튜너처럼").
+ * - 'tuner'(기본): pYIN 지배 주기 — 임계 이하 dip 최단 lag(=salience 1위)를 그대로 채택.
+ *   시간영역 주기성은 스펙트럼 기본파 라인이 약해도 강하므로(300대 모터), comb 채점이
+ *   만들던 ÷3 미끄러짐·저파노 기각이 원천적으로 없다. 검증은 rms(무음·근접)·voicing만.
+ * - 'comb': 스펙트럼 comb 채점 + 엄격 게이트 + 소리원 그룹 선택 (v2 §1 원안) —
+ *   합성 fixture의 comb 능력 회귀 검증·실기기 A/B(?pitchMode=comb) 용도로 보존.
+ */
+export type PitchMode = 'tuner' | 'comb'
+
 /** 엔진 파라미터 — 전부 주입 가능 (REQ-F-010/011 hook: 캘리브레이션·10ms hop은 이 객체로 흡수) */
 export interface EngineTuning {
+  /** R57 검출 모드 — 기본 'tuner' (파노튜너 방식) */
+  pitchMode: PitchMode
+  /**
+   * R57 tuner 모드 YIN 절대 임계 — 대역 내 CMNDF dip 깊이가 이 이하인 것 중 최단 lag
+   * (최고 주파수)를 채택한다(비정수배 반증 가드 포함 — pyin.ts). 튜너 구현 관행 0.1~0.3
+   * (aubio 기본 0.3). 낮출수록 더 명료한 주기만 인정(기각↑), 높일수록 잡음 주기까지
+   * 인정(오검출↑). 0.2 근거: 짧은 lag은 CMNDF 누적 정규화의 초반 결손으로 depth가 부풀어
+   * (582 모터 + 실존 291 성분 → 582 depth ≈0.17), 0.12로는 실기기 기본파가 기각된다.
+   */
+  yinThreshold: number
   /** 분석 프레임 길이 (s) — v2 §1: 200 ms */
   frameSeconds: number
   /** hop (s) — v2 §1: 25 ms (10 ms는 고급 옵션, REQ-F-011) */
@@ -239,6 +259,8 @@ export interface ResolvedEngineOptions extends EngineTuning {
 }
 
 export const DEFAULT_TUNING: EngineTuning = {
+  pitchMode: 'tuner',
+  yinThreshold: 0.2,
   frameSeconds: 0.2,
   hopSeconds: 0.025,
   targetDecimatedRate: 12000,

@@ -33,6 +33,7 @@ export type {
   GateReject,
   HarmonicMeasurement,
   MeasureStatus,
+  PitchMode,
   RefineResult,
   ResolvedEngineOptions,
   ScoredCandidate,

@@ -9,7 +9,7 @@ import {
   scoreCandidates,
   type CombOptions,
 } from './harmonics'
-import {estimateFrame} from './pyin'
+import {estimateFrame, pickYinPitch} from './pyin'
 import {refine} from './refine'
 import {createSpectrumAnalyzer} from './spectrum'
 import type {
@@ -137,22 +137,11 @@ export function createFrameAnalyzer(
       if (pyinCandidates.length === 0) return emptyAnalysis(rms, 'no-dip')
 
       spectrum.compute(frame)
-      const scored = scoreCandidates(
-        spectrum.power,
-        spectrum.binHz,
-        decimatedRate,
-        pyinCandidates,
-        combOptions,
-      )
-      const winner = scored[0]
-      if (winner === undefined) return emptyAnalysis(rms, 'no-winner')
 
       // 일치도 검사 기준은 **VP 이전** 값이어야 한다 (v2 §1).
       // VP를 먼저 전 고조파로 돌리면 오염 성분(예: 6f₀ 근처 독립 톤)까지 함께 적합되어
       // f₀가 오염 쪽으로 끌려가고, 그 결과 오염 성분이 스스로 "일치"하는 것으로 판정된다.
       // 피크 가중 평균은 각 고조파의 implied f₀를 독립 평균하므로 그 결합이 없다.
-      // 옥타브 하향 오판 교정을 VP·게이트보다 **먼저** 적용한다 — 이후 일치도 검사·정밀 추정·
-      // 게이트가 모두 교정된 f₀ 기준으로 계산돼야 SNR·고조파 판정이 정상화된다.
       const evaluate = (candidate: ScoredCandidate): CandidateEvaluation => {
         const start = peakWeightedF0(candidate)
         const measured: HarmonicMeasurement[] = measureHarmonics(
@@ -194,6 +183,82 @@ export function createFrameAnalyzer(
           rejects,
         }
       }
+
+      // ── R57 tuner 모드 (기본) — 파노튜너 방식: **표준 YIN 규칙**(대역 내 dip 중 임계 이하
+      // 최단 lag = 최고 주파수)을 그대로 채택한다. 시간영역 주기성은 스펙트럼 기본파 라인이
+      // 약해도 유지되므로(300대 모터: 900·1500 홀수 배음이 300-주기를 강제) comb 채점이
+      // 만들던 ÷3 미끄러짐·저파노 기각이 없고, 약한 하위 실성분(584 모터의 292)은 임계가
+      // 걸러 ÷2로도 내려가지 않는다(pickYinPitch 주석 참조). 검증은 rms(위)·YIN 임계 자체 —
+      // "무음에서 임의 값 금지" 계약 유지. SNR·고조파는 게이트가 아니라 계측으로만 실어
+      // 신뢰도 미터·진단이 계속 동작한다. comb 경로는 pitchMode:'comb'으로 보존.
+      if (options.pitchMode === 'tuner') {
+        const voicedProb = pyinCandidates[0]!.voicedProb
+        const yin = pickYinPitch(frame, decimatedRate, {
+          fMin: options.fMin,
+          fMax: options.fMax,
+          threshold: options.yinThreshold,
+        })
+        if (yin === null) {
+          // dip은 있으나 임계 이하 명료 주기가 없음 — 무성(voicing) 기각
+          return {
+            gatePassed: false,
+            rejects: ['voicing'],
+            evalF0: null,
+            f0: null,
+            candidates: [],
+            voicedProb,
+            snrDb: -30,
+            detectedHarmonics: [],
+            usedHarmonics: [],
+            rms,
+          }
+        }
+        const topScored: ScoredCandidate = {
+          f0: yin.f0,
+          combScore: 0,
+          harmonics: measureHarmonics(
+            spectrum.power,
+            spectrum.binHz,
+            decimatedRate,
+            yin.f0,
+            options.scoredHarmonics,
+          ),
+          voicedProb,
+          salience: 1 - yin.depth,
+        }
+        const evaluation = evaluate(topScored)
+        // Viterbi 후보 격자: 채택(YIN 픽)은 VP 정밀값 + 최상위 emission, 나머지 pYIN 후보는
+        // salience 환산 — 추적기가 지배 주기를 따르되 전이 페널티로 순간 점프는 계속 눌린다.
+        const candidates: TrackCandidate[] = [
+          {f0: evaluation.finalF0, score: 20},
+          ...pyinCandidates
+            .filter(c => Math.abs(Math.log2(c.f0 / yin.f0)) > 0.05)
+            .map(c => ({f0: c.f0, score: c.salience * 10})),
+        ]
+        return {
+          gatePassed: true,
+          rejects: [],
+          evalF0: evaluation.finalF0,
+          f0: evaluation.finalF0,
+          candidates,
+          voicedProb,
+          snrDb: evaluation.snrDb,
+          detectedHarmonics: evaluation.detectedHarmonics,
+          usedHarmonics: evaluation.usedHarmonics,
+          rms,
+        }
+      }
+
+      // ── comb 모드 (레거시, v2 §1 원안) — 스펙트럼 comb 채점 + 엄격 게이트 + 그룹 선택
+      const scored = scoreCandidates(
+        spectrum.power,
+        spectrum.binHz,
+        decimatedRate,
+        pyinCandidates,
+        combOptions,
+      )
+      const winner = scored[0]
+      if (winner === undefined) return emptyAnalysis(rms, 'no-winner')
 
       // R56: 통과 후보 → 소리원 그룹핑(정수배 관계) → 그룹 간 comb(소리 크기) →
       // 그룹 내 증거 기반 최고 f0 선택 (파일 상단 R56 주석 참조)

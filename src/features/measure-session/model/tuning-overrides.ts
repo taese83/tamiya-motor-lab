@@ -31,6 +31,7 @@ const TUNING_NUMBER_KEYS = [
   'continueSnrDb',
   'continueMinHarmonics',
   'continueTolRatio',
+  'yinThreshold',
   'stabilitySeconds',
   'stabilityCv',
 ] as const satisfies readonly (keyof EngineTuning)[]
@@ -54,6 +55,11 @@ export function readTuningOverrides(): Partial<EngineTuning> {
   const octave = params.get('octaveCorrection')
   if (octave !== null) {
     overrides.octaveCorrection = octave !== '0' && octave !== 'false'
+  }
+  // R57 검출 모드 A/B — 예: ?pitchMode=comb (기본 tuner)
+  const mode = params.get('pitchMode')
+  if (mode === 'tuner' || mode === 'comb') {
+    overrides.pitchMode = mode
   }
   return overrides
 }

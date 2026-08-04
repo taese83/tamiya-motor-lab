@@ -310,6 +310,9 @@ describe('fixture ⑧ 옥타브 유혹(300↔600 진폭 반전 교차) — 추�
   // 600을 따라가는 것이 이제 올바른 동작이다. 이 fixture가 검증하는 "하위 옥타브 고정"은
   // 레거시 능력(하위 고조파 veto)이므로 원래 파라미터로 명시해 그 능력이 살아있음을 검증한다.
   const LEGACY_OCTAVE_LOCK = {
+    // R57: 이 fixture는 comb 채점·하위 고조파 veto **능력**의 회귀 검증 — comb 모드 명시.
+    // 기본(tuner) 모드는 지배 주기를 따르므로 600 우세 구간에서 600을 보고하는 것이 정상이다.
+    pitchMode: 'comb',
     fMin: 170,
     fMax: 620,
     pitchDivisors: [1, 3, 6],
