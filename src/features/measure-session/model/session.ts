@@ -27,7 +27,7 @@ import type {
   EngineWorkerRequest,
   EngineWorkerResponse,
 } from '@shared/lib/audio-analysis'
-import type {MachineSnapshot} from './machine'
+import type {EngineFrameView, MachineSnapshot} from './machine'
 
 // ─── 세션 로컬 상태 (비영속 — 페이지 수명) ───────────────────────────────────
 
@@ -46,24 +46,72 @@ let acquiring = false
 /** 세션 내 누적 거부 횟수 (F-2 fallback ≥2회 승격) — INV-17 비영속. awaiting-gesture 판정은 미계상 */
 let denialCount = 0
 /**
- * v2.18 — **연속** measuring 시작 시각(ms). phase가 running을 벗어나면 null로 리셋된다.
+ * v2.18 — **연속** measuring 시작 시각. phase가 running을 벗어나면 null로 리셋된다.
  *
  * v2.x(사용자: 깜빡이며 측정이 끊겨 타이머가 리셋되고 무한 측정) — 짧은 게이트 실패에는
  * 리셋하지 않는다. 신뢰 게이트는 실기기 소음·마이크 AGC로 수백 ms 단위로 깜빡일 수 있는데,
  * 그때마다 0으로 되돌리면 하한(3s/5s)에 영영 도달하지 못한다. MEASURING_GAP_TOLERANCE_MS
  * 이내의 끊김은 같은 연속 측정으로 간주하고, 그보다 길면 회전이 실제로 바뀐 것으로 보고 리셋한다.
+ *
+ * R52: 시각 단위는 벽시계(Date.now)가 아니라 **엔진 오디오 클록(estimate.audioMs)** —
+ * 메인 스레드 잰크·백그라운드 스로틀로 estimate 도착이 밀려도 연속성 판정이 흔들리지 않는다.
+ * Worker 'reset' 시 오디오 클록이 0으로 되돌아가므로 타이머도 함께 리셋해야 한다(resumeAudio).
  */
-let measuringSinceMs: number | null = null
-/** 마지막 measuring 프레임 시각 — 끊김 길이 판정 기준 */
-let lastMeasuringAtMs: number | null = null
+let measuringSinceAudioMs: number | null = null
+/** 마지막 measuring 프레임의 오디오 클록(ms) — 끊김 길이 판정 기준 */
+let lastMeasuringAudioMs: number | null = null
 /** 이 시간 이내의 신호 끊김은 연속 측정으로 간주한다 (v2.x — 800ms로도 부족해 1200ms로 상향) */
 const MEASURING_GAP_TOLERANCE_MS = 1200
+
+function resetMeasuringTimers(): void {
+  measuringSinceAudioMs = null
+  lastMeasuringAudioMs = null
+}
 /** no-permission 중 granted 전환 감지 구독 (Permissions API 가용 시 — F-2 ①) */
 let permissionWatcher: PermissionStatus | null = null
 
+// ─── 스냅샷 게시 — 상태 전이는 즉시, 고빈도 프레임은 스로틀 (R52) ───────────
+// 엔진 estimate는 hop 25ms(≈40 Hz)마다 오는데 매번 setState하면 페이지 전체가 초당 40회
+// 리렌더된다(중저가 폰 잰크 → 바늘 뚝뚝 끊김 + PCM 중계 지연 되먹임). 프레임 갱신은
+// FRAME_PUBLISH_INTERVAL_MS당 1회 + trailing 게시로 합류한다 — 표시 계약(≥10 Hz)의 하한.
+// machine 스냅샷 자체는 즉시 갱신되므로 내부 로직(가드·hold 판정)은 항상 최신을 본다.
+
+const FRAME_PUBLISH_INTERVAL_MS = 100
+
+let lastFramePublishMs = 0
+let framePublishTimer: ReturnType<typeof setTimeout> | null = null
+
+function cancelPendingFramePublish(): void {
+  if (framePublishTimer === null) return
+  clearTimeout(framePublishTimer)
+  framePublishTimer = null
+}
+
+/** 상태 전이 commit — 즉시 게시. 대기 중 프레임 게시는 폐기(전이 스냅샷이 최신). */
 function commit(next: MachineSnapshot): void {
   machine = next
+  cancelPendingFramePublish()
+  lastFramePublishMs = 0 // 다음 프레임은 즉시 게시 — 전이 직후 첫 수치 표시를 지연시키지 않는다
   publishSnapshot(next)
+}
+
+/** 고빈도 프레임 commit — machine은 즉시 갱신, 게시는 스로틀(간격 내 마지막 값 trailing 보장) */
+function commitFrame(frame: EngineFrameView): void {
+  machine = {...machine, frame}
+  const now = performance.now()
+  const elapsed = now - lastFramePublishMs
+  if (elapsed >= FRAME_PUBLISH_INTERVAL_MS) {
+    cancelPendingFramePublish()
+    lastFramePublishMs = now
+    publishSnapshot(machine)
+    return
+  }
+  if (framePublishTimer !== null) return // trailing 게시 예약됨 — 그 시점의 machine이 최신을 실는다
+  framePublishTimer = setTimeout(() => {
+    framePublishTimer = null
+    lastFramePublishMs = performance.now()
+    publishSnapshot(machine)
+  }, FRAME_PUBLISH_INTERVAL_MS - elapsed)
 }
 
 const CAPTURE_CONSTRAINTS: MediaStreamConstraints = {
@@ -185,6 +233,9 @@ export async function resumeAudio(): Promise<void> {
   if (resources.worker !== null) {
     postToWorker(resources.worker, {type: 'reset'})
   }
+  // Worker reset으로 오디오 클록이 0부터 다시 시작한다 — 측정 타이머도 함께 리셋해야
+  // 중단 전 audioMs 기준의 stale 시각과 새 클록이 섞이지 않는다 (R52 계약).
+  resetMeasuringTimers()
   commit({...machine, phase: 'running', frame: null})
 }
 
@@ -338,6 +389,13 @@ async function ensurePipeline(resources: ActiveResources): Promise<void> {
     numberOfOutputs: 0,
     channelCount: 1,
   })
+  // R52: worklet ↔ 엔진 Worker 직결 채널 — PCM이 메인 스레드를 경유하지 않아 렌더 잰크가
+  // 분석 지연으로 전이되지 않는다. 포트 도착 전 초기 청크만 아래 중계(fallback)로 흐른다.
+  const channel = new MessageChannel()
+  worker.postMessage({type: 'pcm-port', port: channel.port1} satisfies EngineWorkerRequest, [
+    channel.port1,
+  ])
+  workletNode.port.postMessage({type: 'pcm-port', port: channel.port2}, [channel.port2])
   workletNode.port.onmessage = (event: MessageEvent<Float32Array<ArrayBuffer>>) => {
     const pcm = event.data
     worker.postMessage({type: 'pcm', pcm} satisfies EngineWorkerRequest, [pcm.buffer])
@@ -360,7 +418,7 @@ function handleWorkerMessage(message: EngineWorkerResponse): void {
     case 'ready':
       return
     case 'estimate':
-      handleEstimate(message.estimate)
+      handleEstimate(message.estimate, message.audioMs)
       return
     case 'error':
       // 엔진 구성 실패(계약 위반급) — 세션 종료. v2에는 수동 대기 화면(idle)이 없어
@@ -384,27 +442,33 @@ function handleWorkerMessage(message: EngineWorkerResponse): void {
  * 연속 캡처(M-3): stable에서도 정지·확정하지 않는다 — toEngineFrame이 isStable 신호로 접고,
  * 자동 확정 트리거(RV-1)·기록은 소비자(page)가 view로 판단한다.
  */
-function handleEstimate(estimate: DisplayEstimate): void {
+function handleEstimate(estimate: DisplayEstimate, audioMs: number): void {
   // teardown 이후 큐에 남은 잔여 메시지 방어 — running에서만 소비
   if (machine.phase !== 'running') return
 
   // v2.18 연속 측정 지속시간 — **모터 소리 입력(첫 measuring 프레임) 순간부터** 잰다.
   // v2.x(사용자: 깜빡임으로 타이머가 리셋돼 무한 측정): 게이트가 잠깐 실패해도 즉시 0으로
   // 되돌리지 않는다. MEASURING_GAP_TOLERANCE_MS를 넘게 끊겼을 때만 연속이 깨진 것으로 본다.
-  const now = Date.now()
+  // R52: 시각은 estimate.audioMs(엔진 오디오 클록) — 도착 시각 의존 제거(잰크·스로틀 무관).
   if (!isMeasuringEstimate(estimate)) {
-    const gapMs = lastMeasuringAtMs === null ? Infinity : now - lastMeasuringAtMs
-    if (gapMs > MEASURING_GAP_TOLERANCE_MS) {
-      measuringSinceMs = null
-      lastMeasuringAtMs = null
+    const gapMs = lastMeasuringAudioMs === null ? Infinity : audioMs - lastMeasuringAudioMs
+    if (gapMs < 0 || gapMs > MEASURING_GAP_TOLERANCE_MS) {
+      // 음수 gap = 클록 리셋 후 stale 시각 잔존(방어) — 연속이 깨진 것으로 처리
+      resetMeasuringTimers()
+      commitFrame(toEngineFrame(estimate, 0))
+      return
     }
-    // 끊김 중에도 view는 weak-signal(수치 미표시) — 누적 시간만 유예 구간 동안 보존한다
-    commit({...machine, frame: toEngineFrame(estimate, 0)})
+    // R52 hold(사용자: 끊김 체감 해소): 유예 구간(≤1200ms) 안의 끊김은 **직전 measuring
+    // 프레임을 그대로 유지**한다 — dim·placeholder 없이 측정 중과 동일하게 표시(사용자 확정).
+    // 종전에는 타이머만 유예하고 표시는 즉시 weak-signal(—)로 떨어져, 500ms(엔진 coast)~
+    // 1200ms 사이 결손마다 수치가 깜빡 사라졌다. 유예를 넘기면 위 분기가 weak-signal로 내린다.
+    if (machine.frame?.kind === 'measuring') return
+    commitFrame(toEngineFrame(estimate, 0))
     return
   }
-  measuringSinceMs ??= now
-  lastMeasuringAtMs = now
-  commit({...machine, frame: toEngineFrame(estimate, now - measuringSinceMs)})
+  measuringSinceAudioMs ??= audioMs
+  lastMeasuringAudioMs = audioMs
+  commitFrame(toEngineFrame(estimate, audioMs - measuringSinceAudioMs))
 }
 
 // ─── 세션 수명 이벤트 ────────────────────────────────────────────────────────
@@ -419,13 +483,13 @@ function handleStateChange(): void {
 }
 
 function teardownResources(): void {
-  // 연속 측정 타이머 리셋(v2.x 버그 수정): measuringSinceMs는 무신호 프레임에서만 null이 됐다.
+  // 연속 측정 타이머 리셋(v2.x 버그 수정): measuringSince는 무신호 프레임에서만 null이 됐다.
   // 그래서 모터가 계속 도는 채로 왕복 복귀(언마운트→stopCapture→teardown) 후 재측정하면,
   // 파이프라인은 새로 만들어져도 옛 시작 시각이 남아(??= 가 non-null이라 안 덮음) measuredMs가
   // 즉시 5초를 넘겨 **즉시 확정**되는 버그가 있었다. 파이프라인 파기 = 측정 종료이므로 여기서
   // 타이머를 초기화해, 다음 세션 첫 measuring 프레임이 시작 시각을 새로 잡게 한다.
-  measuringSinceMs = null
-  lastMeasuringAtMs = null
+  resetMeasuringTimers()
+  cancelPendingFramePublish()
   const resources = active
   if (resources === null) return
   active = null

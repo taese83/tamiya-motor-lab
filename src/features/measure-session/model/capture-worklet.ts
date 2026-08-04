@@ -20,6 +20,13 @@ class MmlCaptureProcessor extends AudioWorkletProcessor {
     super()
     this.buffer = new Float32Array(${CAPTURE_CHUNK_SAMPLES})
     this.fill = 0
+    // 직결 포트(엔진 Worker와의 MessageChannel) — 도착 전에는 this.port(메인 중계)로 보낸다.
+    // 메인 스레드가 렌더링으로 바쁠 때 PCM 전달이 밀리지 않게 하는 핵심 배선.
+    this.out = this.port
+    this.port.onmessage = (event) => {
+      const data = event.data
+      if (data && data.type === 'pcm-port') this.out = data.port
+    }
   }
   process(inputs) {
     const channel = inputs[0] && inputs[0][0]
@@ -32,7 +39,7 @@ class MmlCaptureProcessor extends AudioWorkletProcessor {
       offset += take
       if (this.fill === this.buffer.length) {
         const chunk = this.buffer
-        this.port.postMessage(chunk, [chunk.buffer])
+        this.out.postMessage(chunk, [chunk.buffer])
         this.buffer = new Float32Array(${CAPTURE_CHUNK_SAMPLES})
         this.fill = 0
       }

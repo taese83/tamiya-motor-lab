@@ -206,8 +206,9 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
         missCount += 1
         if (hasTrack && missCount <= options.missTolerance) {
           // 짧은 게이트 결손은 예측 유지 (표시 깜빡임 방지) — 초과 시 즉시 weak-signal (D-9)
+          // R52: coast 프레임은 안정 창에 **넣지 않는다** — 정지된 예측값(kf)이 상수로 쌓이면
+          // CV가 인위적으로 낮아져, 결손 직후 실측 없이 가짜 stable(자동 확정 트리거)이 뜰 수 있다.
           kalmanPredict()
-          pushStability(kf)
           lastConfidence *= 0.7
           // coast 프레임: 창이 차 있으면 직전 CV 유지 노출 (게이트 결손 중 새 판정 없음)
           const coast = stabilityStats()
