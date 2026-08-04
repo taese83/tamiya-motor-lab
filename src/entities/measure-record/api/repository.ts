@@ -59,6 +59,8 @@ export async function collectMeasureRecord(
     measuredAt: new Date().toISOString(),
     // 안정도(컨디션 지표, v2.x) — undefined는 저장하지 않음(옵션 생략 규칙)
     ...(parsed.data.stabilityCv !== undefined && {stabilityCv: parsed.data.stabilityCv}),
+    // R51 — 수동 입력만 태깅. 실측(부재)은 저장하지 않는다(부재=measured — 목록 표시가 이 규칙에 의존).
+    ...(parsed.data.source === 'manual' && {source: 'manual' as const}),
   }
 
   return withTransaction(['motors', 'measureRecords'], 'readwrite', async tx => {

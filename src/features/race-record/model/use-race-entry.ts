@@ -7,7 +7,12 @@ import {useToast} from '@shared/ui/toast'
 
 import {recommendVoltageHeuristic} from '@shared/lib/voltage-advisor'
 
-import {recommendVoltage, useCreateRaceRecord, useUpdateRaceRecord} from '../api'
+import {
+  recommendVoltage,
+  useCollectMeasureForRace,
+  useCreateRaceRecord,
+  useUpdateRaceRecord,
+} from '../api'
 
 import type {RaceEntryDraft, RaceEntryField, RaceEntryFieldErrors, RaceEntryPano} from '../ui'
 import type {CreateRaceRecordDraft, RaceRecord} from '@entities/race-record'
@@ -216,6 +221,14 @@ export interface RaceEntryController {
   /** v2.35 현재 추천 출처(휴리스틱 기본 / AI) — 배지·버튼 라벨용. null = 추천 없음 */
   recommendSource: 'ai' | 'heuristic' | null
   submit: () => void
+  /** R51 — 파노 직접 입력 인라인 에디터 표시(create 전용) */
+  manualPanoOpen: boolean
+  openManualPano: () => void
+  closeManualPano: () => void
+  /** 검증 통과 파노값(Hz) — collectMeasureRecord(source:'manual') 후 레이스 파노(measured)로 사용 */
+  submitManualPano: (panoHz: number) => void
+  /** collect 진행 중 — 인라인 [입력] "저장 중…" */
+  manualPanoPending: boolean
   restoreFromMeasureReturn: (restore: RaceMeasureReturnRestore) => void
 }
 
@@ -230,6 +243,7 @@ export interface RaceEntryController {
 export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceEntryController {
   const createRaceRecord = useCreateRaceRecord()
   const updateRaceRecord = useUpdateRaceRecord()
+  const collectForRace = useCollectMeasureForRace(motorId) // R51 파노 수동 입력 수집
   const {showSuccess} = useToast()
 
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -241,6 +255,10 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
   const [draft, setDraft] = useState<RaceEntryDraft>(createInitialRaceEntryDraft)
   // 왕복 measured 덮어쓰기(create 전용) — null이면 initialPano(auto/none) 그대로 표시
   const [measuredPanoHz, setMeasuredPanoHz] = useState<number | null>(null)
+  // R51 — measuredPanoHz가 왕복 측정(false)인지 파노 직접 입력(true)인지. pano.kind·chip 분기.
+  const [manualEntered, setManualEntered] = useState(false)
+  // R51 — 파노 직접 입력 인라인 에디터 표시(create 전용)
+  const [manualPanoOpen, setManualPanoOpen] = useState(false)
   const [justMeasured, setJustMeasured] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<RaceEntryFieldErrors>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -260,7 +278,7 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     mode === 'edit' && editPanoHz !== null
       ? {kind: 'auto', panoHz: editPanoHz}
       : measuredPanoHz !== null
-        ? {kind: 'measured', panoHz: measuredPanoHz}
+        ? {kind: manualEntered ? 'manual' : 'measured', panoHz: measuredPanoHz}
         : initialPano
 
   const resetEntry = (): void => {
@@ -269,6 +287,8 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     setEditingId(null)
     setEditPanoHz(null)
     setMeasuredPanoHz(null)
+    setManualEntered(false) // R51
+    setManualPanoOpen(false) // R51
     setJustMeasured(false)
     setFieldErrors({})
     setErrorMessage(null)
@@ -436,6 +456,8 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     setEditPanoHz(null)
     setDraft(restore.draft)
     setMeasuredPanoHz(restore.measuredPanoHz)
+    setManualEntered(false) // R51 — 왕복 복귀는 실측(measured), 수동 아님
+    setManualPanoOpen(false) // R51
     setJustMeasured(restore.justMeasured)
     setFieldErrors({})
     setErrorMessage(restore.saveFailed ? RACE_ENTRY_MESSAGES.measureSaveFailed : null)
@@ -451,6 +473,36 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
       setRationale(advice.rationale)
       setRecommendSource(advice.source)
     }
+  }
+
+  // R51 — 파노 직접 입력. 인라인 에디터를 열고/닫고, 확정 시 실측 왕복과 같은 command로 수집한다.
+  // 저장 성공/실패와 무관하게 입력한 파노값 자체는 유효하므로 레이스 파노(measured)로 사용한다
+  // (§7.2-3 비차단 원칙 승계) — 저장 실패만 measureSaveFailed 배너로 고지한다.
+  const openManualPano = (): void => {
+    if (pending) return
+    setManualPanoOpen(true)
+  }
+  const closeManualPano = (): void => {
+    if (collectForRace.isPending) return
+    setManualPanoOpen(false)
+  }
+  const submitManualPano = (panoHz: number): void => {
+    if (collectForRace.isPending || pending) return
+    collectForRace.mutate(panoHz, {
+      onSuccess: () => {
+        setMeasuredPanoHz(panoHz)
+        setManualEntered(true)
+        setManualPanoOpen(false)
+        setJustMeasured(false)
+        setErrorMessage(null)
+      },
+      onError: () => {
+        setMeasuredPanoHz(panoHz)
+        setManualEntered(true)
+        setManualPanoOpen(false)
+        setErrorMessage(RACE_ENTRY_MESSAGES.measureSaveFailed)
+      },
+    })
   }
 
   return {
@@ -472,6 +524,11 @@ export function useRaceEntry(motorId: string, initialPano: RaceEntryPano): RaceE
     recommendPending,
     recommendSource,
     submit,
+    manualPanoOpen,
+    openManualPano,
+    closeManualPano,
+    submitManualPano,
+    manualPanoPending: collectForRace.isPending,
     restoreFromMeasureReturn,
   }
 }

@@ -530,6 +530,11 @@ export function RaceDetailPage() {
           draft={entry.draft}
           onDraftChange={entry.onDraftChange}
           onMeasure={handleMeasure}
+          manualPanoOpen={entry.manualPanoOpen}
+          onOpenManualPano={entry.openManualPano}
+          onCloseManualPano={entry.closeManualPano}
+          onSubmitManualPano={entry.submitManualPano}
+          manualPanoPending={entry.manualPanoPending}
           onSubmit={entry.submit}
           pending={entry.pending}
           errorMessage={entry.errorMessage}

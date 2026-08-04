@@ -2673,3 +2673,16 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   **hybrid-serverless**다. ① 릴리스 품질 러너의 external-ingestion 감지가 이들 outbound fetch를 오탐(크롤/스크랩 아님)
   ② 오케스트레이터가 hybrid-serverless를 built-in adapter 범위 밖 BLOCKED로 분류, locked profile(csr/static-build)이 serverless 계층 미모델.
   → 정식 서명 릴리스 attestation은 계약 위조(게이트 우회) 없이는 현 하네스에서 도달 불가. 재프로파일(next BFF 등)은 별도 큰 작업.
+
+## R51 — 파노 수동 입력: 모터 상세 + 버튼 / 레이스 폼 인라인 (2026-08-04, feature)
+- REQUEST(사용자): ① 모터 상세 "측정 기록" 헤더 우측 + 버튼으로 파노를 직접 입력해 기록 생성 ② 실측 전용 정보는 입력 제공하지 않고 파노값만 ③ 목록에서 수동 레코드는 날짜+파노만, 나머지 `—` ④ 레이스 기록 폼 파노도 수동 입력 가능(측정 클릭 저장과 동일 방식 = 모터 상세 수동입력과 동일 저장).
+- 설계 판단(스키마 변경 최소): MeasureRecord.rpm은 파노 파생(INV-06 rpm=round(pano×60)), 실측 전용 필드는 stabilityCv(이미 optional) 하나뿐 → 파노만 입력해도 유효 레코드. 수동도 기존 `collectMeasureRecord` 단일 command 경유(INV-22 유지). 수동/실측 구분 위해 `source?: 'manual'|'measured'` **additive optional**(부재=measured, 구 레코드·구 실측 안전) 1필드만 추가. 저장은 manual일 때만(옵션 생략 규칙).
+- 레이스 폼은 **중첩 모달 금지** 원칙에 따라 별도 시트 대신 파노 행 **인라인** 수동 입력. 저장 경로(collectMeasureRecord source:manual)는 모터 상세와 동일 — "같은 방식으로 저장" 충족, UI만 문맥 적응.
+- ALLOWED_PATHS: entities/measure-record/{model/schema.ts,api/repository.ts}; features/measure-management/{api/mutations.ts,api/index.ts,index.ts,ui/ManualPanoSheet.tsx(신규)}; pages/motor-detail/ui/MotorDetailPage.tsx; features/race-record/{api/mutations.ts,api/index.ts,model/use-race-entry.ts,ui/RaceEntrySheet.tsx}; entities/measure-record/model/schema.test.ts(신규)
+- PUBLIC_CONTRACTS_TO_PRESERVE: INV-22 단일 생성 경로·INV-06 쌍 불변식·INV-20 rolling 20·panoHz write-strict(F0_RANGE 170~1400·소수1)·MeasureRecord 기존 필드·RaceRecord.panoHz 필수 스냅샷·레이스 auto/measured 흐름·edit 파노 읽기전용·44px·색 단독 구분 금지·오류 Toast 금지(인라인 Alert).
+- NON_GOALS: 수동 레코드 update, 새 store/마이그레이션, 레이스 edit 파노 편집, 스키마 대규모 변경.
+- CAPABILITY_ESCALATION: none(로컬 IndexedDB 기존 command 재사용, 네트워크/비밀/권한 경계 무변화).
+- TEST_EVIDENCE 목표: tsc/eslint 0 · vitest 통과 · schema 유닛(source round-trip·부재=measured·manual rpm 쌍). 브라우저 E2E: motors/race 로그인 게이트라 미로그인 세션 불가 → 정적/유닛으로 대체(로그인 필요 명시).
+- 검증 결과: `tsc -b` 0 · `eslint src` 0 · `vitest run` 38파일 303개 통과(schema 신규 7 포함) · `vite build` 성공.
+  feature 1은 IndexedDB에 유효 모터 1건 시드 후 `/motors/:id`(게이트 없음)에서 **실증**: [+ 파노]→시트(파노 1필드만)→309 입력→저장, 최근 파노 309.0 Hz·rpm 18,540(=round(309×60) 파생)·추세 차트 반영, 목록 행 "01 · 08-04 · 309.0 Hz · —"(수동=날짜+파노만, 나머지 —). 콘솔 오류 0. 테스트 시드 DB는 정리.
+  feature 2는 `/race/:id`가 로그인 게이트라 인라인 UI 화면 도달 불가(OAuth) → 정적/유닛 + feature 1과 동일 저장 경로(collectMeasureRecord source:'manual') 실증으로 갈음.

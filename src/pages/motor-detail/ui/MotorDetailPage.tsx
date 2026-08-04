@@ -7,7 +7,7 @@ import {useNavigate, useOutletContext, useParams} from 'react-router'
 import {baselineFromBestCvs, computeStabilityBaseline, measureQueries} from '@entities/measure-record'
 import {MotorKindChip, motorQueries} from '@entities/motor'
 import {AuthMenu} from '@features/auth'
-import {useDeleteMeasureRecord} from '@features/measure-management'
+import {ManualPanoSheet, useCollectMeasureRecord, useDeleteMeasureRecord} from '@features/measure-management'
 import {ConditionHelpDialog, ConditionSummary, LatestPanoHero, PanoLineChart} from '@features/motor-management/ui'
 import {
   beginMotorMeasure,
@@ -22,7 +22,7 @@ import {
   numericTypography,
   shapeTokens,
 } from '@shared/config/design-tokens'
-import {formatDateTimeShort, formatFanoHz, formatRpm} from '@shared/lib/format'
+import {EM_DASH, formatDateTimeShort, formatFanoHz, formatRpm} from '@shared/lib/format'
 import {EmptyState} from '@shared/ui/empty-state'
 import {TrashIcon} from '@shared/ui/icons'
 import {PageHeader} from '@shared/ui/page-header'
@@ -135,6 +135,30 @@ export function MotorDetailPage() {
         toast.showSuccess('측정 기록이 삭제되었습니다')
       },
     })
+  }
+
+  // ── R51 파노 수동 입력 — 헤더 [+ 파노] → 시트 → collectMeasureRecord(source:'manual') ──
+  // 실측 왕복과 같은 command·rolling·검증. 실패는 시트 내 인라인 Alert(오류 Toast 금지 계약).
+  const [manualPanoOpen, setManualPanoOpen] = useState(false)
+  const [manualPanoError, setManualPanoError] = useState<string | null>(null)
+  const collectMeasure = useCollectMeasureRecord(motorId)
+  const handleManualPanoSubmit = (panoHz: number) => {
+    if (collectMeasure.isPending) return
+    setManualPanoError(null)
+    collectMeasure.mutate(panoHz, {
+      onSuccess: () => {
+        setManualPanoOpen(false)
+        toast.showSuccess('파노 기록이 추가되었습니다')
+      },
+      onError: e => {
+        setManualPanoError(e instanceof Error ? e.message : '저장하지 못했습니다')
+      },
+    })
+  }
+  const closeManualPano = () => {
+    if (collectMeasure.isPending) return
+    setManualPanoOpen(false)
+    setManualPanoError(null)
   }
 
   // ── v2.5 측정 왕복 ────────────────────────────────────────────────────────
@@ -341,9 +365,22 @@ export function MotorDetailPage() {
                   />
                 </>
               )}
-              {records !== undefined && records.length > 0 && (
+              {/* R51: 헤더를 기록 0건에도 렌더한다 — [+ 파노] 진입점이 빈 상태에서도 필요하기 때문. */}
+              {records !== undefined && (
                 <Box sx={{mt: 2, mb: 0.5}}>
-                  <SectionHeading meta={`${records.length}건`}>측정 기록</SectionHeading>
+                  <SectionHeading
+                    meta={records.length > 0 ? `${records.length}건` : undefined}
+                    action={
+                      <Button
+                        variant="text"
+                        size="small"
+                        onClick={() => setManualPanoOpen(true)}
+                        sx={{minHeight: layoutTokens.touchTargetMin, my: -0.5}}>
+                        + 파노
+                      </Button>
+                    }>
+                    측정 기록
+                  </SectionHeading>
                 </Box>
               )}
               {recordsQuery.isPending ? (
@@ -369,7 +406,7 @@ export function MotorDetailPage() {
               ) : records === undefined || records.length === 0 ? (
                 // 기록 0건 — 안내 텍스트 블록 (오류 위장 금지). 하단 고정 [측정]으로 유도
                 <Typography variant="body2" sx={{color: 'text.secondary'}}>
-                  아직 기록 없음 — 아래 [측정]으로 첫 기록을 수집하세요
+                  아직 기록 없음 — 아래 [측정] 또는 [+ 파노]로 첫 기록을 추가하세요
                 </Typography>
               ) : (
                 /*
@@ -453,24 +490,32 @@ export function MotorDetailPage() {
                                   lineHeight: 1.2,
                                   fontVariantNumeric: 'tabular-nums lining-nums',
                                 }}>
-                                {formatRpm(record.rpm)} rpm
-                                {/* 안정도(컨디션 지표, v2.x) — 지표 도입 전 기록은 필드 부재(미표시) */}
-                                {record.stabilityCv !== undefined && (
-                                  <Box
-                                    component="span"
-                                    sx={{
-                                      ml: 0.75,
-                                      // v2.x 개정: 절대 등급 폐기 — 기준선 대비 컨디션 색(기준선 미완성이면 중립)
-                                      color: (() => {
-                                        const level = conditionLevelOf(record.stabilityCv, stabilityBaseline)
-                                        if (level === 'inspect') return 'error.main'
-                                        if (level === 'watch') return 'warning.main'
-                                        if (level === 'ok') return 'success.main'
-                                        return 'text.secondary'
-                                      })(),
-                                    }}>
-                                    ±{formatRpm(Math.max(1, Math.round(record.stabilityCv * record.rpm)))}
-                                  </Box>
+                                {/* R51 수동 레코드 — 실측 전용 정보(rpm·안정도)는 노출하지 않는다
+                                    (날짜+파노만). 파노 파생 rpm도 미표시하고 부재는 EM_DASH로 표시한다. */}
+                                {record.source === 'manual' ? (
+                                  EM_DASH
+                                ) : (
+                                  <>
+                                    {formatRpm(record.rpm)} rpm
+                                    {/* 안정도(컨디션 지표, v2.x) — 지표 도입 전 기록은 필드 부재(미표시) */}
+                                    {record.stabilityCv !== undefined && (
+                                      <Box
+                                        component="span"
+                                        sx={{
+                                          ml: 0.75,
+                                          // v2.x 개정: 절대 등급 폐기 — 기준선 대비 컨디션 색(기준선 미완성이면 중립)
+                                          color: (() => {
+                                            const level = conditionLevelOf(record.stabilityCv, stabilityBaseline)
+                                            if (level === 'inspect') return 'error.main'
+                                            if (level === 'watch') return 'warning.main'
+                                            if (level === 'ok') return 'success.main'
+                                            return 'text.secondary'
+                                          })(),
+                                        }}>
+                                        ±{formatRpm(Math.max(1, Math.round(record.stabilityCv * record.rpm)))}
+                                      </Box>
+                                    )}
+                                  </>
                                 )}
                               </Typography>
                             </Box>
@@ -545,6 +590,15 @@ export function MotorDetailPage() {
 
       {/* 컨디션 판단 가이드 (v2.x — 쉬운 언어 3규칙: 양호/주의/점검 권장) */}
       <ConditionHelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      {/* R51 파노 수동 입력 시트 — 고정 셸 밖(portal). 실측 왕복과 동일 저장 경로 */}
+      <ManualPanoSheet
+        open={manualPanoOpen}
+        pending={collectMeasure.isPending}
+        errorMessage={manualPanoError}
+        onSubmit={handleManualPanoSubmit}
+        onClose={closeManualPano}
+      />
     </>
   )
 }

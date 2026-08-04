@@ -8,11 +8,12 @@ import {
   OutlinedInput,
   Typography,
 } from '@mui/material'
-import {useId, useRef, useState} from 'react'
+import {useEffect, useId, useRef, useState} from 'react'
 
-import {RACE_GOAL_LABELS, RACE_RESULT_LABELS, RACE_RESULTS} from '@shared/config/domain'
+import {F0_RANGE, RACE_GOAL_LABELS, RACE_RESULT_LABELS, RACE_RESULTS} from '@shared/config/domain'
 import {layoutTokens, numericTypography, srOnlySx} from '@shared/config/design-tokens'
 import {formatFanoHz} from '@shared/lib/format'
+import {panoHzWriteSchema} from '@shared/lib/schema/pano'
 import {BottomSheet} from '@shared/ui/bottom-sheet'
 import {FormField} from '@shared/ui/form-field'
 import {TimerIcon} from '@shared/ui/icons'
@@ -33,11 +34,13 @@ import type {FormEvent, KeyboardEvent} from 'react'
  * 파노 필드 discriminated union (boolean prop 조합 금지 — 재사용 원칙 3).
  * - auto: 최신 MeasureRecord 인용(캐시 select 파생 — 전용 query 금지, AR-5)
  * - measured: 왕복 복귀 갱신값(§7.2) — "방금 측정" 배지 + justMeasured sr 고지 대상
+ * - manual: R51 파노 직접 입력값 — collectMeasureRecord(source:'manual') 저장 후 "직접 입력" 배지
  * - none: 측정 기록 없음 — [입력] 비활성 + [측정] 유도 (SC2-A6)
  */
 export type RaceEntryPano =
   | {kind: 'auto'; panoHz: number}
   | {kind: 'measured'; panoHz: number}
+  | {kind: 'manual'; panoHz: number}
   | {kind: 'none'}
 
 /** 폼 draft — 원시 문자열 유지(완전 제어형·왕복 복원 대응). ms 변환은 제출 검증 시(CD2-A4) */
@@ -73,6 +76,14 @@ export interface RaceEntrySheetProps {
    * (feature 간 직접 import 금지 — race-measure-handoff 접속은 콜백 위임)
    */
   onMeasure: () => void
+  /** R51 — 파노 직접 입력 인라인 에디터 (create 전용). 저장 경로는 [측정]과 동일(collectMeasureRecord) */
+  manualPanoOpen: boolean
+  onOpenManualPano: () => void
+  onCloseManualPano: () => void
+  /** 검증 통과 파노값(Hz)만 전달 — collect·measured 설정은 상위(useRaceEntry) 소관 */
+  onSubmitManualPano: (panoHz: number) => void
+  /** collect 진행 중 — 인라인 [입력] "저장 중…" */
+  manualPanoPending: boolean
   onSubmit: () => void
   /** [입력] disabled "저장 중…" (single-flight, H-4) */
   pending: boolean
@@ -128,6 +139,11 @@ export function RaceEntrySheet({
   draft,
   onDraftChange,
   onMeasure,
+  manualPanoOpen,
+  onOpenManualPano,
+  onCloseManualPano,
+  onSubmitManualPano,
+  manualPanoPending,
   onSubmit,
   pending,
   errorMessage,
@@ -194,45 +210,77 @@ export function RaceEntrySheet({
         )}
 
         {/*
-          ① 파노 — create: 자동 인용값 + [측정] 왕복 진입 / edit: 측정값 읽기전용(수정 불가).
-          v2.11: [측정]을 필드 **안쪽 우측** 인라인 액션으로 옮겼다(레퍼런스 EDIT 위치).
-          읽기전용이므로 labelFor를 주지 않는다 — 포커스 대상 입력이 없다.
+          ① 파노 — create: 자동 인용값 + [측정] 왕복 / [직접 입력] 인라인 / edit: 읽기전용(수정 불가).
+          v2.11: [측정]을 필드 안쪽 우측 인라인 액션으로. R51: [직접 입력] 인라인 에디터 추가 —
+          시트(BottomSheet) 위 중첩 모달을 피하려 별도 시트가 아니라 이 폼 안에서 입력받는다.
+          읽기전용 표시는 labelFor를 주지 않는다 — 포커스 대상 입력이 없다.
         */}
         <Box sx={fieldRowSx}>
-          <FormField
-            label={isEdit ? '파노 · 수정 불가' : '파노 · 자동'}
-            helperText={
-              !isEdit && pano.kind === 'none' ? '[측정]으로 파노를 먼저 측정하세요' : undefined
-            }
-            action={
-              !isEdit ? (
-                <Button
-                  ref={measureButtonRef}
-                  variant="text"
-                  onClick={onMeasure}
-                  disabled={pending}
-                  sx={{minWidth: 44, height: layoutTokens.formControlHeight - 8, px: 1.5}}>
-                  측정
-                </Button>
-              ) : undefined
-            }>
-            <Box sx={{display: 'flex', alignItems: 'center', gap: 1, px: 1.75, minWidth: 0}}>
-              {pano.kind === 'none' ? (
-                <Typography component="span" color="text.secondary">
-                  측정 기록 없음
-                </Typography>
-              ) : (
-                <>
-                  <Typography component="span" sx={numericTypography.listValue}>
-                    {formatFanoHz(pano.panoHz)}
-                  </Typography>
-                  {pano.kind === 'measured' && (
-                    <Chip size="small" variant="outlined" color="primary" label="방금 측정" />
+          {!isEdit && manualPanoOpen ? (
+            <ManualPanoInline
+              pending={manualPanoPending}
+              onSubmit={onSubmitManualPano}
+              onCancel={onCloseManualPano}
+            />
+          ) : (
+            <>
+              <FormField
+                label={
+                  isEdit
+                    ? '파노 · 수정 불가'
+                    : pano.kind === 'manual'
+                      ? '파노 · 직접 입력'
+                      : '파노 · 자동'
+                }
+                helperText={
+                  !isEdit && pano.kind === 'none'
+                    ? '[측정] 또는 아래 [파노 직접 입력]으로 파노를 넣으세요'
+                    : undefined
+                }
+                action={
+                  !isEdit ? (
+                    <Button
+                      ref={measureButtonRef}
+                      variant="text"
+                      onClick={onMeasure}
+                      disabled={pending}
+                      sx={{minWidth: 44, height: layoutTokens.formControlHeight - 8, px: 1.5}}>
+                      측정
+                    </Button>
+                  ) : undefined
+                }>
+                <Box sx={{display: 'flex', alignItems: 'center', gap: 1, px: 1.75, minWidth: 0}}>
+                  {pano.kind === 'none' ? (
+                    <Typography component="span" color="text.secondary">
+                      측정 기록 없음
+                    </Typography>
+                  ) : (
+                    <>
+                      <Typography component="span" sx={numericTypography.listValue}>
+                        {formatFanoHz(pano.panoHz)}
+                      </Typography>
+                      {pano.kind === 'measured' && (
+                        <Chip size="small" variant="outlined" color="primary" label="방금 측정" />
+                      )}
+                      {pano.kind === 'manual' && (
+                        <Chip size="small" variant="outlined" color="primary" label="직접 입력" />
+                      )}
+                    </>
                   )}
-                </>
+                </Box>
+              </FormField>
+              {!isEdit && (
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={onOpenManualPano}
+                  disabled={pending}
+                  sx={{mt: 0.5, minHeight: layoutTokens.touchTargetMin}}>
+                  파노 직접 입력
+                </Button>
               )}
-            </Box>
-          </FormField>
+            </>
+          )}
         </Box>
 
         {/*
@@ -408,5 +456,103 @@ export function RaceEntrySheet({
         onResult={handleTimerResult}
       />
     </BottomSheet>
+  )
+}
+
+// R51 — 파노 직접 입력 인라인 에디터. 부호·지수 없는 정수/소수만(voltage 패턴 승계 — NaN 사전 차단),
+// write-strict(F0_RANGE·소수1) 재사용. 유효값만 상위로 전달하고 collect·measured 설정은 useRaceEntry 소관.
+const PANO_NUMERIC_PATTERN = /^\d+(\.\d+)?$/
+
+interface ManualPanoInlineProps {
+  pending: boolean
+  onSubmit: (panoHz: number) => void
+  onCancel: () => void
+}
+
+function ManualPanoInline({pending, onSubmit, onCancel}: ManualPanoInlineProps) {
+  const inputId = useId()
+  const errorId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [raw, setRaw] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  // 인라인 에디터는 [파노 직접 입력] 탭 시 마운트된다 — autoFocus 대신 ref 포커스(jsx-a11y/no-autofocus).
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const confirm = (): void => {
+    if (pending) return
+    const trimmed = raw.trim()
+    if (!PANO_NUMERIC_PATTERN.test(trimmed)) {
+      setError('숫자를 입력하세요')
+      inputRef.current?.focus()
+      return
+    }
+    const parsed = panoHzWriteSchema.safeParse(Number(trimmed))
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? '유효한 파노값이 아닙니다')
+      inputRef.current?.focus()
+      return
+    }
+    setError(null)
+    onSubmit(parsed.data)
+  }
+
+  const hasError = error !== null
+
+  return (
+    <Box>
+      <FormField
+        label="파노 직접 입력 (Hz)"
+        labelFor={inputId}
+        error={error}
+        errorId={errorId}
+        helperText={`${F0_RANGE.min} ~ ${F0_RANGE.max} Hz · 소수 첫째 자리까지`}>
+        <OutlinedInput
+          id={inputId}
+          inputRef={inputRef}
+          fullWidth
+          value={raw}
+          onChange={event => {
+            setRaw(event.target.value)
+            if (hasError) setError(null)
+          }}
+          onKeyDown={(event: KeyboardEvent) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              confirm()
+            }
+          }}
+          disabled={pending}
+          error={hasError}
+          slotProps={{
+            input: {
+              inputMode: 'decimal',
+              autoComplete: 'off',
+              'aria-invalid': hasError || undefined,
+              'aria-describedby': hasError ? errorId : undefined,
+            },
+          }}
+          sx={{...numericTypography.listValue, height: '100%', px: 1.75}}
+        />
+      </FormField>
+      <Box sx={{display: 'flex', gap: 1}}>
+        <Button
+          variant="contained"
+          onClick={confirm}
+          disabled={pending}
+          sx={{flex: 2, height: layoutTokens.formControlHeight}}>
+          {pending ? '저장 중…' : '입력'}
+        </Button>
+        <Button
+          variant="text"
+          onClick={onCancel}
+          disabled={pending}
+          sx={{flex: 1, height: layoutTokens.formControlHeight}}>
+          취소
+        </Button>
+      </Box>
+    </Box>
   )
 }

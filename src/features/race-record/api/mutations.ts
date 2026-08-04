@@ -1,5 +1,6 @@
 import {useMutation, useQueryClient} from '@tanstack/react-query'
 
+import {collectMeasureRecord, measureKeys} from '@entities/measure-record'
 import {motorKeys} from '@entities/motor'
 import {
   createRaceRecord,
@@ -10,9 +11,35 @@ import {
 import {isDomainError} from '@shared/lib/errors'
 import {resetRaceRecordsByMotor} from '@shared/lib/persistence'
 import {unwrap} from '@shared/lib/result'
+import {requestServerSync} from '@shared/lib/sync-signal'
 
 import type {CreateRaceRecordDraft, RaceRecord, UpdateRaceRecordPatch} from '@entities/race-record'
 import type {DomainError} from '@shared/lib/errors'
+
+/**
+ * useCollectMeasureForRace — 레이스 폼 파노 수동 입력(R51). 모터 상세 [+ 파노]와 동일하게
+ * collectMeasureRecord(source:'manual')로 MeasureRecord를 생성한다(rpm=round(panoHz×60) 파생,
+ * 실측 왕복·수동 입력 공통 command·rolling·검증). 성공 시 measure/summaries/detail invalidate +
+ * 서버 push. FSD상 feature→entity 직접 소비이며 measure-management 훅과는 slice가 달라 별도 정의한다.
+ */
+export function useCollectMeasureForRace(motorId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (panoHz: number): Promise<void> => {
+      unwrap(
+        await collectMeasureRecord({motorId, panoHz, rpm: Math.round(panoHz * 60), source: 'manual'}),
+      )
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({queryKey: measureKeys.byMotor(motorId)}),
+        queryClient.invalidateQueries({queryKey: motorKeys.summaries()}),
+        queryClient.invalidateQueries({queryKey: motorKeys.detail(motorId)}),
+      ])
+      requestServerSync()
+    },
+  })
+}
 
 // RaceRecord mutation 훅 4건 (F6-R: 생성 R-3/R-4 · 수정 · 개별 삭제 RV-A3 · 레이스 기록 초기화).
 // v2.3: RaceRecord는 result·voltage·lapTimeMs만 수정 가능 (panoHz·구조 필드는 불변 — INV-05 완화).
