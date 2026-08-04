@@ -50,13 +50,20 @@ function buildSnapshot(frames: readonly EngineDebugFrame[]): DebugSnapshot {
 
   let passCount = 0
   const rejectCounts = new Map<GateReject, number>()
+  // 기각 프레임이 평가한 f0의 분포 (10Hz 버킷) — 후보 미끄러짐 vs 스펙트럼 요동 판별 (R53)
+  const rejectedF0Counts = new Map<number, number>()
   for (const frame of frames) {
     if (frame.estimate.status !== 'weak-signal') {
       passCount += 1
       continue
     }
-    for (const reject of frame.estimate.debug?.rejects ?? []) {
+    const debug = frame.estimate.debug
+    for (const reject of debug?.rejects ?? []) {
       rejectCounts.set(reject, (rejectCounts.get(reject) ?? 0) + 1)
+    }
+    if (debug?.evalF0 != null) {
+      const bucket = Math.round(debug.evalF0 / 10) * 10
+      rejectedF0Counts.set(bucket, (rejectedF0Counts.get(bucket) ?? 0) + 1)
     }
   }
   const passPct = Math.round((passCount / frames.length) * 100)
@@ -69,13 +76,22 @@ function buildSnapshot(frames: readonly EngineDebugFrame[]): DebugSnapshot {
   if (debug !== undefined) {
     lines.push(
       `rms ${debug.rms.toFixed(4)} snr ${debug.snrDb.toFixed(1)}dB ` +
-        `voi ${debug.voicedProb.toFixed(2)} harm ${String(debug.harmonicCount)}`,
+        `voi ${debug.voicedProb.toFixed(2)} harm ${String(debug.harmonicCount)}` +
+        (debug.evalF0 !== null ? ` ev ${debug.evalF0.toFixed(0)}` : ''),
     )
   }
   const histogram = REJECT_LABELS.filter(label => rejectCounts.has(label))
     .map(label => `${label} ${String(rejectCounts.get(label))}`)
     .join(' · ')
   lines.push(histogram === '' ? 'rejects: 없음' : `rejects: ${histogram}`)
+  if (rejectedF0Counts.size > 0) {
+    const top = [...rejectedF0Counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([bucket, count]) => `${String(bucket)}Hz×${String(count)}`)
+      .join(' · ')
+    lines.push(`rejF0: ${top}`)
+  }
   return {lines, latestWeak: latest.estimate.status === 'weak-signal'}
 }
 

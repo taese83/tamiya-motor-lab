@@ -54,6 +54,7 @@ function debugOf(analysis: FrameAnalysis): EstimateDebug {
     voicedProb: analysis.voicedProb,
     harmonicCount: analysis.detectedHarmonics.length,
     rejects: analysis.rejects,
+    evalF0: analysis.evalF0,
   }
 }
 

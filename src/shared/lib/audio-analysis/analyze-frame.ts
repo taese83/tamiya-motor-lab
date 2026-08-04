@@ -30,6 +30,7 @@ function emptyAnalysis(rms: number, reject: GateReject): FrameAnalysis {
   return {
     gatePassed: false,
     rejects: [reject],
+    evalF0: null,
     f0: null,
     candidates: [],
     voicedProb: 0,
@@ -187,6 +188,7 @@ export function createFrameAnalyzer(
         return {
           gatePassed: false,
           rejects,
+          evalF0: final.f0,
           f0: null,
           candidates: [],
           voicedProb,
@@ -205,6 +207,7 @@ export function createFrameAnalyzer(
       return {
         gatePassed: true,
         rejects: [],
+        evalF0: final.f0,
         f0: final.f0,
         candidates,
         voicedProb,

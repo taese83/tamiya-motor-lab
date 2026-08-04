@@ -39,6 +39,13 @@ export interface EstimateDebug {
   harmonicCount: number
   /** 이 프레임을 기각시킨 게이트들 — 통과 프레임이면 빈 배열 */
   rejects: readonly GateReject[]
+  /**
+   * 게이트가 실제로 평가한 f0 (comb 승자 → 옥타브 교정 → VP 정밀 추정 후) — 기각 프레임에서도
+   * 채워진다. 기각 시 snr이 크게 음수인데 evalF0가 추적값에서 벗어나 있으면 "후보 미끄러짐",
+   * evalF0가 정답 부근인데도 음수면 "실제 스펙트럼 요동"으로 판별한다 (R53 핵심 계측).
+   * rms·no-dip 단계 기각은 평가 자체가 없어 null.
+   */
+  evalF0: number | null
 }
 
 /** pYIN 후보 (estimateFrame 출력) — f0는 [fMin, fMax] 대역 내, ÷3·÷6 확장 반영 후 */
@@ -122,6 +129,8 @@ export interface FrameAnalysis {
   gatePassed: boolean
   /** R53 진단: 기각 게이트 식별자들 — gatePassed=true면 빈 배열 */
   rejects: readonly GateReject[]
+  /** R53 진단: 게이트가 평가한 f0 — 신뢰 게이트 기각 프레임에서도 채워진다 (rms·no-dip은 null) */
+  evalF0: number | null
   /** 게이트 통과 시 VP 정밀 추정 f0 (Hz), 아니면 null */
   f0: number | null
   candidates: TrackCandidate[]
