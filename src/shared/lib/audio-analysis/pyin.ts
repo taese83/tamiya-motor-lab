@@ -144,21 +144,8 @@ export function pickYinPitch(
   const hintF0 = options.hintF0 ?? null
   const dips = collectDips(frame, sampleRate, fMin, fMax, 1)
 
-  // R59 추적 히스테리시스: 추적 f0 부근 dip이 완화 임계 안에 살아 있으면 그대로 유지 —
-  // 표준 규칙(아래)이 순간적으로 다른 주기(반차수 강화 시 2T 등)로 플립하는 것을 막는다.
-  // 추적 주기가 진짜 사라지면(깊이 > 완화 임계) 자연히 표준 규칙으로 넘어간다.
-  if (hintF0 !== null && hintF0 > 0) {
-    const relaxed = Math.min(0.5, threshold + 0.15)
-    let near: Dip | null = null
-    for (const dip of dips) {
-      if (Math.abs(dip.freq - hintF0) > YIN_HINT_TOL_RATIO * hintF0) continue
-      if (dip.depth >= relaxed) continue
-      if (dip.freq < fMin || dip.freq > fMax) continue
-      if (near === null || dip.depth < near.depth) near = dip
-    }
-    if (near !== null) return {f0: near.freq, depth: near.depth}
-  }
-
+  // 표준 규칙: 임계 이하 dip 최단 lag + 비정수배 반증 가드
+  let standard: Dip | null = null
   const eligible = dips
     .filter(dip => dip.depth < threshold && dip.freq >= fMin && dip.freq <= fMax)
     .sort((a, b) => a.lag - b.lag)
@@ -174,9 +161,42 @@ export function pickYinPitch(
         break
       }
     }
-    if (!refuted) return {f0: pick.freq, depth: pick.depth}
+    if (!refuted) {
+      standard = pick
+      break
+    }
   }
-  return null
+
+  // R59 추적 히스테리시스: 추적 f0 부근 dip이 완화 임계 안에 살아 있으면 유지 — 표준 규칙이
+  // 순간적으로 **아래 주기**(반차수 강화 시 2T 등)로 플립하는 것을 막는다(하이퍼 445↔222).
+  //
+  // R61 상향 탈출(사용자: 스핀업 중 200대에서 잡히면 400대로 못 올라감): n배 주기 신호는
+  // 수학적으로 1/n 주파수 주기로도 완벽히 반복되므로, 표적이 2배로 올라가도 추적값 부근
+  // dip은 깊게 남는다 — 히스테리시스가 그 서브하모닉을 "유지"로 오인해 절반에 눌러앉는 덫.
+  // 그래서 히스테리시스는 **아래 방향만** 방어한다: 표준 픽이 추적값의 정수배(≥2) 주파수를
+  // 유효 주기로 찾으면 추적값은 상위 진짜 주기의 서브하모닉이므로 표준 픽(위쪽)이 이긴다.
+  if (hintF0 !== null && hintF0 > 0) {
+    const relaxed = Math.min(0.5, threshold + 0.15)
+    let near: Dip | null = null
+    for (const dip of dips) {
+      if (Math.abs(dip.freq - hintF0) > YIN_HINT_TOL_RATIO * hintF0) continue
+      if (dip.depth >= relaxed) continue
+      if (dip.freq < fMin || dip.freq > fMax) continue
+      if (near === null || dip.depth < near.depth) near = dip
+    }
+    if (near !== null) {
+      if (standard !== null && standard.freq > near.freq * 1.5) {
+        const ratio = standard.freq / near.freq
+        const n = Math.round(ratio)
+        if (n >= 2 && Math.abs(ratio - n) <= YIN_INTEGER_RATIO_TOL * n) {
+          return {f0: standard.freq, depth: standard.depth} // 상향 탈출 — near는 서브하모닉
+        }
+      }
+      return {f0: near.freq, depth: near.depth}
+    }
+  }
+
+  return standard === null ? null : {f0: standard.freq, depth: standard.depth}
 }
 
 /** CMNDF 국소 최소 dip을 임계 분포로 집계하고 ÷3·÷6 확장한 후보를 반환한다 (순수 함수) */
