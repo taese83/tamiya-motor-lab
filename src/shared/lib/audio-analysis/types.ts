@@ -19,6 +19,28 @@ export type EngineStatus = Extract<MeasureStatus, 'measuring' | 'stable' | 'weak
  */
 export type WeakReason = 'too-quiet' | 'no-pitch'
 
+/**
+ * R53 진단 — 프레임이 기각된 게이트 식별자 (분석 순서대로):
+ * 'rms' 무음·근접 하한 미달 / 'no-dip' pYIN 후보 0건 / 'no-winner' comb 승자 없음 /
+ * 'voicing' voicing 확률 임계 미달 / 'snr' 고조파 SNR 임계 미달 / 'harmonics' 검출 고조파 수 부족.
+ * 신뢰 게이트(voicing·snr·harmonics)는 동시 기각이 가능해 배열로 전부 담는다.
+ */
+export type GateReject = 'rms' | 'no-dip' | 'no-winner' | 'voicing' | 'snr' | 'harmonics'
+
+/**
+ * R53 진단 계측 — 실기기에서 "어느 게이트가 measuring을 끊는가"를 판정하기 위한 프레임 지표.
+ * 표시·기록·안정 판정 등 제품 로직은 이 필드를 소비하지 않는다(진단 오버레이 전용 계약).
+ */
+export interface EstimateDebug {
+  rms: number
+  snrDb: number
+  voicedProb: number
+  /** 게이트 계측 기준 검출 고조파 수 */
+  harmonicCount: number
+  /** 이 프레임을 기각시킨 게이트들 — 통과 프레임이면 빈 배열 */
+  rejects: readonly GateReject[]
+}
+
 /** pYIN 후보 (estimateFrame 출력) — f0는 [fMin, fMax] 대역 내, ÷3·÷6 확장 반영 후 */
 export interface FrameCandidate {
   f0: number
@@ -53,6 +75,8 @@ export interface DisplayEstimate {
   microVariation: number | null
   /** weak-signal 시 세부 사유 (R27) — measuring/stable이면 미설정. UI 안내 분기용(수치 계약과 무관). */
   weakReason?: WeakReason
+  /** R53 진단 계측 — 항상 채워진다(값 미소비 시 무해). 제품 로직 소비 금지, 오버레이 전용. */
+  debug?: EstimateDebug
 }
 
 /** 고조파별 스펙트럼 계측 (comb 점수·일치도 검사 입력) */
@@ -96,6 +120,8 @@ export interface TrackCandidate {
 export interface FrameAnalysis {
   /** 신뢰 게이트 통과 여부 — false면 candidates는 비어 있고 수치가 표시되면 안 된다 */
   gatePassed: boolean
+  /** R53 진단: 기각 게이트 식별자들 — gatePassed=true면 빈 배열 */
+  rejects: readonly GateReject[]
   /** 게이트 통과 시 VP 정밀 추정 f0 (Hz), 아니면 null */
   f0: number | null
   candidates: TrackCandidate[]

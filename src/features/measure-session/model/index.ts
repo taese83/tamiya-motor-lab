@@ -16,6 +16,11 @@ export {
   toggleSettingsHelp,
 } from './session'
 
+// R53 진단 채널 (오버레이 전용 — 제품 로직 소비 금지)
+export {subscribeEngineDebug} from './session'
+export type {EngineDebugFrame} from './session'
+export {describeTuningOverrides, readTuningOverrides} from './tuning-overrides'
+
 // UI 계약 타입 (canonical handoff — ui/measure-view.ts 재수출, 중복 정의 금지)
 export type {MeasureView} from './view'
 

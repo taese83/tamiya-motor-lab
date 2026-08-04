@@ -21,6 +21,7 @@ import {
   toEngineFrame,
 } from './machine'
 import {publishSnapshot} from './store'
+import {readTuningOverrides} from './tuning-overrides'
 
 import type {
   DisplayEstimate,
@@ -380,8 +381,12 @@ async function ensurePipeline(resources: ActiveResources): Promise<void> {
   worker.onmessage = (event: MessageEvent<EngineWorkerResponse>) => {
     handleWorkerMessage(event.data)
   }
-  // 실제 sampleRate로 엔진 초기화 (48 kHz 가정 금지) — 메시지 순서 보장으로 pcm보다 선행
-  postToWorker(worker, {type: 'configure', options: {sampleRate: resources.ctx.sampleRate}})
+  // 실제 sampleRate로 엔진 초기화 (48 kHz 가정 금지) — 메시지 순서 보장으로 pcm보다 선행.
+  // R53: URL 쿼리 튜닝 오버라이드(진단 소거 실험)를 병합 — sampleRate는 항상 세션 값이 이긴다.
+  postToWorker(worker, {
+    type: 'configure',
+    options: {...readTuningOverrides(), sampleRate: resources.ctx.sampleRate},
+  })
 
   const source = resources.ctx.createMediaStreamSource(resources.stream)
   const workletNode = new AudioWorkletNode(resources.ctx, CAPTURE_WORKLET_NAME, {
@@ -413,11 +418,34 @@ function postToWorker(worker: Worker, message: EngineWorkerRequest): void {
 
 // ─── 엔진 산출 소비 (두 원천 병합) ───────────────────────────────────────────
 
+// R53 진단 구독 채널 — 오버레이 전용. 게시 스로틀·hold를 우회해 **모든** estimate를 원본
+// 그대로 전달한다(끊김의 원인 게이트를 프레임 단위로 보기 위함). 제품 로직 소비 금지.
+export interface EngineDebugFrame {
+  estimate: DisplayEstimate
+  audioMs: number
+}
+
+type EngineDebugListener = (frame: EngineDebugFrame) => void
+
+const debugListeners = new Set<EngineDebugListener>()
+
+export function subscribeEngineDebug(listener: EngineDebugListener): () => void {
+  debugListeners.add(listener)
+  return () => {
+    debugListeners.delete(listener)
+  }
+}
+
 function handleWorkerMessage(message: EngineWorkerResponse): void {
   switch (message.type) {
     case 'ready':
       return
     case 'estimate':
+      if (debugListeners.size > 0) {
+        for (const listener of debugListeners) {
+          listener({estimate: message.estimate, audioMs: message.audioMs})
+        }
+      }
       handleEstimate(message.estimate, message.audioMs)
       return
     case 'error':

@@ -19,6 +19,7 @@ import {
   useMeasureView,
 } from '@features/measure-session/model'
 import {
+  EngineDebugOverlay,
   MeasureActionDock,
   MeasureFigures,
   PermissionHelpDialog,
@@ -80,6 +81,10 @@ function statusLabelKey(
   }
 }
 
+
+// R53 진단 모드 — `?debug=1`에서 엔진 게이트 오버레이 렌더 (모듈 평가 시 1회 판정이면 충분:
+// 쿼리 변경은 전체 내비게이션이라 어차피 재평가된다)
+const DEBUG_ENABLED = new URLSearchParams(globalThis.location?.search ?? '').has('debug')
 
 export function MeasurePage() {
   const view = useMeasureView()
@@ -205,6 +210,9 @@ export function MeasurePage() {
       <Typography component="h1" sx={srOnlySx}>
         측정
       </Typography>
+
+      {/* R53 진단 오버레이 — ?debug=1 전용, 제품 레이아웃 계약 밖 fixed 장식층 */}
+      {DEBUG_ENABLED && <EngineDebugOverlay view={view} />}
 
       {/*
         v2.20 권한 안내 — 게이지를 가리는 인라인 Collapse에서 Dialog로 옮겼다.

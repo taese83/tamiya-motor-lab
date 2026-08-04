@@ -14,6 +14,7 @@ import {refine} from './refine'
 import {createSpectrumAnalyzer} from './spectrum'
 import type {
   FrameAnalysis,
+  GateReject,
   HarmonicMeasurement,
   ResolvedEngineOptions,
   ScoredCandidate,
@@ -25,9 +26,10 @@ export interface FrameAnalyzer {
   analyze(frame: Float32Array): FrameAnalysis
 }
 
-function emptyAnalysis(rms: number): FrameAnalysis {
+function emptyAnalysis(rms: number, reject: GateReject): FrameAnalysis {
   return {
     gatePassed: false,
+    rejects: [reject],
     f0: null,
     candidates: [],
     voicedProb: 0,
@@ -104,7 +106,9 @@ export function createFrameAnalyzer(
       // 근접 필터(v2.1): 절대 음량 하한 미달 = 원거리 소음 — 측정 대상 아님(weak-signal).
       // 하한을 넘는 신호가 여럿이면 comb 채점이 고조파 에너지 최강(가장 크게 들리는
       // 모터)을 선택한다 — "비슷하면 더 큰 소리 기준" 사용자 확정 동작.
-      if (rms < Math.max(options.silenceRms, options.proximityRms)) return emptyAnalysis(rms)
+      if (rms < Math.max(options.silenceRms, options.proximityRms)) {
+        return emptyAnalysis(rms, 'rms')
+      }
 
       const pyinCandidates = estimateFrame(frame, decimatedRate, {
         fMin: options.fMin,
@@ -112,7 +116,7 @@ export function createFrameAnalyzer(
         maxCandidates: options.maxCandidates,
         divisors: options.pitchDivisors,
       })
-      if (pyinCandidates.length === 0) return emptyAnalysis(rms)
+      if (pyinCandidates.length === 0) return emptyAnalysis(rms, 'no-dip')
 
       spectrum.compute(frame)
       const scored = scoreCandidates(
@@ -123,7 +127,7 @@ export function createFrameAnalyzer(
         combOptions,
       )
       const winner = scored[0]
-      if (winner === undefined) return emptyAnalysis(rms)
+      if (winner === undefined) return emptyAnalysis(rms, 'no-winner')
       const voicedProb = winner.voicedProb
 
       // 일치도 검사 기준은 **VP 이전** 값이어야 한다 (v2 §1).
@@ -172,14 +176,17 @@ export function createFrameAnalyzer(
       const harmonicCountOk =
         gate.detectedHarmonics.length >= options.gateMinHarmonics ||
         (gate.detectedHarmonics.length >= 1 && gate.snrDb >= options.gateStrongSnrDb)
-      const gatePassed =
-        voicedProb >= options.gateVoicingThreshold &&
-        gate.snrDb >= options.gateSnrDb &&
-        harmonicCountOk
+      // R53 진단: 신뢰 게이트는 조건별 동시 기각이 가능 — 실패한 조건을 전부 계상한다
+      const rejects: GateReject[] = []
+      if (voicedProb < options.gateVoicingThreshold) rejects.push('voicing')
+      if (gate.snrDb < options.gateSnrDb) rejects.push('snr')
+      if (!harmonicCountOk) rejects.push('harmonics')
+      const gatePassed = rejects.length === 0
 
       if (!gatePassed) {
         return {
           gatePassed: false,
+          rejects,
           f0: null,
           candidates: [],
           voicedProb,
@@ -197,6 +204,7 @@ export function createFrameAnalyzer(
       }))
       return {
         gatePassed: true,
+        rejects: [],
         f0: final.f0,
         candidates,
         voicedProb,

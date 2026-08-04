@@ -5,6 +5,7 @@
 
 import type {
   DisplayEstimate,
+  EstimateDebug,
   FrameAnalysis,
   ResolvedEngineOptions,
   TrackCandidate,
@@ -27,7 +28,11 @@ const KALMAN_ACCEL_STD = 400 // Hz/s² — 스핀업(150 Hz/s) 추종 여유
 const KALMAN_MEASUREMENT_VAR = 0.25 // (0.5 Hz)² — VP 프레임 추정 분산 상한
 const KALMAN_RELOCK_OCTAVES = 0.25 // Viterbi 출력이 이 이상 점프하면 재잠금
 
-function weakEstimate(confidence: number, weakReason: WeakReason): DisplayEstimate {
+function weakEstimate(
+  confidence: number,
+  weakReason: WeakReason,
+  debug: EstimateDebug,
+): DisplayEstimate {
   // weak-signal이면 f0/rpm은 반드시 null — 무음에서 0 RPM·임의 값 반환 금지 (REQ-ST-003)
   return {
     f0: null,
@@ -37,6 +42,18 @@ function weakEstimate(confidence: number, weakReason: WeakReason): DisplayEstima
     stabilityCv: null,
     microVariation: null,
     weakReason,
+    debug,
+  }
+}
+
+/** R53 진단 계측 — 프레임 분석 지표를 estimate에 그대로 실어 오버레이가 소비한다 */
+function debugOf(analysis: FrameAnalysis): EstimateDebug {
+  return {
+    rms: analysis.rms,
+    snrDb: analysis.snrDb,
+    voicedProb: analysis.voicedProb,
+    harmonicCount: analysis.detectedHarmonics.length,
+    rejects: analysis.rejects,
   }
 }
 
@@ -219,13 +236,14 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
             status: 'measuring',
             stabilityCv: coast.full ? coast.cv : null,
             microVariation: microOf(coast.full, coast.median),
+            debug: debugOf(analysis),
           }
         }
         clearTrack()
         lastConfidence = Math.min(0.2, 0.2 * analysis.voicedProb)
         // R27: 근접 게이트 미만이면 'too-quiet'(더 가까이), 레벨은 있으나 피치 없음이면 'no-pitch'(잡음·간섭)
         const weakReason: WeakReason = analysis.rms < options.proximityRms ? 'too-quiet' : 'no-pitch'
-        return weakEstimate(lastConfidence, weakReason)
+        return weakEstimate(lastConfidence, weakReason, debugOf(analysis))
       }
 
       missCount = 0
@@ -264,6 +282,7 @@ export function createTracker(options: ResolvedEngineOptions, hopSeconds?: numbe
         // 순간 편차(바늘 실시간 떨림용) — 현재 kf가 창 중앙값에서 벗어난 부호 있는 상대량.
         // isStable(displayF0=median)이어도 kf는 계속 추종하므로 이 값은 프레임마다 떨린다.
         microVariation: microOf(full, median),
+        debug: debugOf(analysis),
       }
     },
     reset() {
