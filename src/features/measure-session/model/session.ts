@@ -61,8 +61,16 @@ let denialCount = 0
 let measuringSinceAudioMs: number | null = null
 /** 마지막 measuring 프레임의 오디오 클록(ms) — 끊김 길이 판정 기준 */
 let lastMeasuringAudioMs: number | null = null
-/** 이 시간 이내의 신호 끊김은 연속 측정으로 간주한다 (v2.x — 800ms로도 부족해 1200ms로 상향) */
+/** 이 시간 이내의 신호 끊김은 연속 측정으로 간주한다 (v2.x — 800ms로도 부족해 1200ms로 상향).
+ *  **타이머 연속성 전용** — 화면 유지(hold)는 R58부터 DISPLAY_HOLD_MS가 따로 담당한다. */
 const MEASURING_GAP_TOLERANCE_MS = 1200
+/**
+ * R58(사용자: 끊겼을 때 이전 값이 너무 오래 남음) — 화면 유지 상한을 타이머 유예와 분리.
+ * 끊김 후 이 시간까지만 직전 measuring 프레임을 유지하고, 넘으면 화면은 약신호(—)로
+ * 내리되 타이머는 MEASURING_GAP_TOLERANCE_MS까지 살아 있다(재검출 시 이어서 측정).
+ * 엔진 coast(≈200ms)와 합쳐 모터 정지 후 약 0.5초 안에 화면이 꺼진다.
+ */
+const DISPLAY_HOLD_MS = 300
 
 function resetMeasuringTimers(): void {
   measuringSinceAudioMs = null
@@ -486,11 +494,11 @@ function handleEstimate(estimate: DisplayEstimate, audioMs: number): void {
       commitFrame(toEngineFrame(estimate, 0))
       return
     }
-    // R52 hold(사용자: 끊김 체감 해소): 유예 구간(≤1200ms) 안의 끊김은 **직전 measuring
-    // 프레임을 그대로 유지**한다 — dim·placeholder 없이 측정 중과 동일하게 표시(사용자 확정).
-    // 종전에는 타이머만 유예하고 표시는 즉시 weak-signal(—)로 떨어져, 500ms(엔진 coast)~
-    // 1200ms 사이 결손마다 수치가 깜빡 사라졌다. 유예를 넘기면 위 분기가 weak-signal로 내린다.
-    if (machine.frame?.kind === 'measuring') return
+    // R52 hold(사용자: 끊김 체감 해소) → R58 축소: DISPLAY_HOLD_MS 안의 끊김만 **직전
+    // measuring 프레임을 그대로 유지**한다(dim·placeholder 없음 — 사용자 확정). 그보다 길면
+    // 화면은 약신호(—)로 내리되, 타이머는 위 분기(MEASURING_GAP_TOLERANCE_MS)까지 유지돼
+    // 재검출 시 측정 시간이 이어진다.
+    if (gapMs <= DISPLAY_HOLD_MS && machine.frame?.kind === 'measuring') return
     commitFrame(toEngineFrame(estimate, 0))
     return
   }

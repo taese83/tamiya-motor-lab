@@ -332,11 +332,12 @@ export const DEFAULT_TUNING: EngineTuning = {
   jumpCostThresholdOctaves: 0.35,
   jumpPenalty: 2.5,
   harmonicJumpExtraPenalty: 1.5,
-  // v2.x(사용자: 깜빡임) — 게이트 결손 coast 허용을 4→8 프레임(≈200ms)으로 늘려 표시 깜빡임을 줄인다.
-  // R32(사용자: 여전히 보였다 사라졌다 반복) — 8→20(≈500ms). 실기기 결손이 200ms를 자주 넘어
-  // weak 전환+안정창 리셋이 반복돼 stable/자동확정이 무산됐다. 세션 타이머 유예(1200ms) 안쪽이고
-  // >500ms 결손은 종전대로 weak(D-9 stale 방지). coast 보고값은 Kalman 예측(kf) — 정지 측정 전제.
-  missTolerance: 20,
+  // v2.x(사용자: 깜빡임) 4→8(≈200ms) → R32(여전히 깜빡임) 8→20(≈500ms) — comb 시절 게이트가
+  // 수백 ms씩 깜빡여(pass 12~45%) 길게 잡았던 값이다.
+  // R58(사용자: 끊겼을 때 이전 값이 너무 오래 남음) — 20→8(≈200ms) 회귀. 튜너 모드(R57)는
+  // 검출이 연속적이라 긴 coast가 필요 없고, 모터를 끄면 화면이 빨리 꺼지는 쪽이 맞다.
+  // coast 보고값은 Kalman 예측(kf) — 정지 측정 전제.
+  missTolerance: 8,
   // R54 추적 유지 게이트(실기기: 3·6배음이 수백 ms 단위로 사라져 pass 12~45%에 그침) —
   // 추적 중 f0 ±12% 후보는 SNR 4dB·고조파 1개면 잇는다. ÷3(1.58옥타브 밖)은 대상 아님.
   continueSnrDb: 4,
