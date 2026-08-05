@@ -13,6 +13,7 @@ import {
   useMotorSort,
 } from '@features/motor-management/model'
 import {MotorFormSheet, MotorKindFilter, MotorList} from '@features/motor-management/ui'
+import {appVersionLabel} from '@shared/config'
 import {layoutTokens} from '@shared/config/design-tokens'
 import {ConfirmDialog} from '@shared/ui/confirm-dialog'
 import {EmptyState} from '@shared/ui/empty-state'
@@ -301,6 +302,15 @@ export function MotorsPage() {
           )}
         </Box>
       )}
+
+      {/* R52 배포 버전 표시 — 분기 밖 무조건 렌더(로그인 게이트·빈·목록 전 상태 노출).
+          표시 전용 caption, 정보 위계 최하위 — 대비는 낮지만 장식 텍스트 예외 범주. */}
+      <Typography
+        variant="caption"
+        component="p"
+        sx={{px: 2, py: 1.5, textAlign: 'center', color: 'text.secondary'}}>
+        {appVersionLabel}
+      </Typography>
 
       {/* 등록·수정 시트 — 닫힘 = 폼 파기, pending 중 닫힘 차단(single-flight) */}
       <MotorFormSheet

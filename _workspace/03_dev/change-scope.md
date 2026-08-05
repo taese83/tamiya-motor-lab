@@ -2686,3 +2686,16 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - 검증 결과: `tsc -b` 0 · `eslint src` 0 · `vitest run` 38파일 303개 통과(schema 신규 7 포함) · `vite build` 성공.
   feature 1은 IndexedDB에 유효 모터 1건 시드 후 `/motors/:id`(게이트 없음)에서 **실증**: [+ 파노]→시트(파노 1필드만)→309 입력→저장, 최근 파노 309.0 Hz·rpm 18,540(=round(309×60) 파생)·추세 차트 반영, 목록 행 "01 · 08-04 · 309.0 Hz · —"(수동=날짜+파노만, 나머지 —). 콘솔 오류 0. 테스트 시드 DB는 정리.
   feature 2는 `/race/:id`가 로그인 게이트라 인라인 UI 화면 도달 불가(OAuth) → 정적/유닛 + feature 1과 동일 저장 경로(collectMeasureRecord source:'manual') 실증으로 갈음.
+
+## R52 — 배포 버전 관리 + 웹 버전 표시 (2026-08-05, feature)
+- REQUEST(사용자): 배포 시 버전을 관리하고 웹에 버전을 표시.
+- OBSERVED_BASELINE: package.json version 0.1.0 고정(관리 절차 없음), 앱 어디에도 버전 미표시. 배포 식별은 Vercel 커밋 sha로만 가능(웹 노출 없음).
+- TARGET_BEHAVIOR: ① 빌드 타임에 version·git sha·빌드 시각을 주입(vite define, Vercel은 VERCEL_GIT_COMMIT_SHA 우선) ② 모터('/motors') 페이지 말미에 caption 1줄 "v0.1.0 (sha · 날짜)" — **분기 밖 무조건 렌더**(로그인 게이트·빈·목록 전 상태 노출) ③ `pnpm version:patch|minor|major`로 버전 bump(커밋+태그) → push → Vercel 배포가 버전 관리 절차.
+- 배치 근거: 측정 홈('/')은 100dvh 고정 상호작용 화면(캡션 부적합). 모터 목록 분기 안은 로그인 게이트(OAuth) 뒤라 로컬 검증 불가 → 분기 밖 페이지 말미가 관례·검증성 모두 충족 (ASSUMPTION — 완료 보고에서 확인).
+- ALLOWED_PATHS: vite.config.ts; src/vite-env.d.ts; src/shared/config/{version.ts(신규),index.ts}; src/shared/config/version.test.ts(신규); src/pages/motors/ui/MotorsPage.tsx; package.json(scripts만)
+- PUBLIC_CONTRACTS_TO_PRESERVE: 기존 env schema(VITE_PHASE·VITE_APP_TITLE) 불변·컴포넌트에서 import.meta.env 직접 접근 금지 규칙 유지(define 상수는 env 아님)·기존 화면 시각/동작 baseline(목록 하단 caption 추가 외 무변화)·빌드 스크립트 시그니처 불변.
+- NON_GOALS: /api/version 엔드포인트(서버 표면 추가 없음), 새 버전 알림 UI, CHANGELOG 자동화, 재프로파일(R50 blocker — hybrid profile 신설로 해소 경로 생겼으나 별도 라운드).
+- CHANGE_BUDGET: 6개 파일 수정 + 2개 신규, 의존성 추가 0.
+- CAPABILITY_ESCALATION: none — 클라이언트 표시 전용, 네트워크·서버 경로·비밀 경계 무변화.
+- DOCS_TO_UPDATE: none — layout-spec의 목록 페이지 구조와 충돌 없음(스크롤 끝 caption 1줄 추가는 정보 위계 최하위 부가 요소). component-spec 신규 컴포넌트 없음(페이지 인라인 caption).
+- TEST_EVIDENCE 목표: tsc/eslint 0 · vitest(신규 version 폴백 라벨 유닛 포함) · vite build 성공 + dist에 실제 버전 문자열 포함 확인(LOCAL_VERIFIABLE). Vercel 실배포 표시는 DEPLOY_ONLY — 사용자 위임.

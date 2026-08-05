@@ -23,6 +23,10 @@ export type AppConfig = typeof config
 // 이 파일을 경유해 재수출하지 않는 이유: env 검증(parse)이 도메인 상수만 필요한
 // node 환경 unit(engine project 등)까지 강제 실행되는 결합을 피하기 위함.
 
+// R52 배포 버전 — 빌드 타임 주입 상수의 유일한 소비 지점 재export.
+export {appVersion, appVersionLabel, formatVersionLabel} from './version'
+export type {AppVersion} from './version'
+
 // 디자인 토큰 재export (app/theme.ts에서 이동 — FSD shared→app 역방향 해소).
 // 주의: 이 배럴 경유 import는 위 env parse를 함께 실행한다. import.meta.env가 없는
 // node 환경 unit은 '@shared/config/design-tokens'에서 직접 import할 것.
