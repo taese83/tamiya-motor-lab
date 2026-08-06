@@ -2699,3 +2699,25 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
 - CAPABILITY_ESCALATION: none — 클라이언트 표시 전용, 네트워크·서버 경로·비밀 경계 무변화.
 - DOCS_TO_UPDATE: none — layout-spec의 목록 페이지 구조와 충돌 없음(스크롤 끝 caption 1줄 추가는 정보 위계 최하위 부가 요소). component-spec 신규 컴포넌트 없음(페이지 인라인 caption).
 - TEST_EVIDENCE 목표: tsc/eslint 0 · vitest(신규 version 폴백 라벨 유닛 포함) · vite build 성공 + dist에 실제 버전 문자열 포함 확인(LOCAL_VERIFIABLE). Vercel 실배포 표시는 DEPLOY_ONLY — 사용자 위임.
+
+## R67 — 시끄러운 환경 파노 미표시: 잡음 하 획득 fallback (2026-08-06, bug-fix/feature)
+- REQUEST(사용자): 시끄러운 환경에서 파노가 화면에 출력되지 않음. 제안 5기법(밴드패스·Welch 평균·HPS·중앙값+히스테리시스·SNR 게이팅) 대비 확인 후 개선.
+- 진단: 1(밴드패스)·4(시간축 안정화)·5(SNR 게이팅)는 기구현(상위 호환). 병목은 tuner 모드의 **YIN 획득 임계**(CMNDF dip이 잡음에 희석 → depth<0.2 실패 → 무성 → weak-signal). 광대역 SNR ≈ 6~9dB 구간이 "모터는 들리는데 화면은 빈" 사각지대. voicing 게이트(0.08)도 같은 dip 질량에서 파생되어 동일 구간에서 실패(이중 계상).
+- TARGET_BEHAVIOR: ① EMA 평균 스펙트럼(제안 2 Welch의 스트리밍 등가) 유지 ② YIN 무성 & 추적 없음(획득 단계)일 때만 comb 채점(제안 3 HPS 상위 호환) + 엄격 스펙트럼 게이트(SNR 8dB·고조파≥2, voicing 비요구) + R56 그룹 선택 + 연속 6프레임 합의(±5%)로 획득 ③ R66 추적 유지 게이트에서 voicing 요구 제거(라인 실측은 snr·고조파·±tol 소관 — 시간영역 증거 이중 계상 제거) ④ 조용한 환경 경로 무변경.
+- ALLOWED_PATHS: src/shared/lib/audio-analysis/{spectrum.ts,types.ts,analyze-frame.ts,engine.ts}; src/features/measure-session/model/tuning-overrides.ts; src/shared/lib/audio-analysis/engine.noise-acquisition.test.ts(신규)
+- PUBLIC_CONTRACTS_TO_PRESERVE: fixture ⑤(0dB 오값 금지 — fallback도 획득 불가여야 함)·기존 엔진 테스트 전체 회귀 없음·엄격 게이트 수치(gateSnrDb 8 등) 무변경·REQ-ST-003(무음 임의 값 금지)·EngineTuning additive(기존 키 시그니처 불변).
+- NON_GOALS: 획득 후 추적/값 갱신 경로 변경(획득 전용), 게이트 임계 완화, UI 변경, comb 레거시 모드 변경.
+- CHANGE_BUDGET: 5개 파일 수정 + 1개 신규 테스트, 의존성 0.
+- CAPABILITY_ESCALATION: none — 순수 DSP 계층, 네트워크·권한 경계 무변화.
+- TEST_EVIDENCE 목표: 신규 fixture(기본파 최강 모터형 + pink noise 6dB)에서 ① fallback off → 전 구간 weak-signal(사각지대 실증) ② on → 획득 + 오값 0(전 수치가 참값 ±5% 이내) ③ 0dB → 획득 없음. 기존 스위트 전체 green + typecheck.
+- **R67 범위 확장(probe 실측 근거)**: 구현 중 probe로 두 번째 획득 결함을 발견 — 잡음/혼입 하
+  YIN이 ÷2 서브하모닉(2T0 dip)을 획득해 **반값 파노를 표시**(순수 pink 2~2.5dB에서 최대
+  153/153 프레임, 경쟁 모터 혼입 0.5에서 153/153, 험 혼입 0.7에서 153/153 — 전부 215=430/2).
+  같은 원리(기본파 라인 실재 ≥12dB)로 ⑤ 획득 단계 YIN 픽 가드 추가: 픽 라인이 비고 2·3배
+  라인이 실재하면 인공물로 기각 → fallback이 진짜 값 획득 or 정직한 weak. fallback 후보에도
+  동일 라인 실재 검사(÷2 후보의 광대역 comb 흡수 차단). 전부 noiseAcquisition 플래그 소속
+  (?noiseAcquisition=0 = R57 원 동작 A/B).
+- 검증 결과(2026-08-06): tsc 0 · eslint 0 · vitest **316/316**(신규 R67 10 포함, 기존 회귀 0) ·
+  vite build 성공. probe 실측(시드 3종 재현): 2dB off 75~116프레임 반값 → on 오값 0·커버리지
+  131~145/153 · 2.5dB off 153 반값 → on 오값 0·정상 145 · 경쟁 모터 0.5 off 153 반값 → on
+  오값 0·정상 145 · 험 0.7 off 153 반값 → on 오값 0(미표시) · 0~1.5dB 양쪽 모두 미표시(안전).

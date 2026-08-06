@@ -40,6 +40,46 @@ export function createSpectrumAnalyzer(frameLength: number, sampleRate: number):
   }
 }
 
+/**
+ * R67: 프레임 전력 스펙트럼의 지수이동평균 — Welch 시간 평균의 스트리밍 등가.
+ * 모터 라인은 프레임마다 같은 bin에 있어 평균에서 살아남고, 광대역 잡음 요동은 깎인다.
+ * α=0.15 ≈ 유효 창 ~13프레임(hop 25 ms ≈ 0.33 s) — Welch 권장(0.5~1 s)보다 짧게 잡아
+ * 스핀업 chirp(150 Hz/s)의 평균 내 스미어를 ~50 Hz로 제한한다. 첫 push는 복사(콜드스타트
+ * 편향 방지), reset 후 frames=0.
+ */
+export interface SpectrumEma {
+  readonly power: Float64Array
+  /** 누적 프레임 수 — 소비자는 최소 프레임 수를 요구한 뒤 사용한다 */
+  readonly frames: number
+  push(src: Float64Array): void
+  reset(): void
+}
+
+export function createSpectrumEma(size: number, alpha: number): SpectrumEma {
+  const power = new Float64Array(size)
+  let frames = 0
+  return {
+    power,
+    get frames() {
+      return frames
+    },
+    push(src) {
+      if (src.length !== size) {
+        throw new RangeError(`spectrum length ${src.length} !== ${size}`)
+      }
+      if (frames === 0) {
+        power.set(src)
+      } else {
+        for (let i = 0; i < size; i++) power[i] = (1 - alpha) * power[i]! + alpha * src[i]!
+      }
+      frames += 1
+    },
+    reset() {
+      frames = 0
+    },
+  }
+}
+
 export interface SpectralPeak {
   freq: number
   power: number

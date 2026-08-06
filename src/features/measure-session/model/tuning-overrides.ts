@@ -61,6 +61,11 @@ export function readTuningOverrides(): Partial<EngineTuning> {
   if (mode === 'tuner' || mode === 'comb') {
     overrides.pitchMode = mode
   }
+  // R67 잡음 하 획득 fallback A/B — 예: ?noiseAcquisition=0 (기본 on)
+  const noiseAcq = params.get('noiseAcquisition')
+  if (noiseAcq !== null) {
+    overrides.noiseAcquisition = noiseAcq !== '0' && noiseAcq !== 'false'
+  }
   return overrides
 }
 

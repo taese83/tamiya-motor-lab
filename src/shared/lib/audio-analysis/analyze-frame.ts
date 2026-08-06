@@ -11,7 +11,7 @@ import {
 } from './harmonics'
 import {estimateFrame, pickYinPitch} from './pyin'
 import {refine} from './refine'
-import {createSpectrumAnalyzer} from './spectrum'
+import {createSpectrumAnalyzer, createSpectrumEma} from './spectrum'
 import type {
   FrameAnalysis,
   GateReject,
@@ -28,6 +28,8 @@ export interface FrameAnalyzer {
    *   전 후보가 엄격 게이트에 기각돼도 hint ±continueTolRatio 안의 후보는 완화 임계로 승인한다.
    */
   analyze(frame: Float32Array, hintF0?: number | null): FrameAnalysis
+  /** R67: 세션 재시작 시 EMA 평균 스펙트럼·획득 합의 상태 초기화 (engine.reset 경유) */
+  reset(): void
 }
 
 function emptyAnalysis(rms: number, reject: GateReject): FrameAnalysis {
@@ -76,6 +78,26 @@ const GROUP_RATIO_TOL = 0.05
 /** 그룹핑·증거 검사에 쓰는 최대 배수 (게이트 대역과 동일 범위) */
 const GROUP_MAX_MULTIPLE = 6
 
+/* ── R67 잡음 하 획득 fallback (사용자 보고: 시끄러운 환경에서 파노 미표시) ────────── *
+ * 병목은 YIN 획득이다: 광대역 SNR ≈6~9 dB에서 CMNDF dip이 잡음에 희석돼(depth>0.2) 무성
+ * 판정이 되지만, 모터 라인은 좁은 bin에 집중되어 스펙트럼에서는 건재하다(국소 SNR 수십 dB).
+ * voicing(0.08)도 같은 dip 질량에서 파생되므로 이 구간에선 함께 실패한다 — 그래서 이 경로는
+ * **스펙트럼 증거만으로** 판정한다: EMA 평균 스펙트럼(Welch 등가 — 잡음 요동 평활) 위에서
+ * comb 채점(HPS 상위 호환) + 기존 엄격 게이트 수치(gateSnrDb·gateMinHarmonics, 완화 없음)
+ * + R56 그룹 선택(÷2·÷3 미끄러짐 방어) + 연속 합의(6프레임 ±5%, R64 재잠금 확인과 동일 원리).
+ * 적용 범위는 **획득(추적 없음) 전용** — 추적 유지·값 갱신은 기존 경로가 그대로 담당하므로
+ * 조용한 환경 동작은 불변이다. 0 dB급 잡음에서는 게이트 SNR이 못 미쳐 여전히 weak-signal
+ * (fixture ⑤ 오값 금지 계약 유지). */
+const NOISE_ACQ_EMA_ALPHA = 0.15
+/** EMA가 이 프레임 수 이상 누적된 뒤에만 fallback 판정 (콜드스타트 오획득 방지) */
+const NOISE_ACQ_MIN_FRAMES = 4
+/** 연속 합의 프레임 수 — 도달 시 획득 (≈150 ms, R64 RELOCK_CONFIRM_FRAMES와 동일) */
+const NOISE_ACQ_CONFIRM_FRAMES = 6
+/** 합의 판정 허용 편차 (직전 fallback 후보 대비 상대) */
+const NOISE_ACQ_CONFIRM_TOL_RATIO = 0.05
+/** rms 게이트 연속 기각이 이 수를 넘으면 EMA 리셋 — 무음 후 재시작 시 이전 모터 라인 소거 */
+const NOISE_ACQ_RESET_MISS_FRAMES = 8
+
 function maxSnr(measurements: readonly HarmonicMeasurement[]): number {
   let best = 0
   for (const m of measurements) best = Math.max(best, m.snrDb)
@@ -102,6 +124,15 @@ export function createFrameAnalyzer(
 ): FrameAnalyzer {
   const frameLength = Math.round(options.frameSeconds * decimatedRate)
   const spectrum = createSpectrumAnalyzer(frameLength, decimatedRate)
+  // R67 상태 — EMA 평균 스펙트럼 + 획득 합의 카운터 (tuner 모드 획득 fallback 전용)
+  const emaSpectrum = createSpectrumEma(spectrum.power.length, NOISE_ACQ_EMA_ALPHA)
+  let rmsMissStreak = 0
+  let noiseAcqF0 = 0
+  let noiseAcqStreak = 0
+  const resetNoiseAcqChain = (): void => {
+    noiseAcqF0 = 0
+    noiseAcqStreak = 0
+  }
   const combOptions: CombOptions = {
     fMin: options.fMin,
     fMax: options.fMax,
@@ -125,6 +156,11 @@ export function createFrameAnalyzer(
 
   return {
     frameLength,
+    reset() {
+      emaSpectrum.reset()
+      resetNoiseAcqChain()
+      rmsMissStreak = 0
+    },
     analyze(frame, hintF0 = null) {
       let sumSq = 0
       for (let i = 0; i < frame.length; i++) sumSq += frame[i]! * frame[i]!
@@ -134,8 +170,16 @@ export function createFrameAnalyzer(
       // 하한을 넘는 신호가 여럿이면 comb 채점이 고조파 에너지 최강(가장 크게 들리는
       // 모터)을 선택한다 — "비슷하면 더 큰 소리 기준" 사용자 확정 동작.
       if (rms < Math.max(options.silenceRms, options.proximityRms)) {
+        // R67: 무음이 이어지면 EMA를 비운다 — 이전 모터의 라인이 남아 재시작 시
+        // 스펙트럼 증거로 오인되는 것을 막는다 (coast 시간 감각과 동일한 8프레임 ≈ 200 ms)
+        rmsMissStreak += 1
+        if (rmsMissStreak >= NOISE_ACQ_RESET_MISS_FRAMES) {
+          emaSpectrum.reset()
+          resetNoiseAcqChain()
+        }
         return emptyAnalysis(rms, 'rms')
       }
+      rmsMissStreak = 0
 
       const pyinCandidates = estimateFrame(frame, decimatedRate, {
         fMin: options.fMin,
@@ -143,18 +187,30 @@ export function createFrameAnalyzer(
         maxCandidates: options.maxCandidates,
         divisors: options.pitchDivisors,
       })
-      if (pyinCandidates.length === 0) return emptyAnalysis(rms, 'no-dip')
+      if (pyinCandidates.length === 0) {
+        // 측정 불능 프레임 — R67 연속 합의 사슬은 끊는다 (연속성 요구가 곧 방어다)
+        resetNoiseAcqChain()
+        return emptyAnalysis(rms, 'no-dip')
+      }
 
       spectrum.compute(frame)
+      // R67: tuner 모드에서만 EMA 누적 — comb 레거시 경로는 이 상태를 소비하지 않는다
+      if (options.pitchMode === 'tuner' && options.noiseAcquisition) {
+        emaSpectrum.push(spectrum.power)
+      }
 
       // 일치도 검사 기준은 **VP 이전** 값이어야 한다 (v2 §1).
       // VP를 먼저 전 고조파로 돌리면 오염 성분(예: 6f₀ 근처 독립 톤)까지 함께 적합되어
       // f₀가 오염 쪽으로 끌려가고, 그 결과 오염 성분이 스스로 "일치"하는 것으로 판정된다.
       // 피크 가중 평균은 각 고조파의 implied f₀를 독립 평균하므로 그 결합이 없다.
-      const evaluate = (candidate: ScoredCandidate): CandidateEvaluation => {
+      // R67: power 파라미터 — 기본은 현재 프레임 스펙트럼, 잡음 획득 fallback은 EMA 평균을 넘긴다
+      const evaluate = (
+        candidate: ScoredCandidate,
+        power: Float64Array = spectrum.power,
+      ): CandidateEvaluation => {
         const start = peakWeightedF0(candidate)
         const measured: HarmonicMeasurement[] = measureHarmonics(
-          spectrum.power,
+          power,
           spectrum.binHz,
           decimatedRate,
           start,
@@ -169,7 +225,7 @@ export function createFrameAnalyzer(
         // 신뢰 게이트 (v2 §1): SNR ≥ 8 dB & 검출 고조파 ≥ 2 & voicing 임계.
         // 예외: 순음(§3 fixture 1)은 고조파가 1개뿐이므로 강한 SNR(≥ gateStrongSnrDb)이면 통과.
         const gate = computeGateMetrics(
-          spectrum.power,
+          power,
           spectrum.binHz,
           decimatedRate,
           final.f0,
@@ -193,6 +249,72 @@ export function createFrameAnalyzer(
         }
       }
 
+      // R56: 통과 후보 → 소리원 그룹핑(정수배 관계) → 그룹 간 comb(소리 크기) →
+      // 그룹 내 증거 기반 최고 f0 선택 (파일 상단 R56 주석 참조).
+      // R67에서 comb 경로와 잡음 획득 fallback이 공유하도록 채점 목록·스펙트럼을 파라미터로 받는다.
+      const selectBySourceGroups = (
+        passing: readonly number[],
+        all: readonly CandidateEvaluation[],
+        scoredList: readonly ScoredCandidate[],
+        power: Float64Array,
+      ): number => {
+        interface SourceGroup {
+          memberIdx: number[]
+          bestScore: number
+        }
+        const sorted = [...passing].sort((a, b) => all[b]!.finalF0 - all[a]!.finalF0)
+        const groups: SourceGroup[] = []
+        for (const idx of sorted) {
+          const f0 = all[idx]!.finalF0
+          let attached = false
+          for (const group of groups) {
+            const top = all[group.memberIdx[0]!]!.finalF0
+            const ratio = top / f0
+            const n = Math.round(ratio)
+            if (n >= 1 && n <= GROUP_MAX_MULTIPLE && Math.abs(ratio - n) <= GROUP_RATIO_TOL * n) {
+              group.memberIdx.push(idx)
+              group.bestScore = Math.max(group.bestScore, scoredList[idx]!.combScore)
+              attached = true
+              break
+            }
+          }
+          if (!attached) groups.push({memberIdx: [idx], bestScore: scoredList[idx]!.combScore})
+        }
+        // 소리원 선택: comb 최고 = 가장 크게 들리는 모터 (다중 모터 계약 유지)
+        let best = groups[0]!
+        for (const group of groups) {
+          if (group.bestScore > best.bestScore) best = group
+        }
+        // 그룹 내: 최고 f0에서 시작해, 하위 멤버(top/n)가 top과 공유하지 않는 배음 대역에
+        // 강한 실증거를 가질 때만 내려간다 — {300,600}은 300의 1배 실피크로 300 채택,
+        // {546,182}는 182의 1·2·4·5배 공백으로 546 유지. 약한 사이드밴드는 마진이 거른다.
+        let pickIdx = best.memberIdx[0]!
+        for (let m = 1; m < best.memberIdx.length; m++) {
+          const lowIdx = best.memberIdx[m]!
+          const pickF0 = all[pickIdx]!.finalF0
+          const lowF0 = all[lowIdx]!.finalF0
+          const n = Math.round(pickF0 / lowF0)
+          if (n < 2 || n > GROUP_MAX_MULTIPLE) continue
+          const nonSharedKs: number[] = []
+          for (let k = 1; k <= GROUP_MAX_MULTIPLE; k++) {
+            if (k % n !== 0) nonSharedKs.push(k)
+          }
+          const evidenceSnr = maxSnr(
+            measureHarmonics(power, spectrum.binHz, decimatedRate, lowF0, nonSharedKs),
+          )
+          const pickFundamentalSnr = maxSnr(
+            measureHarmonics(power, spectrum.binHz, decimatedRate, pickF0, [1]),
+          )
+          if (
+            evidenceSnr >= GROUP_EVIDENCE_MIN_SNR_DB &&
+            evidenceSnr >= pickFundamentalSnr - GROUP_EVIDENCE_MARGIN_DB
+          ) {
+            pickIdx = lowIdx
+          }
+        }
+        return pickIdx
+      }
+
       // ── R57 tuner 모드 (기본) — 파노튜너 방식: **표준 YIN 규칙**(대역 내 dip 중 임계 이하
       // 최단 lag = 최고 주파수)을 그대로 채택한다. 시간영역 주기성은 스펙트럼 기본파 라인이
       // 약해도 유지되므로(300대 모터: 900·1500 홀수 배음이 300-주기를 강제) comb 채점이
@@ -208,7 +330,37 @@ export function createFrameAnalyzer(
           threshold: options.yinThreshold,
           hintF0, // R62 서브하모닉 제외 — 추적값의 1/2~1/6 부근 dip은 측정하지 않는다
         })
-        if (yin === null) {
+        // R67 획득 라인 실재 가드 (hint 없음 = 획득 단계 한정, noiseAcquisition 플래그 소속):
+        // CMNDF는 n배 주기(2T0·3T0)에도 동일한 null을 만들므로, 잡음이 T0-dip만 임계 위로
+        // 밀어올리면 표준 YIN 규칙이 2T0-dip을 선택해 **반값 파노**를 획득한다(probe 실측:
+        // 순수 pink 2~2.5 dB·경쟁 모터 혼입·험 혼입에서 전부 215=430/2 표시). 판별 근거는
+        // 스펙트럼이다 — 픽 p의 기본파 라인이 비었는데(<12 dB) 2p·3p 라인이 실재하면 p는
+        // 진짜 소리원의 서브하모닉 인공물이므로 무성 처리한다. 그러면 아래 fallback(기본파
+        // 라인 실재 요구)이 진짜 값을 획득하거나, 증거 부족이면 정직하게 weak-signal로 남는다
+        // — 반값 표시보다 미표시가 계약(오값 표시 금지)에 부합한다. 추적 중(hint)에는 R62·
+        // R63이 동일 역할을 하므로 이 가드는 획득에만 관여한다.
+        const isSubharmonicArtifact = (f0: number): boolean => {
+          const guardPower =
+            options.noiseAcquisition && emaSpectrum.frames >= NOISE_ACQ_MIN_FRAMES
+              ? emaSpectrum.power
+              : spectrum.power
+          const lineSnr = (f: number): number =>
+            measureHarmonics(guardPower, spectrum.binHz, decimatedRate, f, [1])[0]?.snrDb ?? 0
+          if (lineSnr(f0) >= GROUP_EVIDENCE_MIN_SNR_DB) return false
+          for (const n of [2, 3]) {
+            const upper = f0 * n
+            if (upper >= 0.47 * decimatedRate) break
+            if (lineSnr(upper) >= GROUP_EVIDENCE_MIN_SNR_DB) return true
+          }
+          return false
+        }
+        const yinArtifact =
+          yin !== null &&
+          hintF0 === null &&
+          options.noiseAcquisition &&
+          isSubharmonicArtifact(yin.f0)
+
+        if (yin === null || yinArtifact) {
           // R66 추적 유지 게이트(comb의 R54를 tuner로 이식) — R62 제외로 무성이 된 프레임
           // (반차수 우세 순간: 픽 dip은 임계 초과, 서브하모닉 dip은 제외)이 coast(0.2s)를
           // 넘겨 이어지면 추적이 풀려 "측정되다 값이 사라지는" 실기기 증상이 된다. 추적 f0의
@@ -231,9 +383,12 @@ export function createFrameAnalyzer(
               salience: 0,
             }
             const evaluation = evaluate(cont)
+            // R67: voicing 요구 제거 — voicing은 CMNDF dip 질량(시간영역 주기성)이라 방금
+            // 실패한 YIN과 동일 원천 증거다(이중 계상). 이 게이트의 설계 의도는 "추적 f0의
+            // 스펙트럼 라인 실재 측정"(R66)이고, 그 판정은 ±tol·snr·고조파가 담당한다.
+            // 모터 정지 시에는 라인이 사라져 snr(4dB)·±12% 정합이 실패하므로 잔존 위험 없음.
             if (
               Math.abs(evaluation.finalF0 - hintF0) <= options.continueTolRatio * hintF0 &&
-              evaluation.voicedProb >= options.gateVoicingThreshold &&
               evaluation.snrDb >= options.continueSnrDb &&
               evaluation.detectedHarmonics.length >= options.continueMinHarmonics
             ) {
@@ -251,6 +406,71 @@ export function createFrameAnalyzer(
               }
             }
           }
+          // R67 잡음 하 획득 fallback — 획득 단계(추적 없음) 한정. 판정은 전부 스펙트럼 증거:
+          // EMA 평균 스펙트럼 comb 채점 + 엄격 게이트 수치(snr·harmonics — voicing 비요구,
+          // 파일 상단 R67 주석) + R56 그룹 선택 + 연속 합의. 합의 대기 중에는 아래 무성
+          // 기각으로 떨어져 weak-signal이 유지된다(확정 전 값 노출 없음).
+          if (
+            hintF0 === null &&
+            options.noiseAcquisition &&
+            emaSpectrum.frames >= NOISE_ACQ_MIN_FRAMES
+          ) {
+            const noiseScored = scoreCandidates(
+              emaSpectrum.power,
+              spectrum.binHz,
+              decimatedRate,
+              pyinCandidates,
+              combOptions,
+            )
+            const noiseEvals = noiseScored.map(c => evaluate(c, emaSpectrum.power))
+            const noisePassing: number[] = []
+            for (let i = 0; i < noiseEvals.length; i++) {
+              const rejects = noiseEvals[i]!.rejects
+              if (rejects.includes('snr') || rejects.includes('harmonics')) continue
+              // 기본파 라인 실재 검사 — ÷2 후보는 comb 대역이 반정수 자리까지 덮어 모터+간섭원
+              // 에너지를 전부 흡수하므로 밴드합 SNR 게이트를 통과할 수 있다(경쟁 음원 혼입
+              // probe에서 실측 재현: 430 모터 + 613 간섭 → 215 획득). 그러나 그 후보의 k=1
+              // 자리에는 라인이 없다 — 화면에 띄우려는 파노의 기본파 라인이 EMA 스펙트럼에
+              // 국소 피크로 실재(≥12 dB)해야만 획득 대상이다.
+              const line = measureHarmonics(
+                emaSpectrum.power,
+                spectrum.binHz,
+                decimatedRate,
+                noiseEvals[i]!.finalF0,
+                [1],
+              )[0]
+              if ((line?.snrDb ?? 0) < GROUP_EVIDENCE_MIN_SNR_DB) continue
+              noisePassing.push(i)
+            }
+            if (noisePassing.length > 0) {
+              const idx = options.octaveCorrection
+                ? selectBySourceGroups(noisePassing, noiseEvals, noiseScored, emaSpectrum.power)
+                : noisePassing[0]!
+              const chosenEval = noiseEvals[idx]!
+              const agrees =
+                noiseAcqF0 > 0 &&
+                Math.abs(chosenEval.finalF0 / noiseAcqF0 - 1) <= NOISE_ACQ_CONFIRM_TOL_RATIO
+              noiseAcqStreak = agrees ? noiseAcqStreak + 1 : 1
+              noiseAcqF0 = chosenEval.finalF0
+              if (noiseAcqStreak >= NOISE_ACQ_CONFIRM_FRAMES) {
+                resetNoiseAcqChain()
+                return {
+                  gatePassed: true,
+                  rejects: [],
+                  evalF0: chosenEval.finalF0,
+                  f0: chosenEval.finalF0,
+                  candidates: [{f0: chosenEval.finalF0, score: 20}],
+                  voicedProb,
+                  snrDb: chosenEval.snrDb,
+                  detectedHarmonics: chosenEval.detectedHarmonics,
+                  usedHarmonics: chosenEval.usedHarmonics,
+                  rms,
+                }
+              }
+            } else {
+              resetNoiseAcqChain()
+            }
+          }
           // dip은 있으나 임계 이하 명료 주기가 없음 — 무성(voicing) 기각
           return {
             gatePassed: false,
@@ -265,6 +485,8 @@ export function createFrameAnalyzer(
             rms,
           }
         }
+        // YIN 획득 성공 — R67 합의 사슬은 폐기 (fallback은 YIN 무성 연속 구간에서만 의미)
+        resetNoiseAcqChain()
         // R63 상향 오판 하강(사용자: 위로 잘못되는 경우를 잡아야 함) — 픽 f0가 사실 진짜
         // 기본파의 n배(2·3)라면, f0/n의 **비공유 배음 대역**(n=2: 0.5·1.5·2.5f0 / n=3:
         // 1/3·2/3·4/3·5/3f0 — f0 계열에는 존재할 수 없는 자리)에 실제 에너지가 있어야 한다.
@@ -343,69 +565,6 @@ export function createFrameAnalyzer(
       const winner = scored[0]
       if (winner === undefined) return emptyAnalysis(rms, 'no-winner')
 
-      // R56: 통과 후보 → 소리원 그룹핑(정수배 관계) → 그룹 간 comb(소리 크기) →
-      // 그룹 내 증거 기반 최고 f0 선택 (파일 상단 R56 주석 참조)
-      const selectBySourceGroups = (
-        passing: readonly number[],
-        all: readonly CandidateEvaluation[],
-      ): number => {
-        interface SourceGroup {
-          memberIdx: number[]
-          bestScore: number
-        }
-        const sorted = [...passing].sort((a, b) => all[b]!.finalF0 - all[a]!.finalF0)
-        const groups: SourceGroup[] = []
-        for (const idx of sorted) {
-          const f0 = all[idx]!.finalF0
-          let attached = false
-          for (const group of groups) {
-            const top = all[group.memberIdx[0]!]!.finalF0
-            const ratio = top / f0
-            const n = Math.round(ratio)
-            if (n >= 1 && n <= GROUP_MAX_MULTIPLE && Math.abs(ratio - n) <= GROUP_RATIO_TOL * n) {
-              group.memberIdx.push(idx)
-              group.bestScore = Math.max(group.bestScore, scored[idx]!.combScore)
-              attached = true
-              break
-            }
-          }
-          if (!attached) groups.push({memberIdx: [idx], bestScore: scored[idx]!.combScore})
-        }
-        // 소리원 선택: comb 최고 = 가장 크게 들리는 모터 (다중 모터 계약 유지)
-        let best = groups[0]!
-        for (const group of groups) {
-          if (group.bestScore > best.bestScore) best = group
-        }
-        // 그룹 내: 최고 f0에서 시작해, 하위 멤버(top/n)가 top과 공유하지 않는 배음 대역에
-        // 강한 실증거를 가질 때만 내려간다 — {300,600}은 300의 1배 실피크로 300 채택,
-        // {546,182}는 182의 1·2·4·5배 공백으로 546 유지. 약한 사이드밴드는 마진이 거른다.
-        let pickIdx = best.memberIdx[0]!
-        for (let m = 1; m < best.memberIdx.length; m++) {
-          const lowIdx = best.memberIdx[m]!
-          const pickF0 = all[pickIdx]!.finalF0
-          const lowF0 = all[lowIdx]!.finalF0
-          const n = Math.round(pickF0 / lowF0)
-          if (n < 2 || n > GROUP_MAX_MULTIPLE) continue
-          const nonSharedKs: number[] = []
-          for (let k = 1; k <= GROUP_MAX_MULTIPLE; k++) {
-            if (k % n !== 0) nonSharedKs.push(k)
-          }
-          const evidenceSnr = maxSnr(
-            measureHarmonics(spectrum.power, spectrum.binHz, decimatedRate, lowF0, nonSharedKs),
-          )
-          const pickFundamentalSnr = maxSnr(
-            measureHarmonics(spectrum.power, spectrum.binHz, decimatedRate, pickF0, [1]),
-          )
-          if (
-            evidenceSnr >= GROUP_EVIDENCE_MIN_SNR_DB &&
-            evidenceSnr >= pickFundamentalSnr - GROUP_EVIDENCE_MARGIN_DB
-          ) {
-            pickIdx = lowIdx
-          }
-        }
-        return pickIdx
-      }
-
       // R54 다후보 게이트: 전 후보를 평가한다 — 1위가 틀려도(÷3 미끄러짐) 옳은 차순위
       // 후보가 살아남고, 통과 후보 전체가 그룹 선택(R56)의 입력이 된다.
       const evaluations: CandidateEvaluation[] = scored.map(candidate => evaluate(candidate))
@@ -417,7 +576,7 @@ export function createFrameAnalyzer(
       let chosenIdx = -1
       if (passingIdx.length > 0) {
         chosenIdx = options.octaveCorrection
-          ? selectBySourceGroups(passingIdx, evaluations)
+          ? selectBySourceGroups(passingIdx, evaluations, scored, spectrum.power)
           : passingIdx[0]! // 레거시(fixture ⑧ 하위 옥타브 고정): comb 순위 첫 통과 유지
       }
 

@@ -247,6 +247,13 @@ export interface EngineTuning {
   stabilitySeconds: number
   /** 안정 판정 변동계수 임계 — v2 §1: 1.5% */
   stabilityCv: number
+  /**
+   * R67 잡음 하 획득 fallback — YIN(시간영역)이 잡음으로 무성일 때, **획득 단계(추적 없음)에
+   * 한해** EMA 평균 스펙트럼(Welch 등가)의 comb 채점 + 엄격 스펙트럼 게이트(gateSnrDb·
+   * gateMinHarmonics, voicing 비요구) + R56 그룹 선택 + 연속 합의로 획득한다.
+   * 추적·값 갱신 경로는 건드리지 않는다(획득 전용). false = R57 원 동작(A/B: ?noiseAcquisition=0).
+   */
+  noiseAcquisition: boolean
 }
 
 export interface EngineOptions extends Partial<EngineTuning> {
@@ -345,6 +352,10 @@ export const DEFAULT_TUNING: EngineTuning = {
   continueTolRatio: 0.12,
   stabilitySeconds: 1.5,
   stabilityCv: 0.015,
+  // R67(사용자: 시끄러운 환경에서 파노 미표시) — YIN 사각지대(광대역 SNR ≈6~9dB: 모터는
+  // 들리는데 CMNDF dip이 잡음에 희석돼 무성)에서 스펙트럼 증거로 획득한다. 판정 임계는
+  // 기존 엄격 게이트 수치를 그대로 쓴다(완화 아님) — analyze-frame.ts R67 주석 참조.
+  noiseAcquisition: true,
 }
 
 export function resolveEngineOptions(options: EngineOptions): ResolvedEngineOptions {

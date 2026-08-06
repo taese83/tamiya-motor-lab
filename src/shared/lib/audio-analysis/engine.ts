@@ -68,6 +68,7 @@ export function createAnalysisEngine(options: EngineOptions): AnalysisEngine {
     },
     reset() {
       preprocessor.reset()
+      analyzer.reset()
       tracker.reset()
       bufferFill = 0
     },
