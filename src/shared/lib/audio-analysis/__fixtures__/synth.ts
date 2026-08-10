@@ -73,6 +73,15 @@ export function signalPower(x: Float32Array): number {
   return sum / Math.max(1, x.length)
 }
 
+/** 신호를 목표 RMS로 스케일 — R68 조용한 신호(신뢰 경계 proximityRms 미만) fixture용 */
+export function scaleToRms(signal: Float32Array, targetRms: number): Float32Array {
+  const rms = Math.sqrt(signalPower(signal))
+  const scale = rms > 0 ? targetRms / rms : 0
+  const out = new Float32Array(signal.length)
+  for (let i = 0; i < signal.length; i++) out[i] = signal[i]! * scale
+  return out
+}
+
 /** signal 대비 목표 SNR(dB)이 되도록 noise를 스케일해 합성 */
 export function addNoiseAtSnr(signal: Float32Array, noise: Float32Array, snrDb: number): Float32Array {
   const ps = signalPower(signal)

@@ -166,10 +166,11 @@ export function createFrameAnalyzer(
       for (let i = 0; i < frame.length; i++) sumSq += frame[i]! * frame[i]!
       const rms = Math.sqrt(sumSq / Math.max(1, frame.length))
       // 무음 가드: 0 RPM·임의 값 표시 금지 (REQ-ST-003) — 분석 자체를 생략.
-      // 근접 필터(v2.1): 절대 음량 하한 미달 = 원거리 소음 — 측정 대상 아님(weak-signal).
-      // 하한을 넘는 신호가 여럿이면 comb 채점이 고조파 에너지 최강(가장 크게 들리는
-      // 모터)을 선택한다 — "비슷하면 더 큰 소리 기준" 사용자 확정 동작.
-      if (rms < Math.max(options.silenceRms, options.proximityRms)) {
+      // R68: proximityRms는 더 이상 분석 차단선이 아니다 — tuner 픽 경로의 "신뢰 경계"로
+      // 강등되어, 그보다 조용한 프레임은 엄격 라인 증거를 통과해야만 측정로 인정된다
+      // (types.ts proximityRms 주석). 하한을 넘는 신호가 여럿이면 comb 채점이 고조파
+      // 에너지 최강(가장 크게 들리는 모터)을 선택한다 — "더 큰 소리 기준" 사용자 확정 동작.
+      if (rms < options.silenceRms) {
         // R67: 무음이 이어지면 EMA를 비운다 — 이전 모터의 라인이 남아 재시작 시
         // 스펙트럼 증거로 오인되는 것을 막는다 (coast 시간 감각과 동일한 8프레임 ≈ 200 ms)
         rmsMissStreak += 1
@@ -532,6 +533,44 @@ export function createFrameAnalyzer(
           salience: 1 - yin.depth,
         }
         const evaluation = evaluate(topScored)
+        // R68 조용한 신호 라인 증거 게이트 — 근접 절대 음량 차단의 대체. proximityRms 이상은
+        // 종전 그대로(YIN 임계만 — 검증 기준선 무회귀), 미만인 조용한 프레임은 스펙트럼 라인
+        // 실증거가 있어야만 측정로 인정한다. R54 원칙대로 임계는 이원화: 신규 획득은 엄격
+        // (gateSnrDb·gateMinHarmonics), 추적 f0 부근 유지는 완화(continueSnrDb·continueMin
+        // Harmonics) — 아니면 조용한 모터가 순간 8dB 미만마다 끊긴다(R66과 동일 패턴).
+        // 원거리 확산 소음은 라인이 없어 여기서 기각되고(rms<proximityRms라 track이
+        // 'too-quiet'로 분류 — "가까이" 안내 유지), 원래 조용한 모터(토크튠·렙튠·130)는
+        // 라인으로 통과한다. voicing은 방금 성공한 YIN 픽과 동일 원천(CMNDF)이라 재검사하지
+        // 않는다(R67 원칙).
+        if (rms < options.proximityRms) {
+          const tracking =
+            hintF0 !== null &&
+            hintF0 > 0 &&
+            Math.abs(evaluation.finalF0 - hintF0) <= options.continueTolRatio * hintF0
+          const minSnr = tracking ? options.continueSnrDb : options.gateSnrDb
+          const minHarmonics = tracking ? options.continueMinHarmonics : options.gateMinHarmonics
+          const harmonicCountOk =
+            evaluation.detectedHarmonics.length >= minHarmonics ||
+            (evaluation.detectedHarmonics.length >= 1 &&
+              evaluation.snrDb >= options.gateStrongSnrDb)
+          const lineRejects: GateReject[] = []
+          if (evaluation.snrDb < minSnr) lineRejects.push('snr')
+          if (!harmonicCountOk) lineRejects.push('harmonics')
+          if (lineRejects.length > 0) {
+            return {
+              gatePassed: false,
+              rejects: lineRejects,
+              evalF0: evaluation.finalF0,
+              f0: null,
+              candidates: [],
+              voicedProb,
+              snrDb: evaluation.snrDb,
+              detectedHarmonics: evaluation.detectedHarmonics,
+              usedHarmonics: evaluation.usedHarmonics,
+              rms,
+            }
+          }
+        }
         // Viterbi 후보 격자: 채택(YIN 픽)은 VP 정밀값 + 최상위 emission, 나머지 pYIN 후보는
         // salience 환산 — 추적기가 지배 주기를 따르되 전이 페널티로 순간 점프는 계속 눌린다.
         const candidates: TrackCandidate[] = [

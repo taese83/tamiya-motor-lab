@@ -14,6 +14,7 @@ import {
   OCTAVE_F0_HZ,
   PURE_TONE_HZ,
   chirpTrueF0,
+  createRng,
   fixtureContaminated,
   fixtureHarmonicDominant,
   fixtureOctaveTemptation,
@@ -21,6 +22,8 @@ import {
   fixtureSilence,
   fixtureSnr,
   fixtureSpinUpChirp,
+  pinkNoise,
+  scaleToRms,
 } from './__fixtures__/synth'
 import {createFrameAnalyzer} from './analyze-frame'
 import {createAnalysisEngine} from './engine'
@@ -257,6 +260,33 @@ describe('fixture ⑤ 잡음 SNR 0 dB — weak-signal 반환, 오값 표시 금�
       expect(e.status, atLabel(e)).toBe('weak-signal')
       expect(e.f0, atLabel(e)).toBeNull()
       expect(e.rpm, atLabel(e)).toBeNull()
+    }
+  })
+})
+
+describe('R68 조용한 신호 — 신뢰 경계(proximityRms) 미만은 라인 증거로 판정', () => {
+  // 근접 절대 음량 차단(구 proximityRms)의 대체 계약: 조용해도 스펙트럼 라인이 실재하는
+  // 모터(토크튠·렙튠·130)는 측정하고, 같은 음량의 확산 소음은 여전히 무성이어야 한다.
+  const QUIET_RMS = 0.0002 // silenceRms(1e-5) < rms < proximityRms(0.0005)
+
+  test('경계 미만의 조용한 모터도 라인 증거로 측정된다 (f0 오차 < 2%)', () => {
+    const pcm = scaleToRms(fixtureHarmonicDominant(3), QUIET_RMS)
+    const estimates = runEngine(pcm, FIXTURE_SAMPLE_RATE)
+    const numeric = estimatesAfter(estimates, WARMUP_SEC).filter(e => e.f0 !== null)
+    expect(numeric.length).toBeGreaterThan(30)
+    const f0s = numeric.map(f0Of).sort((a, b) => a - b)
+    const median = f0s[Math.floor(f0s.length / 2)]!
+    expect(Math.abs(median / HARMONIC_F0_HZ - 1)).toBeLessThan(0.02)
+  })
+
+  test('같은 음량의 확산 소음(라인 없음)만으로는 수치를 표시하지 않는다', () => {
+    const noise = pinkNoise(3 * FIXTURE_SAMPLE_RATE, createRng(20260805))
+    const pcm = scaleToRms(noise, QUIET_RMS)
+    const estimates = runEngine(pcm, FIXTURE_SAMPLE_RATE)
+    expect(estimates.length).toBeGreaterThan(80)
+    for (const e of estimates) {
+      expect(e.status, atLabel(e)).toBe('weak-signal')
+      expect(e.f0, atLabel(e)).toBeNull()
     }
   })
 })
