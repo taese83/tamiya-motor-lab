@@ -18,9 +18,7 @@ import {
 import {conditionLevelOf} from '@shared/config/domain'
 import {
   layoutTokens,
-  motionTokens,
   numericTypography,
-  shapeTokens,
 } from '@shared/config/design-tokens'
 import {EM_DASH, formatDateTimeShort, formatFanoHz, formatRpm} from '@shared/lib/format'
 import {EmptyState} from '@shared/ui/empty-state'
@@ -545,41 +543,12 @@ export function MotorDetailPage() {
                   sx={{flex: 3, minHeight: 48}}>
                   측정
                 </Button>
-                {/*
-                  컷코너 아웃라인 — clip-path는 단순 border를 대각선에서 끊으므로, 테두리색 층(::before)과
-                  1px 인셋 배경색 층(::after)을 겹쳐 "컷코너 테두리 링"을 만든다. 면색은 footer 표면(background.default).
-                  variant는 outlined를 쓰되 그 직각 보더는 border:none으로 끄고 위 두 층으로 대체한다.
-                */}
+                {/* v4.2(DS-A22): v3 컷코너 수동 재현(::before/::after 2겹) 제거 — theme의
+                    표준 outlined override(12px 라운드 + hover 보더 승격)로 편입 */}
                 <Button
                   variant="outlined"
                   onClick={() => void navigate(`/race/${motor.id}`)}
-                  sx={[
-                    {flex: 1, minHeight: 48, textTransform: 'none', whiteSpace: 'nowrap'},
-                    theme => ({
-                      color: theme.palette.text.primary,
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        inset: 0,
-                        zIndex: -2,
-                        clipPath: shapeTokens.cutCorner,
-                        backgroundColor: 'var(--mml-outline)',
-                        transition: `background-color ${motionTokens.hoverMs}ms ${motionTokens.easeStandard}`,
-                      },
-                      '&::after': {
-                        content: '""',
-                        position: 'absolute',
-                        inset: '1px',
-                        zIndex: -1,
-                        clipPath: shapeTokens.cutCorner,
-                        backgroundColor: theme.palette.background.default,
-                      },
-                      '&:hover': {backgroundColor: 'transparent'},
-                      '&:hover::before': {backgroundColor: theme.palette.text.secondary},
-                    }),
-                  ]}>
+                  sx={{flex: 1, minHeight: 48, textTransform: 'none', whiteSpace: 'nowrap'}}>
                   레이스 보기
                 </Button>
               </Box>

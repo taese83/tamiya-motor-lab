@@ -158,16 +158,19 @@ export const theme = createTheme({
     },
     MuiToggleButtonGroup: {
       defaultProps: { fullWidth: true, exclusive: true },
-      // v4.1: 의도적으로 직각 유지(0) — 세그먼트는 이번 라운드 범위 밖(§5 "범위 밖" 목록).
-      // 더 이상 "버튼 체계와 정합"은 아니다(버튼은 12px로 바뀜) — 과도기적 직각·라운드 혼재,
-      // 다음 라운드 정리 대상.
-      styleOverrides: { root: { borderRadius: 0 } },
+      // v4.2(§5·§9.2): 직각(0) 과도기 종료 — root radius override를 제거했다(추가 안 함).
+      // MUI 내장 grouped-edge 로직이 theme.shape.borderRadius(12)를 그룹 첫/끝 세그먼트
+      // 바깥 모서리에만 자동 적용하고 중간 세그먼트 안쪽 모서리는 자체적으로 0 처리한다 —
+      // 이 자동 처리를 신뢰하고 :first-of-type/:last-of-type을 손으로 재구현하지 않는다.
+      // SegmentControl의 borderless(내부 radius 0 로컬 override — FormField가 프레임 소유)·
+      // rounded(pill 999 — 리스트/필터 계열, §5.1) 두 변형은 이 정책과 독립, 무영향.
     },
     MuiToggleButton: {
       styleOverrides: {
         root: ({ theme: t }) => ({
           minHeight: 44,
-          borderRadius: 0, // v4.1: 무변경(범위 밖) — 위 MuiToggleButtonGroup 주석 참조
+          // v4.2: borderRadius 명시 제거(과거 0 강제 폐기) — 단독 ToggleButton과 그룹 바깥
+          // 모서리는 theme.shape.borderRadius(12)를 그대로 물려받는다(위 MuiToggleButtonGroup 주석).
           textTransform: 'none',
           fontWeight: 600,
           letterSpacing: '0.01em',

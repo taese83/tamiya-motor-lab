@@ -2849,3 +2849,42 @@ DOCS_TO_UPDATE: (2단계에서) design-system.md v3→v4 — 1단계에서는 no
   실측은 로그인 게이트 뒤 — 사용자 실사용 확인 위임, 표면 PASS 금지 준수).
 - 재개 중 §8 이식 블록 결손 2건(shapeTokens·h1/h2 fontFamily)을 축별 대조로 검출 —
   완결성 규칙 2의 유효성 실측(에이전트 보고만 믿었으면 재발).
+
+### R2 결함 2 — 레이스 기록 셀렉션·인풋 미적용 (2026-08-19, 사용자 발견)
+
+- 원인 ①(인풋): FormField·VoltageStepper가 테마 아웃라인을 끄고 자기 Box가 테두리 소유
+  (v2.13) — v4.1 아키텍트가 theme 주석에 하류 지시 필요를 경고했으나 **§10 표에 해당
+  행 누락**(문서 내 주석↔지시 불일치) → 동기화가 §10을 따라 누락.
+- 원인 ②(셀렉션): MuiToggleButton 직각(0)은 v4.1의 문서화된 "범위 밖" 과도기 —
+  사용자 판정으로 기각, 시안 A 형태 언어(12px) 편입으로 전환. SegmentControl 로컬
+  sx(pill 999)는 테마 우회 지점(신설 mui 레인 가드가 금지하는 패턴의 기존 사례).
+- 검증 교훈: 5축 대조표의 "요소 실측 미도달(로그인 게이트)" 정직 표기가 이 구멍을
+  가리키고 있었고, 사용자 실사용 확인이 위임된 검증을 수행함 — 표의 존재 이유 재확인.
+- 보수 경로: v4.2 마이크로 개정(§10 정정 + 셀렉션 편입 결정 + 소비처 스윕) → 동기화
+  (FormField·VoltageStepper·SegmentControl·theme) → 게이트 → 라이브 확인.
+
+### R2 결함 3 — 측정 기록 버튼 비활성 라벨 저대비 (2026-08-19, 사용자 발견)
+
+- 원인: v4.1이 컷코너 ::before 면 레이어를 폐기(표준 palette 경로 복귀)했는데
+  MeasureActionDock softDisabled sx가 여전히 ::before를 조준 → no-op. 면은 카퍼
+  (contained 표준)·라벨은 text.secondary — 저대비 + 활성 오인.
+- 고아 소비자 스윕: 같은 클래스 1건 추가(MotorDetailPage 컷코너 아웃라인 자체 구현 —
+  소프트라운드 체계에 v3 형태 언어 잔존). MotorRow·RaceMotorList ::before는 자기 소유
+  액센트 바(무관) 확인.
+- 교훈: 테마 계약 폐기(::before) 시 소비자 스윕이 v4.1 §10에 없었음 — "구키 rg 스윕"은
+  있었으나 **계약(의사-요소·구조) 폐기의 소비자 스윕**은 규정 밖이었다. v4.2에서 처방.
+
+### R2 보수 2 결과 — v4.2 동기화 (2026-08-19)
+
+- 정본: design-system.md v4.2(§10 FormField/VoltageStepper 행 신설·셀렉션 12px 편입·
+  DS-A21/A22·::before 고아 처방·이력 3건). 에이전트 중단 2회 → 범위 재개로 완주,
+  완료 보고를 §8/§10 파일 실측으로 재검증(체크리스트 6항 실재 확인).
+- 동기화 6파일: design-tokens.ts·theme.ts(§8 재이식 — ToggleButton radius:0 제거),
+  FormField(Box radius 12+overflow:hidden), VoltageStepper(스탠드얼론 radius 12),
+  MeasureActionDock(soft-disabled root 재타깃), MotorDetailPage(컷코너 2겹 제거 —
+  typecheck가 고아 import 2건 검출·정리).
+- 게이트: typecheck·lint·test 320/320·build green. ::before 스윕 잔존 = 무관 2건만
+  (MotorRow·RaceMotorList 액센트 바 — §10 기대값과 일치).
+- 라이브: 3탭 렌더·콘솔 0·shape 12px. **요소 확인 잔여(로그인 게이트)**: RaceEntrySheet
+  폼 프레임 12px·세그먼트 바깥 라운드·기록 버튼 soft-disabled 회색 면 — 사용자 실사용
+  확인 위임(§10 QA gate 항목).

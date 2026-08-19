@@ -1,5 +1,5 @@
 import {Box, FormHelperText, Typography} from '@mui/material'
-import {layoutTokens} from '@shared/config/design-tokens'
+import {layoutTokens, shapeTokens} from '@shared/config/design-tokens'
 
 import type {ReactNode} from 'react'
 
@@ -80,6 +80,12 @@ export function FormField({
           alignItems: 'stretch',
           minHeight: layoutTokens.formControlHeight,
           border: '1px solid',
+          // v4.2(§10): 시안 A 형태 언어 — 이 Box가 면을 소유하므로 radius도 여기(테마
+          // OutlinedInput은 notchedOutline border:0으로 꺼져 있음). overflow:hidden은
+          // 내부 사각 세그먼트/± 버튼(각자 radius 0 유지)이 라운드 프레임 밖으로
+          // 삐져나오지 않게 하는 필수 짝(VoltageStepper 래퍼와 동일 패턴).
+          borderRadius: `${shapeTokens.radius}px`,
+          overflow: 'hidden',
           borderColor: hasError ? 'error.main' : 'var(--mml-outline)',
           // 내부 컨트롤은 자기 테두리를 그리지 않는다 — 면은 이 컴포넌트가 소유한다
           '& .MuiOutlinedInput-notchedOutline': {border: 0},

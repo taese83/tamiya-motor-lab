@@ -1,5 +1,5 @@
 import {Box, FormHelperText, IconButton, InputAdornment, OutlinedInput} from '@mui/material'
-import {layoutTokens, numericTypography} from '@shared/config/design-tokens'
+import {layoutTokens, numericTypography, shapeTokens} from '@shared/config/design-tokens'
 import {VOLTAGE_RANGE} from '@shared/config/domain'
 import {useCallback, useEffect, useId, useRef} from 'react'
 import type {KeyboardEvent, MouseEvent, PointerEvent} from 'react'
@@ -159,6 +159,9 @@ export function VoltageStepper({
           // borderless면 면·포커스·오류 표시를 모두 FormField에 넘긴다(이중 테두리/링 방지)
           !borderless && {
             border: '1px solid',
+            // v4.2(§10): 스탠드얼론 사용 시 자체 프레임의 시안 A radius — ± 버튼 radius 0은
+            // 무변경(래퍼 overflow:hidden이 시각 정리, §10)
+            borderRadius: `${shapeTokens.radius}px`,
             borderColor: hasError ? 'error.main' : 'var(--mml-outline)',
             // 내부 입력의 outline을 없앤 대신 래퍼가 포커스를 표시한다(포커스 가시성 보전)
             '&:focus-within': {

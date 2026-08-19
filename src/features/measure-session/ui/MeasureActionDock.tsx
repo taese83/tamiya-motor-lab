@@ -204,24 +204,20 @@ export function MeasureActionDock({
         aria-expanded={slot.ariaExpanded}
         aria-controls={slot.ariaControls}
         sx={[
-          // v3 컷코너 버튼은 실제 면을 ::before 레이어가 그린다(theme MuiButton 계약) —
-          // 루트 배경만 바꾸면 라임 면이 그 위에 남아 다크에서 저대비(실기기 피드백).
-          // ::before를 함께 끄고 글자는 text.secondary로 유지(비활성이어도 판독 가능).
+          // v4.2(DS-A22): contained의 면은 v4.1부터 ::before가 아니라 root 표준 palette
+          // 배경이다 — soft-disabled(aria-disabled 상시 렌더, M-5)의 시각 처리도 root를
+          // 조준한다. 이전 ::before 타깃은 v4.1 이후 no-op이 되어 "카퍼 면 + 회색 라벨"
+          // 저대비가 났다(사용자 발견). 상태 스타일은 컴포넌트 로컬 유지(§9.1 DS-A22 —
+          // 단일 소비처를 위한 theme variant 신설은 과잉).
           slot.softDisabled &&
             (theme => ({
               color: theme.palette.text.secondary,
+              backgroundColor: theme.palette.action.disabledBackground,
               boxShadow: 'none',
               cursor: 'default',
-              '&::before': {
-                backgroundColor: theme.palette.action.disabledBackground,
-                filter: 'none',
-              },
               '&:hover': {
                 boxShadow: 'none',
-                '&::before': {
-                  backgroundColor: theme.palette.action.disabledBackground,
-                  filter: 'none',
-                },
+                backgroundColor: theme.palette.action.disabledBackground,
               },
               '&:active': {transform: 'none'},
             })),

@@ -1,4 +1,4 @@
-# Design System — minicar-motor-lab (v4.1 — Pit-Wall Amber 5축 완결: 타이포·밀도·형태·컴포넌트)
+# Design System — minicar-motor-lab (v4.2 — Pit-Wall Amber 5축 완결 + 레이스 기록 화면 셀렉션/인풋 마이크로 개정)
 
 > **v4 개정판** (design-system-architect, 2026-08-19). 사용자 브리프("더 스타일리쉬·깔끔·트렌디하게 —
 > 현재는 투박·구식·색감 별로")에 대해 발산 3후보(A. Pit-Wall Amber / B. Track Ceramic / C. Graphite
@@ -26,11 +26,24 @@
 > `numericTypography`·`layoutTokens`·`motionTokens`·`shapeTokens`) · colorSchemes 구조 ·
 > **`motorKindColors`(실물 엔드벨 색) 무변경** — v4 팔레트와의 공존 점검은 §1.0-v4 부록.
 
-## 0. 디자인 방향 요약 (v3 승계 + v4 색 교체)
+> **v4.2 마이크로 개정** (design-system-architect, 2026-08-20). 사용자가 실기기에서 3건을
+> 발견: ① 레이스 기록 화면(`RaceEntrySheet.tsx`)의 셀렉션·인풋 여전히 미적용 — 원인은 §8.2
+> 본문 주석이 요구한 `FormField.tsx`/`VoltageStepper.tsx` 동기화가 §10 하류 지시 표에 행으로
+> 반영되지 않은 **문서 내부 불일치**. ② 같은 화면 세그먼트(`MuiToggleButton`/`Group`) 직각이
+> v4.1에서 "범위 밖"으로 유보된 채 남은 **과도기 상태**. ③ 측정 페이지 [기록] 버튼 비활성
+> 라벨 저대비 — 원인은 v4.1이 `contained` 면을 `::before`에서 root palette 배경으로 옮기며
+> 생긴 **`::before` 고아 소비자**(`MeasureActionDock.tsx`·`MotorDetailPage.tsx`, DS-A22).
+> v4.2는 §10에 누락 행을 추가하고, 세그먼트를 소프트라운드 12px로 편입해 과도기를 종료하며
+> (pill 999 계열은 의도적으로 제외 — DS-A21), `::before` 고아 2건을 처방한다(전수 스윕 완료 —
+> `MotorRow.tsx`/`RaceMotorList.tsx`의 `::before`는 종류색 액센트 바로 무관 확인). 레이스
+> 기록 화면(`RaceEntrySheet.tsx`·`RaceGoalSheet.tsx`)의 셀렉션·인풋 소비처를 전수 스윕했다 —
+> 상세는 §9.1·§10·§11 v4.2 개정 이력.
+
+## 0. 디자인 방향 요약 (v3 승계 + v4 색 교체 + v4.1/v4.2 형태·타이포·밀도)
 
 | 항목 | 결정 |
 |---|---|
-| 비주얼 성격 | 레이싱 계기판 유지. 문법(v3): 무채 카본→**웜틴트 카본(v4)** + 시그니처 1색, 대형 디스플레이 숫자, 컷코너 버튼, 편집디자인 리듬(번호·오버라인·헤어라인) |
+| 비주얼 성격 | 레이싱 계기판 유지. 문법: 무채 카본→**웜틴트 카본(v4)** + 시그니처 1색, 대형 디스플레이 숫자(계기 전용 가변 폰트) + **모노 디스플레이 헤딩(v4.1)**, **소프트라운드 12px 버튼(v4.1: 컷코너 폐기)**, 편집디자인 리듬(번호·오버라인·헤어라인) |
 | **시그니처 악센트** | **v4: Pit-Wall Amber `copper`** — dark `#FF8A3D` / light `#B85C1E` 1색 체계(발산 후보 A 채택, §1.0-v4). v3의 Shift-Light Lime(`#D8F542`/`#566E00`)를 대체 |
 | 악센트 규율 | **평시 화면 = 무채색 + 코퍼 1색만.** 시맨틱 색은 해당 순간에만: 레드 = destructive·no-permission·저장 실패 / 앰버 = weak-signal·저장 불가 경고 / 그린 = 만족·success. measuring·stable·CTA·선택·탭 활성은 전부 코퍼 |
 | 다크 뉴트럴 | **웜틴트 카본(umber) 4단**(v4: 후보 A `--st-bg`/`--st-surface` 앵커 + 보간 2단) — 코퍼가 유일한 유채색으로 빛나게. 깊이는 표면 단차 + 헤어라인 2종(장식 rgba 0.18 / 구조 솔리드) + 히어로 비네트 1개 |
@@ -308,13 +321,16 @@ overline·listValue·fanoValue·button은 모두 본문 스택을 유지한다 �
   계약은 유지, §3.2).
 - `layoutTokens` additive 키(**v4.1 값 갱신**): `sectionGap: 32`(v4: 40 → v4.1: 32, 8×4 — 밀도
   전략 §5.1), `cardPad: 16`(v4: 20 → v4.1: 16, 8×2).
-- radius 체계(**v4.1 갱신** — 후보 A 소프트라운드 축 반영, DS-A20): **12 = 버튼·인풋·카드
-  (`shapeTokens.radius` = `theme.shape.borderRadius`, 후보 A `--st-radius`)** · **8 = 다이얼로그**
-  (무변경 — 후보 A가 다이얼로그 축을 다루지 않아 기존 값 승계, 12보다 각진 위계로 의도적 차등) ·
-  **20 = 바텀시트 상단**(무변경). **범위 밖(이번 라운드 미반영)**: 세그먼트(`ToggleButtonGroup`)·
-  바텀탭·`VoltageStepper`·`SegmentControl` 등 기존 0-radius(직각) 컴포넌트군과 S1 히어로 베젤
-  링(radius 4, §9.4)은 요구 범위(버튼·인풋·카드 3종)를 넘어 이번 라운드에서 건드리지 않는다 —
-  직각·소프트라운드 혼재가 과도기 상태로 남는다(다음 라운드 정리 대상으로 기록, §10).
+- radius 체계(**v4.2 갱신** — 후보 A 소프트라운드 축 반영, DS-A20·DS-A21): **12 = 버튼·인풋·
+  카드·세그먼트(ToggleButtonGroup/ToggleButton — v4.2: 직각 과도기 종료, `theme.shape.
+  borderRadius`가 MUI 내장 grouped-edge 로직으로 그룹 첫/끝 바깥 모서리에 적용)** · **999 =
+  필터/태그 계열 pill**(`SegmentControl.rounded`·`RaceRetireReasonSelect`의 `Chip` — 후보 A가
+  다루지 않는 별도 형태 언어, 이미 앱 전역에서 서로 정합돼 있어 12로 낮추면 오히려 기존 정합이
+  깨진다. DS-A21) · **8 = 다이얼로그**(무변경 — 후보 A가 다이얼로그 축을 다루지 않아 기존 값
+  승계, 12보다 각진 위계로 의도적 차등) · **20 = 바텀시트 상단**(무변경). **범위 밖(이번
+  라운드 미반영)**: `MotorKindSelect`의 그리드 셀(로컬 `borderRadius:0` 강제, theme 정책이
+  닿지 않음 — §10)과 S1 히어로 베젤 링(radius 4, §9.4)은 레이스 기록 화면 스코프 밖이라 이번
+  v4.2에서 건드리지 않는다 — 사용자가 명시 요청 시 별도 반영.
 - ~~컷코너(clip-path polygon)~~ 버튼 형태는 v4.1로 폐기됐다. `shapeTokens.cutCorner`/
   `cutCornerLg` 값은 **보존**(롤백용 + `MotorDetailPage.tsx`의 개별 참조 — 그 파일은 v4.1
   동기화 시 소프트라운드로 교체 대상, §8.2·§10) — 전역 버튼 시스템은 더 이상 참조하지 않는다.
@@ -370,7 +386,7 @@ overline·listValue·fanoValue·button은 모두 본문 스택을 유지한다 �
 
 | 항목 | 계약 |
 |---|---|
-| **focus ring** | 전역 `*:focus-visible { outline: 2px solid var(--mml-focus-ring); outline-offset: 2px }` 유지. 실값: dark `copper400`(인접 대비 umber950 7.78 / umber800 7.15 / copperTint 6.30 — 전부 ≥3:1), light `copper700`(white 4.58:1 — 여유 근소, DS-A18로 cream50 직접 사용 금지). **컷코너 버튼도 ring 생존** — clip-path는 ::before 배경층에만 적용, root 박스의 outline은 잘리지 않는다(§9.1) |
+| **focus ring** | 전역 `*:focus-visible { outline: 2px solid var(--mml-focus-ring); outline-offset: 2px }` 유지. 실값: dark `copper400`(인접 대비 umber950 7.78 / umber800 7.15 / copperTint 6.30 — 전부 ≥3:1), light `copper700`(white 4.58:1 — 여유 근소, DS-A18로 cream50 직접 사용 금지). **v4.1**: 버튼이 표준 MUI 배경 모델(컷코너 clip-path 폐기)로 복귀해 outline이 잘릴 우려 자체가 없다 — 과거 "컷코너에서도 ring 생존" 구조 원칙(DS-A13)은 폐기, 이제는 일반 규칙만 적용(§9.1) |
 | **forced-colors** | 시스템 색 승계 허용 — 상태 구분은 라벨+아이콘 보장. **v4.1**: 컷코너 폐기로 버튼이 표준 MUI contained 배경 모델(배경색이 root에 직접 걸림)로 복귀해 `border: 1px solid transparent` 가드가 더 이상 필요 없다(그 가드는 ::before 배경층이 forced-colors에서 소실되는 문제의 대응책이었다 — DS-A13 폐기, DS-A20) — 제거 |
 | **prefers-reduced-motion** | 전역 0ms(CssBaseline) + press scale `transform: none` + 펄스 정지 점 + 진행 아크·바늘 즉시 이동 + 모드 토글 무전환 |
 | **모션 토큰** | v3 값 승계 — `hoverMs: 140` / `pressMs: 120` / `enterMs: 200` / `needleMs: 100` / `easeStandard` / `easeOut` / `stableTransitionMs: 400` / `pulsePeriodMs: 1200` |
@@ -918,16 +934,19 @@ export const theme = createTheme({
     },
     MuiToggleButtonGroup: {
       defaultProps: { fullWidth: true, exclusive: true },
-      // v4.1: 의도적으로 직각 유지(0) — 세그먼트는 이번 라운드 범위 밖(§5 "범위 밖" 목록).
-      // 더 이상 "버튼 체계와 정합"은 아니다(버튼은 12px로 바뀜) — 과도기적 직각·라운드 혼재,
-      // 다음 라운드 정리 대상.
-      styleOverrides: { root: { borderRadius: 0 } },
+      // v4.2(§5·§9.2): 직각(0) 과도기 종료 — root radius override를 제거했다(추가 안 함).
+      // MUI 내장 grouped-edge 로직이 theme.shape.borderRadius(12)를 그룹 첫/끝 세그먼트
+      // 바깥 모서리에만 자동 적용하고 중간 세그먼트 안쪽 모서리는 자체적으로 0 처리한다 —
+      // 이 자동 처리를 신뢰하고 :first-of-type/:last-of-type을 손으로 재구현하지 않는다.
+      // SegmentControl의 borderless(내부 radius 0 로컬 override — FormField가 프레임 소유)·
+      // rounded(pill 999 — 리스트/필터 계열, §5.1) 두 변형은 이 정책과 독립, 무영향.
     },
     MuiToggleButton: {
       styleOverrides: {
         root: ({ theme: t }) => ({
           minHeight: 44,
-          borderRadius: 0, // v4.1: 무변경(범위 밖) — 위 MuiToggleButtonGroup 주석 참조
+          // v4.2: borderRadius 명시 제거(과거 0 강제 폐기) — 단독 ToggleButton과 그룹 바깥
+          // 모서리는 theme.shape.borderRadius(12)를 그대로 물려받는다(위 MuiToggleButtonGroup 주석).
           textTransform: 'none',
           fontWeight: 600,
           letterSpacing: '0.01em',
@@ -1147,6 +1166,23 @@ theme만으로 전환되지 않아 수동 동기화가 필요하다):
   걷어내고 표준 MUI `contained`/`outlined`/`text` 배경 모델로 복귀했다 — `borderRadius:
   shapeTokens.radius`(12)만으로 형태가 결정되고, forced-colors 실루엣 가드(구 transparent
   보더)도 함께 제거됐다(§6, §8.2). 값·롤백 경로는 §5·DS-A20.
+- **v4.2(DS-A22) — soft-disabled 버튼의 v4 표준 시각**: 위 구조 변경(면이 `::before`가 아니라
+  root palette 배경)의 **고아 소비자**가 실사용에서 드러났다 — 사용자가 측정 페이지 [기록]
+  버튼의 비활성 라벨 저대비를 발견(§11 v4.2 이력). 전수 스윕(`rg '&::before' src/`) 결과 이
+  클래스는 정확히 2건: `MeasureActionDock.tsx`(soft-disabled)·`MotorDetailPage.tsx`(수동
+  컷코너 아웃라인, 아래 별도 항목) — `MotorRow.tsx`/`RaceMotorList.tsx`의 `::before`는 자기
+  소유 종류색 액센트 바(v2.12 보존 계약)라 이 클래스가 아니다(오인 편입 금지, §10).
+  **처방**: `aria-disabled` soft-disabled(M-5 — 항상 렌더, 자리 이동 없음) 상태는 root
+  `backgroundColor: (t.vars ?? t).palette.action.disabledBackground` + 기존
+  `color: text.secondary` 유지로 root에서 함께 처리한다(`::before` 타깃 제거, §10).
+  **결정: 컴포넌트 로컬 유지 — theme `MuiButton`으로 승격하지 않는다.** 근거: 이 패턴
+  (aria-disabled + 상시 렌더)의 소비처가 전수 검색 결과 `MeasureActionDock.tsx` 1곳뿐이고,
+  네이티브 `disabled` prop을 쓰는 일반 버튼은 MUI 기본 `.Mui-disabled` 처리로 이미 충분하다 —
+  단일 소비처를 위해 theme에 새 전역 variant/색을 만드는 것은 과잉이다. QA gate에
+  `text.secondary`/`action.disabledBackground` 대비 실측(다크·라이트 각각)을 추가한다(§10).
+- **v4.2 — `MotorDetailPage.tsx` 수동 컷코너 아웃라인 처방**: **12px 소프트라운드로 편입**
+  (근거 있는 예외로 남길 이유 없음 — 평범한 보조 버튼, theme 표준 `outlined`가 이미 12px+
+  hover 보더 승격 제공). 처방·상세는 §10.
 
 ### 9.2 컴포넌트 개정표
 
@@ -1155,7 +1191,7 @@ theme만으로 전환되지 않아 수동 동기화가 필요하다):
 | **PageHeader** | `shared/ui/page-header` | props 불변(`title/onBack/actions/action`). 2단 재구성(v3): ① 유틸 행 ② 디스플레이 타이틀 행. v4는 색 참조만 자동 전환. **v4.1**: 디스플레이 타이틀 행이 `h1`(모노 `displayFontStack`) variant를 쓰면 자동 전환, 로컬에서 fontFamily를 별도 하드코딩했다면 확인 필요 |
 | BigNumber | `shared/ui/big-number` | 개별 베젤 없음 — 베젤은 히어로 존(MeasureFigures) 소유. `darkColor` import 없음, 순수 수치 렌더. props·"—"·sr-only 불변. numericFontStack 계기 폰트 무변경(§3.1) |
 | StatusLabel | `shared/ui/status-label` | 무변경 — var() 토큰이 자동 전환. 펄스 점 currentColor(**코퍼**) 상속 |
-| SegmentControl 계열 | `shared/ui/segment-control` | **v4.1: 무변경(범위 밖)** — theme ToggleButton이 여전히 직각·**코퍼** 선택·w800(§5 "범위 밖" 목록, §8.2 MuiToggleButtonGroup 주석). 버튼(12px)과 형태가 갈리는 과도기 상태를 의도적으로 감수 |
+| SegmentControl 계열 | `shared/ui/segment-control` | **v4.2**: 기본(폼) 형태는 theme 정책 변경으로 자동 소프트라운드 12px(그룹 첫/끝 바깥 모서리만, MUI 내장 grouped-edge)·**코퍼** 선택·w800 — 코드 무변경, theme.ts만 갱신. `borderless`(FormField 내부용 — 이번 라운드의 `RaceEntrySheet.tsx` "결과" 필드가 이 경로)는 로컬에서 내부 세그먼트 radius 0을 유지하되 **FormField.tsx의 Box가 프레임 radius 12 + overflow:hidden을 새로 가져야** 실제로 라운드로 보인다(§10, 필수 동기화). `rounded`(pill 999, 목록/필터용)는 무변경 — 후보 A가 다루지 않는 별도 형태 언어로 유지(§5, DS-A21) |
 | 카드류 전반 | 각 위치 | Paper `variant="outlined"` 유지 + 편집 요소(sx 조정): 좌상단 인덱스 번호(`overline` 변형, sand400/stone500), 타이틀 행 아래 hairlineStrong 룰, 수치는 우측 baseline 정렬(`listValue`), 내부 패딩 `cardPad`(**v4.1: 20→16px**). hover 보더 승격은 theme 자동. **v4.1 신규**: 소프트라운드 12px + 매트 카퍼 글로우 그림자(dark/light, §5·§8.2 MuiPaper)도 theme에서 자동 적용 |
 | 목록 행(S3/S4) | features/pages | 좌: 회차 인덱스(overline) / 중앙: 라벨 / 우: 수치(listValue, tabular). 구분은 hairline |
 | EmptyState | `shared/ui/empty-state` | 대형 디스플레이 문구(h2 + 여백 상향) + Tertiary 버튼 |
@@ -1178,17 +1214,23 @@ v2의 16종 그대로(24×24 viewBox, `fill="currentColor"`, `aria-hidden="true"
 | 상태 연동 | v2 승계 — idle/suspended/no-permission 트랙 dim(바늘·진행 아크 없음), weak-signal 바늘·아크 숨김(REQ-ST-003) |
 | 접근성 | 게이지·비네트·베젤 전체 `aria-hidden` — canonical 수치는 BigNumber 텍스트 경로 불변 |
 
-## 10. 하류 지시 — v4 구현 낙차 (파일별)
+## 10. 하류 지시 — v4/v4.1/v4.2 구현 낙차 (파일별)
 
 | 파일 | 낙차 | 규모 |
 |---|---|---|
-| `src/shared/config/design-tokens.ts` | §8.1 전체 교체 — 팔레트 v4(umber/copper), `motorKindColors`·`withAlpha`·`formControlHeight`·`srOnlySx`·`numericFontStack` 등 기존 additive 요소는 값 유지한 채 승계, `copperShadow` 신설(미배선) | 파일 교체 |
-| `src/app/theme.ts` | §8.2 전체 교체 — colorSchemes 코퍼 팔레트, 컷코너/세그먼트/탭/카드/다이얼로그 등 구조는 v3 그대로, 참조 토큰 키만 v4 | 파일 교체 |
+| `src/shared/config/design-tokens.ts` | §8.1 전체 교체 — 팔레트 v4(umber/copper) + v4.1(`displayFontStack`·`shapeTokens.radius`·`cardPad`16·`sectionGap`32·`copperShadowL`), `motorKindColors`·`withAlpha`·`formControlHeight`·`srOnlySx`·`numericFontStack` 등 기존 additive 요소는 값 유지한 채 승계 | 파일 교체 |
+| `src/app/theme.ts` | §8.2 전체 교체 — colorSchemes 코퍼 팔레트(v4) + 컷코너 폐기·소프트라운드 12px·매트 그림자·밀도 패딩·h1/h2 모노 디스플레이·ToggleButton 그룹 radius 정책(v4.1·v4.2). 세그먼트/탭/카드/다이얼로그 구조는 v3~v4.1 유지 | 파일 교체 |
 | `index.html` | theme-color·`<style>` bg `#0A0A0B` → `#1A1410`(2곳), 라이트 `#F8F9FA` → `#FBF6F1`(부팅 스크립트 1곳) | 3줄 |
 | `src/shared/ui/big-number/BigNumber.tsx` | 변경 없음(§9.2 승계) — `darkColor` import 없는 상태 유지 확인 | 확인만 |
 | `src/features/measure-session/ui/RpmGauge.tsx` | 색 참조가 theme.palette 경유라면 무변경. `darkColor`/`color` 구키 직접 참조가 있으면 §8 신규 키로 치환 | 조건부 |
-| 소비처 전수 검사 | `rg 'carbon9|carbon8|carbon7|chalk100|smoke2|smoke4|smoke6|smoke7|lime4|lime3|limeTint|limeGlow|gray9|gray7|gray6|gray5|gray3|gray1|gray50|lime7|lime8' src/` → 잔존 참조 0(구키 개명 여파) | 검사 |
-| **QA gate** | 다크/라이트 전 화면 스모크 + axe 대비 재검증(§1.3·§1.4, 특히 copper700/white 4.58:1 여유 근소 항목·stone500 3:1 항목 중점) + 토글 영속·no-flash + reduced-motion + forced-colors + 컷코너 버튼 focus ring 육안 확인 + 회귀 테스트 통과 + light_dash/torque 뱃지 육안 대조(§1.0-v4) | — |
+| **`src/shared/ui/form-field/FormField.tsx`**(v4.1/v4.2 신규) | 감싸는 Box(`border: '1px solid'`, 현재 radius 미지정=0)에 `borderRadius: shapeTokens.radius`(12) 추가. **동시에 `overflow: 'hidden'`도 추가**해야 한다 — `borderless` SegmentControl·VoltageStepper 내부 세그먼트/± 버튼이 여전히 `borderRadius: 0`(각자 로컬 override, §9.2)이라 그 사각 모서리가 새 라운드 프레임 밖으로 삐져나온다(VoltageStepper 자체 래퍼가 이미 이 `overflow:hidden` 패턴을 쓰고 있음 — 동일 근거로 정합). `:focus-within` outline은 overflow:hidden에 클립되지 않는다(표준 outline 페인트 규칙 — 그래도 육안 QA 필수). `RaceEntrySheet.tsx`·`RaceGoalSheet.tsx`·`MotorFormSheet.tsx`(FormField 소비처)가 전부 영향받는다 — theme.ts만으로는 화면에 반영되지 않는 실사용 소비처 1순위(v4 결함과 같은 클래스 재발 방지) | 컴포넌트 파일 1곳, sx 2줄 |
+| **`src/shared/ui/voltage-stepper/VoltageStepper.tsx`**(v4.1/v4.2 신규) | `!borderless` 분기(스탠드얼론 사용 시 자체 테두리)의 래퍼 Box에 `borderRadius: shapeTokens.radius` 추가(현재 미지정=0, `overflow:hidden`은 이미 있음 — 라인 156). `borderless` 분기(FormField 내부 사용, `RaceEntrySheet.tsx` 전압 필드)는 변경 불요 — 프레임은 FormField Box가 소유(위 행). `stepButtonSx.borderRadius:0`(± 버튼)은 무변경 유지 — 버튼이 래퍼에 꽉 차므로 래퍼의 `overflow:hidden`이 시각적으로 정리한다 | 컴포넌트 파일 1곳, sx 1줄 |
+| **`src/app/theme.ts` — `MuiToggleButtonGroup`/`MuiToggleButton`**(v4.2 신규, §5·§9.2) | 명시적 `borderRadius: 0`을 **제거**(추가 안 함) — MUI 내장 grouped-edge 로직이 `theme.shape.borderRadius`(12)를 그룹 첫/끝 세그먼트 바깥 모서리에 자동 적용하고 중간 세그먼트는 자체적으로 0 처리한다(§8.2). `SegmentControl.tsx`의 `borderless`(내부 세그먼트 radius 0 로컬 override, FormField가 프레임 소유 — 무변경)·`rounded`(pill 999, 무변경 — 근거는 §5.1) 두 변형은 이 정책 변경과 독립, 손대지 않는다 | theme.ts 2개 override 블록에서 각 1줄 삭제 |
+| **`src/features/motor-management/ui/MotorKindSelect.tsx`**(v4.2 스윕 발견 — 레이스 기록 화면 밖, 동류 항목으로 기재) | `[& .${toggleButtonGroupClasses.grouped}]`에 `borderRadius: 0`을 로컬로 강제하고 있어(그리드 셀 개별 보더, 연결형 그룹이 아님) 위 theme 정책 변경이 도달하지 못한다 — 3열 그리드 셀도 소프트라운드로 통일하려면 이 파일의 `0`을 `shapeTokens.radius`로 교체해야 한다. **결정 보류**: 이번 v4.2는 레이스 기록 화면 스코프라 이 파일 자체는 수정 대상에 포함하지 않는다(사용자가 명시 요청 시 별도 반영) — 다만 v4 결함과 동일 클래스(로컬 하드코딩이 theme 갱신을 차단)라 기록만 남긴다 | 확인·보류 |
+| **`src/features/measure-session/ui/MeasureActionDock.tsx`**(v4.2 3호 — `::before` 고아 소비자 1/2) | `slot.softDisabled` sx가 `'&::before': {backgroundColor: action.disabledBackground}`를 조준하는데, v4.1이 `contained`의 실제 면을 `::before`에서 root 표준 palette 배경으로 옮기면서 이 타깃이 **no-op**이 됐다 — 결과: 면은 그대로 코퍼(활성처럼 보임) + 라벨만 `text.secondary`(저대비), 사용자가 발견한 "기록 버튼 라벨 저대비"의 원인. **처방**(§9.1 DS-A22): `'&::before': {...}` 두 곳(기본·hover)을 제거하고 그 자리에 root `backgroundColor: (t.vars ?? t).palette.action.disabledBackground`를 추가(hover 블록도 동일하게 유지, hover 시에도 같은 배경) — `color: text.secondary`·`boxShadow:'none'`·`cursor:'default'`·`'&:active':{transform:'none'}`은 무변경. **결정: 컴포넌트 로컬 유지**(theme MuiButton으로 승격 안 함) — 이 패턴(soft-disabled=aria-disabled 상시 렌더, M-5)의 소비처가 전수 검색(`rg "&::before" src/`) 결과 이 파일 1곳뿐이라 단일 소비처를 위한 전역 variant 신설은 과잉 | 컴포넌트 파일 1곳, sx 재타깃(약 6줄) |
+| **`src/pages/motor-detail/ui/MotorDetailPage.tsx`**(v4.1에서 지시, v4.2에서 처방 확정 — `::before` 고아 소비자 2/2) | "레이스 보기" 버튼이 이미 `variant="outlined"`이면서 `border:'none'` + `::before`(보더색 층)+`::after`(1px 인셋 배경층) 2겹으로 v3 컷코너 아웃라인을 수동 재현하고 있다. **결정: 12px 소프트라운드로 편입**(근거 있는 예외로 남길 이유 없음 — 평범한 보조 버튼이고 theme의 표준 `outlined` override가 이미 12px 라운드+hover 보더 승격을 제공) — 처방: `sx`의 `theme => ({...})` 오버라이드 전체(`border:'none'`·`::before`·`::after`·커스텀 hover)를 **삭제**하고 `variant="outlined"`만 남긴다(약 30줄 감소, 앱 전역 버튼 형태와 자동 정합) | 컴포넌트 파일 1곳, sx 블록 삭제(~30줄) |
+| 소비처 전수 검사 | ① `rg 'carbon9|carbon8|carbon7|chalk100|smoke2|smoke4|smoke6|smoke7|lime4|lime3|limeTint|limeGlow|gray9|gray7|gray6|gray5|gray3|gray1|gray50|lime7|lime8' src/` → 잔존 참조 0(구키 개명 여파). ② **v4.2 신규**: `rg '&::before' src/` → v4.2 처방 반영 후 잔존 2건(`MotorRow.tsx`·`RaceMotorList.tsx`, 종류색 액센트 바 — 이 클래스 아님, v2.12 보존 계약)만 남아야 한다. `MeasureActionDock.tsx`·`MotorDetailPage.tsx`의 `::before`는 처방 적용 후 제거되어 있어야 함 | 검사 |
+| **QA gate** | 다크/라이트 전 화면 스모크 + axe 대비 재검증(§1.3·§1.4, 특히 copper700/white 4.58:1 여유 근소 항목·stone500 3:1 항목 중점) + 토글 영속·no-flash + reduced-motion + forced-colors + 소프트라운드 버튼/인풋/카드 focus ring 육안 확인 + **v4.2 추가**: `RaceEntrySheet.tsx`(결과 세그먼트·전압 스테퍼·이탈 사유 칩)·`RaceGoalSheet.tsx` 폼 프레임이 실제로 12px로 렌더되는지, ToggleButtonGroup 첫/끝 세그먼트만 바깥 라운드인지(중간 세그먼트 사각 유지) 육안 확인 + **측정 페이지 [기록] soft-disabled 상태**가 회색 면(`action.disabledBackground`)+`text.secondary` 라벨로 렌더되는지, `text.secondary`/`action.disabledBackground` 대비가 다크·라이트 각각 4.5:1 이상인지 axe 재검증(§9.1 DS-A22) + `MotorDetailPage.tsx` "레이스 보기" 버튼이 12px 소프트라운드로 나오는지 육안 확인 + 회귀 테스트 통과 + light_dash/torque 뱃지 육안 대조(§1.0-v4) | — |
 
 ## 11. 개정 이력·ASSUMPTION
 
@@ -1205,9 +1247,42 @@ v2의 16종 그대로(24×24 viewBox, `fill="currentColor"`, `aria-hidden="true"
 | success | 값 유지 | 값 유지(입력 없음) |
 | light stable 라벨 | lime700 단일(measuring과 동일 값) | **copper700(measuring) / copper800(stable) 분리**(DS-A18 관련, §1.4) |
 | hairlineStrong | rgba(255,255,255,0.16) | 솔리드 `#8C7C6B`(후보 A `--st-border`, 4.53:1) — 입력 외곽선과 통합 |
-| 형태·타이포·밀도·컴포넌트 구조 | — | **v3 승계, 무변경**(이번 라운드 범위 밖, §1.0-v4) |
+| 형태·타이포·밀도·컴포넌트 구조 | — | v3 승계, 무변경(당시 범위 밖, §1.0-v4) — **v4.1에서 반영, 아래 표** |
 
-### ASSUMPTION (v3 승계: DS-A2~A5, A7~A10, A12~A16 / v4 갱신: DS-A11 / v4 신규: DS-A17~A19)
+### v4.1 개정 이력 (2026-08-20 — 시안 A 5축 완결)
+
+**계기(1줄)**: v4가 §1.0-v4에서 색 팔레트만 반영하고 형태·타이포·밀도·컴포넌트 축을 스스로
+"범위 밖"으로 미룬 뒤 후속 라운드 없이 종료돼, 사용자가 실기기에서 "버튼·폰트·인풋 폼이
+색상만 바뀌고 나머지는 그대로"임을 발견한 결함 보수.
+
+| 항목 | v4 | v4.1 |
+|---|---|---|
+| 타이포 | 단일 스택(휴머니스트), 색만 v4 | **디스플레이(h1·h2) = 시스템 모노스페이스**(`displayFontStack`, 후보 A `--st-font-display`) + 본문 스택 무변경 2패밀리 분리(§3.1) |
+| 버튼 형태 | 컷코너(clip-path `::before` 이중층, radius 0) | **소프트라운드 12px**(`shapeTokens.radius`) — 표준 MUI contained 배경 모델로 복귀, forced-colors 가드 제거(DS-A20) |
+| 인풋 형태 | 직각(radius 0, MuiOutlinedInput 기본) | 소프트라운드 12px(theme 레벨) — 단, 실제 화면은 `FormField.tsx`/`VoltageStepper.tsx` 로컬 override에 가려 v4.1 시점에는 **미반영**(§10, v4.2에서 지시 보강) |
+| 카드 형태 | 1px 보더만, 그림자 없음 | 소프트라운드 12px + **매트 카퍼 글로우 그림자**(dark/light, `MuiPaper` `outlined`) |
+| 밀도 | spacing 8, cardPad 20, sectionGap 40 | **국소 조정**: cardPad 16(8×2)·sectionGap 32(8×4)·버튼/인풋 패딩 리터럴 축소 — 전역 spacing 유닛은 8 유지(근거 §5.1) |
+| 세그먼트(ToggleButton) | 직각(0) | v4.1 시점 **무변경(범위 밖 유보)** — v4.2에서 정책 확정 |
+
+### v4.2 개정 이력 (2026-08-20 — 마이크로 개정: §10 결손 보수 + 셀렉션 편입 + `::before` 고아 처방)
+
+**계기(3건, 전부 사용자 실기기 발견)**: ① 레이스 기록 화면에서 셀렉션·인풋이 여전히
+미적용 — 원인은 §8.2 본문 주석이 요구한 `FormField.tsx`/`VoltageStepper.tsx` 동기화가 §10
+표에 행으로 반영되지 않은 문서 내부 불일치. ② 같은 화면의 세그먼트(ToggleButton) 직각이
+v4.1에서 "범위 밖"으로 유보된 채 과도기로 남음. ③ 측정 페이지 [기록] 버튼의 비활성 라벨
+저대비 — 원인은 v4.1이 `contained`의 실제 면을 `::before`에서 root 표준 palette 배경으로
+옮기면서 `::before`를 겨냥해 만들어진 로컬 오버라이드(`MeasureActionDock.tsx`)가 조용히
+no-op이 된 것(같은 클래스로 `MotorDetailPage.tsx`의 수동 컷코너 아웃라인도 스윕에서 확인).
+
+| 항목 | v4.1 | v4.2 |
+|---|---|---|
+| §10 하류 지시 | `FormField.tsx`/`VoltageStepper.tsx` 낙차가 §8.2 주석에만 있고 §10 표에 없음 | **행 추가**(§10) — Box radius 12 + `FormField.tsx`는 `overflow:hidden` 신설 필요까지 명시 |
+| 세그먼트(ToggleButton) 형태 | 직각(0) 유지, "범위 밖" 유보 | **소프트라운드 12px로 편입**(DS-A20 확장) — theme의 명시적 `borderRadius:0`을 제거해 MUI 내장 grouped-edge 로직이 `theme.shape.borderRadius`(12)를 그룹 바깥 모서리에 자동 적용 |
+| pill(999) 계열 | 미검토 | **의도적으로 12px 통일에서 제외**(DS-A21 신설) — `SegmentControl.rounded`·`RaceRetireReasonSelect`의 `Chip`은 이미 서로 정합된 별도 형태 언어(필터/태그)로 유지 |
+| `::before` 고아 소비자 | v4.1이 `contained` 면을 root로 옮기며 생성(미인지) | **전수 스윕 완료, 2건 처방**(DS-A22) — `MeasureActionDock.tsx`(soft-disabled: root `backgroundColor` 재타깃, 컴포넌트 로컬 유지)·`MotorDetailPage.tsx`(수동 컷코너 아웃라인: 12px `outlined`로 편입). `MotorRow.tsx`/`RaceMotorList.tsx`의 `::before`(종류색 액센트 바)는 무관 확인 |
+| 스윕 | — | `RaceEntrySheet.tsx`(결과 세그먼트·전압 스테퍼·이탈 사유 칩·측정값 칩)·`RaceGoalSheet.tsx` 전수 확인 + `rg '&::before' src/` 전수 확인(4건 중 2건만 처방 대상). 동류 추가 발견: `MotorKindSelect.tsx` 그리드 셀도 로컬 `borderRadius:0` 강제라 theme 정책이 닿지 않음 — 이번 라운드는 레이스 기록 화면 스코프라 **수정 대상에 넣지 않고 기록만**(§10) |
+
+### ASSUMPTION (v3 승계: DS-A2~A5, A7~A10, A12·A14~A16 / v4 갱신: DS-A11 / v4 신규: DS-A17~A19 / v4.1 폐기: DS-A13 / v4.1 신규: DS-A20 / v4.2 확장: DS-A20 / v4.2 신규: DS-A21~A22)
 
 | ID | 내용 | 근거·검증 |
 |---|---|---|
@@ -1221,12 +1296,15 @@ v2의 16종 그대로(24×24 viewBox, `fill="currentColor"`, `aria-hidden="true"
 | DS-A10 | 모드 영속 키 `mml-mode` | 유지 |
 | **DS-A11(v4 갱신)** | 시그니처 = Pit-Wall Amber copper(발산 3후보 중 A 채택, cyan/lime 모두 대체됨) | 발산·렌더 판정 근거는 §1.0-v4. 롤백 시 copper400/300/Tint/Glow(dark)·copper700/800/TintL(light) 7값 교체로 국소 롤백 가능(구조 불변) |
 | DS-A12 | stable도 시그니처 계열(블루 제거) — 잠금 구분은 tint bg+lock+수치+갱신 정지 | 유지 — REQ-NFR-003 3요소 병행으로 색 의존 없음 |
-| DS-A13 | 컷코너는 contained 전용, clip-path는 ::before 배경층 전용 | 유지 |
+| ~~DS-A13~~ | ~~컷코너는 contained 전용, clip-path는 ::before 배경층 전용~~ | **v4.1로 폐기** — 컷코너 자체가 사라짐(DS-A20으로 대체). 값은 `shapeTokens.cutCorner`/`cutCornerLg`로 보존(롤백·`MotorDetailPage.tsx` 개별 참조용) |
 | DS-A14 | 버튼 ripple 제거, press scale 대체 | 유지 |
 | DS-A15 | 게이지 레드라인 = error.main 장식 예외 | 유지 |
 | DS-A16 | rpm 스케일 상향 → `measureValueMinHeight` 등 동조 재클램프 | 유지 |
 | **DS-A17** | warning(amber) hue를 42°/34°→50°/53°로 이동 | 신규 시그니처(hue≈24°)와의 시맨틱 분리 확보(README 후속 지시 이행) — 값만 변경, 키 이름·용도·구조 불변 |
 | **DS-A18** | copper700(light)은 **white(paper) 배경 전용** — cream50(페이지 배경) 위 직접 텍스트/시그니처 사용 금지 | 대비 여유가 근소(4.58:1, cream50 위에서는 4.5 미달 추정) — 위반 시 stone900 또는 copper800 대체(§1.4) |
 | **DS-A19** | hairlineStrong(dark)을 솔리드 `#8C7C6B`로 통합, 구 smoke600(입력 외곽선) 폐기 | 후보 A가 단일 보더 값만 정의 — 별도 유지보다 통합이 토큰 표면·혼동 감소(비텍스트 4.53:1 검증) |
+| **DS-A20(v4.1 신설, v4.2 확장)** | 버튼(v4.1)·인풋·카드(v4.1)·세그먼트/ToggleButton(v4.2)에 소프트라운드 12px(`shapeTokens.radius`) 통일 — 컷코너·직각 폐기 | 후보 A `--st-radius` 채택(§5). 세그먼트는 v4.1 시점 "범위 밖"이었다가 v4.2에서 편입(과도기 종료). 롤백 시 `theme.shape.borderRadius`를 4로, `MuiButton`/`MuiOutlinedInput`/`MuiPaper` root radius·`MuiToggleButtonGroup`/`MuiToggleButton`의 명시적 `borderRadius:0` 재추가로 국소 롤백 가능 |
+| **DS-A21(v4.2 신설)** | pill(999) 계열(`SegmentControl.rounded`·`RaceRetireReasonSelect`의 `Chip`)은 DS-A20의 12px 통일에서 **의도적으로 제외** | 후보 A는 태그/필터 형태 언어를 다루지 않는다. 이 pill 계열은 v2.27부터 이미 서로 정합된 별도 체계(필터 칩과 톤 일치가 목적)라 12로 낮추면 오히려 기존 정합이 깨진다 — "12px 통일"은 폼/작동 컨트롤(버튼·인풋·카드·세그먼트) 축이지 태그/필터 축이 아니다 |
+| **DS-A22(v4.2 신설)** | `contained` 버튼 면이 `::before`가 아니라 root palette 배경이 된 v4.1 변경(DS-A20)의 여파 — `::before`를 겨냥한 로컬 오버라이드는 root 대상으로 재타깃해야 한다. soft-disabled(aria-disabled 상시 렌더, M-5)류 상태 스타일은 **컴포넌트 로컬에 둔다**(theme MuiButton으로 승격 안 함) | 전수 스윕(`rg '&::before' src/`) 결과 소비처 4건 중 2건(`MeasureActionDock.tsx`·`MotorDetailPage.tsx`)만 이 클래스 — 단일/소수 소비처를 위한 전역 variant 신설은 과잉이라 판단. `MotorRow.tsx`/`RaceMotorList.tsx`는 종류색 액센트 바(v2.12, 무관)로 확인 완료 |
 
 승계 baseline 불변: CP-1a 등급 4단계 · D4 주행 결과 3택 · A5 전압 0.1~9.9V.
