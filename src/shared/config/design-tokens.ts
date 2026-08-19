@@ -85,6 +85,9 @@ export const color = {
   stone100: '#F1E9DD', // divider·suspended 배경
   cream50: '#FBF6F1', //  background.default(후보 A 제안값)
   white: '#FFFFFF',
+  // v4.1 신규 — 카드류 매트 그림자(light) 글로우 성분. 후보 A는 다크 대표값만 제공해 라이트는
+  // 신규 결정: copper700 계열 저알파(순검정 고알파 대신 — §5 근거). 장식(대비 요건 비대상).
+  copperShadowL: 'rgba(184, 92, 30, 0.10)',
 } as const
 
 /* ------------------------------------------------------------------ *
@@ -105,7 +108,7 @@ export const darkColor = {
   copper300: '#FF9D5C', // primary.dark — hover/pressed 상승
   copperTint: '#382316', // stable 배경 tint (shift-light 잠금면)
   copperGlow: 'rgba(255, 138, 61, 0.25)', // primary hover 글로우 (장식)
-  copperShadow: 'rgba(255, 138, 61, 0.14)', // v4 additive(선택, 미배선) — 후보 A --st-shadow 컬러 성분
+  copperShadow: 'rgba(255, 138, 61, 0.14)', // v4.1: MuiPaper outlined에 배선 완료(§8.2) — 후보 A --st-shadow 컬러 성분, `0 4px 20px ${copperShadow}, 0 1px 2px rgba(0,0,0,0.4)`로 조합
   amber400: '#FFD400', // warning — weak-signal·저장 불가 전용 (v4: hue 42°→50°로 이동)
   amberTint: '#332B10',
   red400: '#FF6B5A', //  error — destructive·no-permission·레드라인 밴드(장식)(후보 A --st-danger)
@@ -202,6 +205,14 @@ export const buildModeCssVars = (scheme: 'dark' | 'light'): Record<string, strin
 // 대형 디스플레이 수치(rpmValue·guideRange)에만 적용 — 본문·라벨·목록 수치는 시스템 스택 유지.
 export const numericFontStack = "'Oxanium Variable', system-ui, sans-serif"
 
+/**
+ * v4.1 신규 — 후보 A `--st-font-display`(시스템 모노스페이스, "기계식 크로노그래프" 서사).
+ * 적용은 h1(페이지 타이틀)·h2(섹션 헤딩)만(theme.ts typography, §3.1) — numericFontStack과
+ * 역할이 겹치지 않는다(하나는 헤딩 텍스트, 하나는 S1 계기 숫자 전용). 웹폰트 아님 — 전부
+ * 시스템 설치 폰트 스택(DS-A2 승계).
+ */
+export const displayFontStack = '"SFMono-Regular", "Roboto Mono", ui-monospace, Menlo, Consolas, monospace'
+
 export const numericTypography = {
   /** S1 파노 대형 수치·weak-signal "—" — 상태 간 동일 크기 */
   rpmValue: {
@@ -237,7 +248,7 @@ export const numericTypography = {
 } as const
 
 /* ------------------------------------------------------------------ *
- * 4. 레이아웃·형태·모션 토큰 (v4: 색 변경 없음 — 값 v3 승계)
+ * 4. 레이아웃·형태·모션 토큰 (v4.1: cardPad·sectionGap·shapeTokens.radius 갱신 — §5·§5.1. 나머지 값 v3 승계)
  * ------------------------------------------------------------------ */
 export const layoutTokens = {
   /** 전 화면 콘텐츠 max-width — 태블릿/데스크탑 동일 레이아웃 중앙 정렬 */
@@ -254,18 +265,28 @@ export const layoutTokens = {
   /** S1 중앙 수치 영역 고정 높이 — 6-status 전부 동일 (layout shift 금지, DS-A3).
    *  게이지 확대 후속 재클램프 — 계약(전 status 동일 높이)은 불변. */
   measureValueMinHeight: 'clamp(224px, 66vw, 300px)',
-  /** 섹션 간 수직 여백 (px) */
-  sectionGap: 40,
-  /** 카드 내부 패딩 (px) */
-  cardPad: 20,
+  /** 섹션 간 수직 여백 (px) — v4.1: 40 → 32(8×4), 밀도 전략 §5.1 */
+  sectionGap: 32,
+  /** 카드 내부 패딩 (px) — v4.1: 20 → 16(8×2), 밀도 전략 §5.1 */
+  cardPad: 16,
   safeAreaTop: 'var(--mml-safe-top)',
   safeAreaBottom: 'var(--mml-safe-bottom)',
 } as const
 
-/** 컷코너 버튼 형태 (::before clip-path 전용, §9.1. root에 직접 clip 금지 — focus ring 보존). v4: 무변경 */
+/**
+ * v4.1(DS-A20, §5): 전역 버튼 시스템은 컷코너를 더 이상 쓰지 않는다 — 후보 A 소프트라운드
+ * 12px 채택. cutCorner/cutCornerLg 값은 **롤백·개별 참조용으로 보존**한다(삭제 금지):
+ * `MotorDetailPage.tsx`가 이 clip-path를 outlined 보조 버튼 하나에 직접 import해 쓰고 있어
+ * 삭제하면 그 파일이 컴파일 에러로 깨진다 — 그 파일은 v4.1 동기화 시 소프트라운드로 교체
+ * 대상이다(§8.2 이식 주의, §10). `radius`는 버튼·인풋·카드 3종이 공유하는 신규 형태 토큰이며
+ * `theme.shape.borderRadius`와 같은 값(12)을 별도 이름으로도 노출한다 — 컴포넌트 override에서
+ * `theme.shape.borderRadius` 대신 명시적 상수를 참조하고 싶은 지점(root sx 직접 소비 등)을 위함.
+ */
 export const shapeTokens = {
-  cutCorner: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)',
-  cutCornerLg: 'polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)',
+  cutCorner: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)', // DEPRECATED — 전역 버튼 미사용(v4.1)
+  cutCornerLg: 'polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)', // DEPRECATED — 전역 버튼 미사용(v4.1)
+  /** v4.1 신규 — 버튼·인풋·카드 공통 소프트라운드(후보 A `--st-radius`, §5). 다이얼로그(8)·시트 상단(20)은 별도 값 유지 — 여기 포함 안 됨 */
+  radius: 12,
 } as const
 
 /**

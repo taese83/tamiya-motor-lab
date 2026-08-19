@@ -1,16 +1,25 @@
-# Design System — minicar-motor-lab (v4 — Pit-Wall Amber 리컬러: 웜틴트 carbon→umber, 시그니처 lime→copper)
+# Design System — minicar-motor-lab (v4.1 — Pit-Wall Amber 5축 완결: 타이포·밀도·형태·컴포넌트)
 
 > **v4 개정판** (design-system-architect, 2026-08-19). 사용자 브리프("더 스타일리쉬·깔끔·트렌디하게 —
 > 현재는 투박·구식·색감 별로")에 대해 발산 3후보(A. Pit-Wall Amber / B. Track Ceramic / C. Graphite
 > Signal)를 스타일 타일로 비교하고, **후보 A(Pit-Wall Amber)**를 사용자 승인 + 오케스트레이터 렌더
-> 판정으로 확정 — **색 팔레트만 교체**(웜틴트 카본 `umber` + 시그니처 `copper`). 형태 언어(컷코너
-> 버튼)·타이포(모노+휴머니스트)·밀도(spacing 8)·컴포넌트 구조는 v3 그대로 승계한다(이번 라운드
-> 범위 밖 — 근거는 §1.0-v4).
+> 판정으로 확정 — v4는 **색 팔레트만 교체**(웜틴트 카본 `umber` + 시그니처 `copper`)했고 형태·타이포·
+> 밀도·컴포넌트 구조는 v3 그대로 두었다(스코핑 결함 — 아래 v4.1 참조).
 > 입력: v3 본 문서 · `_workspace/02_design/design-system/style-tiles/candidate-a/tokens.css`(승인된
 > 다크 대표값) · `style-tiles/README.md`(발산 5축·라이트 제안값·MUI 매핑) ·
 > `style-tiles/RENDER-VERDICT.md`(대비 실측·상투 판정) · 현행 `src/shared/config/design-tokens.ts`.
 > 소비자: 재설계 구현 담당(app-shell-builder 등). **§8 코드 블록 2개(design-tokens.ts · theme.ts)는
 > 그대로 이식 가능한 완성본.** 파일별 구현 낙차는 §10.
+
+> **v4.1 결함 보수** (design-system-architect, 2026-08-20). v4는 승인 시안 A의 **색 축만**
+> 반영했다 — 사용자가 실기기에서 "버튼 디자인·글자 폰트·인풋 폼 등이 적용되지 않고 색상만
+> 적용됨"을 발견해 스코핑 결함으로 확인됐다(원인 1줄: v4가 §1.0-v4에서 "이번 라운드 범위:
+> 색 팔레트만"이라고 스스로 명시해놓고 후속 라운드를 만들지 않은 채 종료됨). v4.1은 candidate-a의
+> **나머지 4축**(타이포 페어링·밀도·형태 언어·그에 따른 컴포넌트 형태)을 §3·§5·§8·§9에 반영해
+> 시안 A를 완결한다. 색 토큰(§1·§2·§4)은 v4에서 이미 반영 완료 — 이번 라운드는 무변경.
+> 입력 추가: `style-tiles/candidate-a/index.html`(실제 `--st-font-display` 배선 지점 확인 —
+> h1/h2에만 적용, 라벨·버튼·인풋·표는 body 스택) · 현행 `src/shared/ui/form-field/FormField.tsx`·
+> `src/pages/motor-detail/ui/MotorDetailPage.tsx`(형태 변경의 실제 소비처 확인, §8.2·§10).
 > 불변 계약(v3 승계): 기능·데이터·라우팅·상태 머신·컴포넌트 public props·FSD 경계 불변. 상태 6종
 > 3요소 병행(REQ-NFR-003) · tabular-nums · 수치 고정 높이 · 44px 타깃 · WCAG 2.2 AA(다크/라이트
 > 각각) · hex 직접 소비 금지 · `--mml-status-*` 간접층 · export 토큰 이름(`measureStatusTokens`·
@@ -25,9 +34,10 @@
 | **시그니처 악센트** | **v4: Pit-Wall Amber `copper`** — dark `#FF8A3D` / light `#B85C1E` 1색 체계(발산 후보 A 채택, §1.0-v4). v3의 Shift-Light Lime(`#D8F542`/`#566E00`)를 대체 |
 | 악센트 규율 | **평시 화면 = 무채색 + 코퍼 1색만.** 시맨틱 색은 해당 순간에만: 레드 = destructive·no-permission·저장 실패 / 앰버 = weak-signal·저장 불가 경고 / 그린 = 만족·success. measuring·stable·CTA·선택·탭 활성은 전부 코퍼 |
 | 다크 뉴트럴 | **웜틴트 카본(umber) 4단**(v4: 후보 A `--st-bg`/`--st-surface` 앵커 + 보간 2단) — 코퍼가 유일한 유채색으로 빛나게. 깊이는 표면 단차 + 헤어라인 2종(장식 rgba 0.18 / 구조 솔리드) + 히어로 비네트 1개 |
-| 타이포 | v3 승계 — RPM 숫자 디스플레이 스케일(`clamp(64px,22vw,120px)` w800), 페이지 타이틀 대형 디스플레이(28~34px w800), 오버라인(자간 0.12em). 웹폰트: 숫자 전용 가변 폰트 OPTION-F1 채택 완료(§3.6, RV-4) |
-| 버튼 | v3 승계 — MUI 기본 느낌 제거, **contained = 컷코너**(::before clip-path — focus ring 생존 구조), hover 밝기+**코퍼** 글로우(v4), press scale(0.98), 라벨 w700·자간. outlined = 직각+보더, text = 시그니처 밑줄 |
-| 레이아웃 리듬 | v3 승계 — 대형 타이틀 블록+메타 행, 카드 편집 요소, S1 = 게이지 중심 "계기판 한 장" 히어로(§9.4). 480px 중앙 제약 |
+| 타이포 | **v4.1**: 2패밀리 분리 — 디스플레이(h1·h2) = 시스템 모노스페이스(`displayFontStack`, 후보 A `--st-font-display`, "기계식 크로노그래프"), 본문·라벨·버튼·인풋 = 기존 휴머니스트 산세리프(한글 폴백 포함, 무변경). RPM 숫자 디스플레이(`rpmValue`/`guideRange`)는 별도 계기 전용 가변 폰트(OPTION-F1, §3.6)로 무변경 — 세 스택의 역할 경계는 §3.1 |
+| 밀도 | **v4.1 신규** — 후보 A `--st-space:6px`(조밀)을 전역 spacing 유닛이 아니라 `cardPad`(20→16)·`sectionGap`(40→32)·버튼/인풋 내부 패딩의 **국소 오버라이드**로 반영(근거·리스크는 §5.1) |
+| 버튼 | **v4.1**: 컷코너 폐기, **contained = 소프트라운드 12px**(후보 A `--st-radius`, `shapeTokens.radius`), hover 밝기+**코퍼** 글로우(v4 승계), press scale(0.98), 라벨 w700·자간. outlined = 소프트라운드+보더, text = 시그니처 밑줄. 컷코너 토큰은 롤백용으로만 보존(DS-A20, §5·§8.2) |
+| 레이아웃 리듬 | v3 승계 — 대형 타이틀 블록+메타 행, 카드 편집 요소, S1 = 게이지 중심 "계기판 한 장" 히어로(§9.4). 480px 중앙 제약. **v4.1**: 카드류에 매트 카퍼 글로우 그림자 추가(후보 A `--st-shadow`, §8.2) |
 | 마이크로 인터랙션 | v3 승계 — hover 140ms / press 120ms / enter 200ms, `cubic-bezier(0.2,0,0,1)`. reduced-motion 전역 0ms |
 | 불변 승계 | 다크 기본+라이트 토글·부팅 시퀀스(색값만 v4)·상태 6종 3요소·tabular-nums·고정 높이·44px·hex 금지·`--mml-status-*` 간접층·`motorKindColors` |
 
@@ -73,10 +83,14 @@ bg+비-형광 카퍼로 애시드 시그니처 불성립). **1순위 A 유지 �
 성격(모노 디스플레이+휴머니스트 본문)과 온기 있는 모던함을 동시에 보여주며, 측정 도구라는 서비스
 본질과의 결속이 세 후보 중 가장 강함".
 
-**이번 라운드 범위**: 색 팔레트(원시 토큰·시맨틱 매핑·대비 검증)만 v4로 교체한다. 형태 언어(컷코너
-버튼·radius 0/4/8/20)·타이포 페어링·밀도(spacing 8)·컴포넌트 구조·모션 토큰은 v3 승계 — 후보 A가
-스타일 타일에서 원래 함께 제안했던 "소프트라운드 12px·조밀 6px" 형태/밀도 축은 이번 리컬러에
-반영하지 않는다(별도 라운드 결정 대상, 사용자가 명시적으로 재요청할 때 착수).
+**이번 라운드 범위(v4 당시)**: 색 팔레트(원시 토큰·시맨틱 매핑·대비 검증)만 v4로 교체했다. 형태
+언어(컷코너 버튼·radius 0/4/8/20)·타이포 페어링·밀도(spacing 8)·컴포넌트 구조·모션 토큰은 v3
+승계 — 후보 A가 스타일 타일에서 원래 함께 제안했던 "소프트라운드 12px·조밀 6px" 형태/밀도 축은
+당시 반영하지 않았다.
+
+> **v4.1 후속**: 위 범위 제한이 스코핑 결함이었다 — 사용자가 실기기에서 색만 바뀌고 나머지가 그대로임을
+> 발견했다. v4.1(§3.1·§5.1·§8·§9)에서 후보 A의 남은 4축(타이포·밀도·형태·컴포넌트 형태)을 마저
+> 반영했다. 이 절(§1.0-v4)은 v4 당시 기록으로 보존한다 — 색 관련 판정·근거는 그대로 유효하다.
 
 **motorKindColors 공존 점검** (뱃지 색·hex 무변경, 보존 계약): 시그니처 코퍼(`copper400` `#FF8A3D`,
 hue≈24°)가 `torque` 뱃지(`#E8710A`, hue≈28°)와 근접 — 뱃지는 항상 라벨 병행(REQ-NFR-003)이라
@@ -222,11 +236,23 @@ status enum·`measureStatusTokens` export 형태(fg/bg/valueFg/icon)·`var(--mml
 5. S1 히어로 존의 베젤(hairlineStrong 링)·비네트(`--mml-hero-vignette`)·레드라인 밴드는 전부
    장식(`aria-hidden`) — 상태 판별에 관여하지 않는다.
 
-## 3. 타이포그래피 (v3 승계 — 색 변경 없음)
+## 3. 타이포그래피 (v4.1: 디스플레이/본문 2패밀리 분리 신설 — 색은 무변경)
 
-### 3.1 폰트 스택
-시스템 폰트 유지(웹폰트 기본 금지 — DS-A2). 스택은 v1 그대로. 숫자 전용 가변 폰트는 §3.6
-OPTION-F1(채택 완료).
+### 3.1 폰트 스택 — 3계 구조 (v4.1)
+시스템 폰트 유지(웹폰트 기본 금지 — DS-A2, 후보 A도 시스템 스택만 사용해 동일 원칙). **v4.1**:
+후보 A의 타이포 축("모노스페이스 디스플레이 + 휴머니스트 본문, 2패밀리 분리, 위계는 크기·웨이트
+대비")을 반영해 `displayFontStack`을 신설한다. 기존 `numericFontStack`(OPTION-F1, §3.6)과
+역할이 겹치지 않도록 아래 표로 경계를 명시한다 — **중복 아님, 완전 분리**: 하나는 '헤딩', 하나는
+'계기 숫자'.
+
+| 스택 | 값 | 적용 범위 | 근거 |
+|---|---|---|---|
+| `displayFontStack`(v4.1 신규) | `"SFMono-Regular", "Roboto Mono", ui-monospace, Menlo, Consolas, monospace` | **h1(페이지 타이틀)·h2(섹션 헤딩)만** | 후보 A `--st-font-display`. 후보 A `index.html` 템플릿에서 이 변수가 실제로 걸리는 두 셀렉터(`.st-display`·`.st-h2`)만 근거로 확정 — 라벨(`.st-label`)·본문(`.st-body`)·버튼·인풋·표는 전부 `--st-font-body`를 쓴다(템플릿 CSS 확인, 육안 추정 아님) |
+| 본문 스택(무변경) | `-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, 'Noto Sans KR', 'Malgun Gothic', sans-serif` | body1/body2/caption/**overline**/button/**listValue**/**fanoValue**/입력·버튼 라벨/S1 메타 행 | 후보 A `--st-font-body`(제네릭 휴머니스트)를 그대로 쓰지 않고 기존 한글 폴백 포함 스택을 유지 — **원칙 대비 근거**: 서비스가 한국어 UI라 `Noto Sans KR`/`Malgun Gothic` 폴백이 없으면 한글 렌더가 시스템 기본 세리프/미스매치 폰트로 깨질 위험이 있다. 값은 사실상 동등한 휴머니스트 산세리프 계열이라 시각적 차이는 없다 |
+| `numericFontStack`(§3.6, 무변경) | `'Oxanium Variable', system-ui, sans-serif` | `rpmValue`·`guideRange`만(S1 계기 초대형 숫자·`guideRange`) | OPTION-F1(RV-4 채택 완료) — displayFontStack과 적용 지점이 전혀 겹치지 않는다(하나는 텍스트 헤딩, 하나는 숫자 전용 가변 폰트) |
+
+overline·listValue·fanoValue·button은 모두 본문 스택을 유지한다 — 후보 A 템플릿의 `.st-label`이
+`--st-font-display`를 쓰지 않는 것과 정합.
 
 ### 3.2 수치 토큰 4종 (v3 값 — 전부 tabular-nums 유지)
 
@@ -244,11 +270,11 @@ OPTION-F1(채택 완료).
 
 | variant | 값 |
 |---|---|
-| h1 (페이지 타이틀) | clamp(28px,7vw,34px) w800 ls-0.02em lh1.15 |
-| h2 (섹션) | 18px w700 ls-0.01em |
-| overline | 11px w700 자간 0.12em — 편집 오버라인(카드 인덱스 "01"·메타 라벨·게이지 캡션) |
-| button | 1rem w700 자간 0.01em(large 1.0625rem·자간 0.02em) |
-| body1/body2/caption | v1 승계 |
+| h1 (페이지 타이틀) | clamp(28px,7vw,34px) w800 ls-0.02em lh1.15, **fontFamily: `displayFontStack`(v4.1)** |
+| h2 (섹션) | 18px w700 ls-0.01em, **fontFamily: `displayFontStack`(v4.1)** |
+| overline | 11px w700 자간 0.12em — 편집 오버라인(카드 인덱스 "01"·메타 라벨·게이지 캡션). 본문 스택 유지(§3.1) |
+| button | 1rem w700 자간 0.01em(large 1.0625rem·자간 0.02em). 본문 스택 유지(§3.1) |
+| body1/body2/caption | v1 승계, 본문 스택 유지 |
 
 다크 `-webkit-font-smoothing: antialiased` 유지(§8 CssBaseline).
 
@@ -273,23 +299,79 @@ OPTION-F1(채택 완료).
 | 분산 큼 보조 문구(S5) | `text.secondary` 중립 | 무변경 |
 | **motorKindColors(뱃지)** | 실물 엔드벨 색 — 상태·경고가 아닌 물리 제품 식별색. 항상 라벨 텍스트 병행이라 색 단독 구분 아님(REQ-NFR-003) | **무변경**(hex·bg·fg·border 전량 유지). v4 팔레트와의 공존 점검은 §1.0-v4 부록 |
 
-## 5. 간격·크기 토큰 (v3 값 — 색 변경 없음)
+## 5. 간격·크기 토큰 (v4.1: 밀도·형태 축 반영 — §5.1·radius 체계 갱신)
 
-- spacing 8px base·`contentMaxWidth` 480·`touchTargetMin` **44px**·`formControlHeight` 48·버튼
-  48/56·행 ≥56·`bottomNavHeight` 56+safe-area·safe-area 변수 — 전량 승계.
+- MUI `spacing` 유닛 **8px 그대로 유지**(전역 미변경 — 근거는 §5.1)·`contentMaxWidth` 480·
+  `touchTargetMin` **44px**·`formControlHeight` 48·버튼 48/56·행 ≥56·`bottomNavHeight`
+  56+safe-area·safe-area 변수 — 전량 승계, 이번 라운드 무변경.
 - `measureValueMinHeight` = `clamp(224px, 66vw, 300px)`(게이지 확대 후속 재클램프 — 고정 높이
   계약은 유지, §3.2).
-- `layoutTokens` additive 키: `sectionGap: 40`(섹션 간 수직 여백), `cardPad: 20`(카드 내부 패딩).
-- radius 체계(v3): **0 = 버튼(컷코너)·세그먼트** · **4 = 카드·인풋(shape.borderRadius)** ·
-  **8 = 다이얼로그** · **20 = 바텀시트 상단**. 이번 v4는 색만 교체하므로 radius 체계는 무변경
-  (후보 A의 "소프트라운드 12px" 형태 제안은 이번 라운드 범위 밖 — §1.0-v4).
+- `layoutTokens` additive 키(**v4.1 값 갱신**): `sectionGap: 32`(v4: 40 → v4.1: 32, 8×4 — 밀도
+  전략 §5.1), `cardPad: 16`(v4: 20 → v4.1: 16, 8×2).
+- radius 체계(**v4.1 갱신** — 후보 A 소프트라운드 축 반영, DS-A20): **12 = 버튼·인풋·카드
+  (`shapeTokens.radius` = `theme.shape.borderRadius`, 후보 A `--st-radius`)** · **8 = 다이얼로그**
+  (무변경 — 후보 A가 다이얼로그 축을 다루지 않아 기존 값 승계, 12보다 각진 위계로 의도적 차등) ·
+  **20 = 바텀시트 상단**(무변경). **범위 밖(이번 라운드 미반영)**: 세그먼트(`ToggleButtonGroup`)·
+  바텀탭·`VoltageStepper`·`SegmentControl` 등 기존 0-radius(직각) 컴포넌트군과 S1 히어로 베젤
+  링(radius 4, §9.4)은 요구 범위(버튼·인풋·카드 3종)를 넘어 이번 라운드에서 건드리지 않는다 —
+  직각·소프트라운드 혼재가 과도기 상태로 남는다(다음 라운드 정리 대상으로 기록, §10).
+- ~~컷코너(clip-path polygon)~~ 버튼 형태는 v4.1로 폐기됐다. `shapeTokens.cutCorner`/
+  `cutCornerLg` 값은 **보존**(롤백용 + `MotorDetailPage.tsx`의 개별 참조 — 그 파일은 v4.1
+  동기화 시 소프트라운드로 교체 대상, §8.2·§10) — 전역 버튼 시스템은 더 이상 참조하지 않는다.
+- 그림자(형태 언어 3요소 중 하나): 매트 카퍼 글로우(후보 A `--st-shadow`) — 카드류(`MuiPaper`
+  `outlined`)에 신규 배선. dark `0 4px 20px rgba(255,138,61,0.14), 0 1px 2px rgba(0,0,0,0.4)`
+  (후보 A 값 그대로) / light `0 4px 16px rgba(184,92,30,0.10), 0 1px 2px rgba(36,28,22,0.06)`
+  (v4.1 신규 결정 — 근거: 후보 A는 다크 대표값만 제공, 라이트는 순검정 고알파 그림자 대신
+  copper700 계열 저알파 글로우 + 저알파 웜뉴트럴 근접 그림자로 재구성해 밝은 표면에서 그림자가
+  과중하게 읽히는 문제를 피했다). 보더는 이미 1px(얇음) — 변경 불요.
+- 버튼(v4.1): `contained` = 소프트라운드 12px, 표준 MUI 배경 모델(clip-path 이중층 폐기) + hover
+  밝기/침강 + (다크) 코퍼 글로우, press scale 0.98 유지. `outlined`/`text` = 형태만 12px로
+  갱신, 나머지 규칙 무변경(§8.2·§9.1).
+
+### 5.1 밀도 전략 — v4.1 결정 (후보 A `--st-space: 6px` 적용 방식과 근거)
+
+**결정: 컴포넌트/토큰 국소 오버라이드 — MUI 전역 `spacing` 유닛(8)은 바꾸지 않는다.**
+
+이유:
+1. `theme.spacing(n)`을 경유하는 `sx` 숏핸드(`p`/`m`/`gap`/`px`/`mx` 등 숫자 prop)는 FSD 전역
+   30~50+ 파일에 흩어져 있다. 전역 유닛을 8→6으로 내리면 이 라운드에서 리뷰하지 않은 모든
+   sx 숏핸드 지점이 **동시에, 조용히** 25% 줄어든다 — `srOnlySx`(§8.1) 주석이 기록한 v2.15
+   사고(단위 없는 숫자 sx prop이 `theme.spacing()` 배수로 조용히 해석되어 `BottomSheet`에
+   실제 가로 스크롤 버그가 난 전례)가 정확히 이 클래스의 리스크를 실증한다. 이번 라운드는
+   design-system.md 한 파일만 수정하는 CHANGE_BUDGET이라 그 30~50+ 파일을 전수 검증할 수 없다.
+2. `layoutTokens`(formControlHeight·bottomNavHeight·sectionGap·cardPad·measureValueMinHeight
+   등)는 이미 `theme.spacing()`을 거치지 않는 raw px 상수다 — 즉 앱의 핵심 레이아웃 리듬과
+   44px 타깃 계약은 애초에 MUI spacing 유닛과 독립이라, 유닛을 바꿔도 이 불변식들은 전혀
+   영향받지 않는다(바꿔서 얻는 이득이 없다 — 이득 없이 전역 리스크만 지는 셈).
+3. 후보 A `README.md` 자신이 "타일 단일 토큰이 요소/그룹/섹션 3단 간격을 동시에 표현해야
+   하는 제약 속의 근접값 — 실제 토큰화 시 4/8/12/16/24/32 전 스케일로 환원"이라고 명시한다.
+   6px 리터럴 고수를 후보 자신도 요구하지 않는다.
+
+대신 조밀함은 8pt 스케일(design-principles-spacing-layout.md 준수) 안에서 **명명된 토큰**으로
+국소 반영한다:
+- `layoutTokens.cardPad`: 20 → **16**(8×2) — 카드 내부 패딩.
+- `layoutTokens.sectionGap`: 40 → **32**(8×4) — 섹션 간 여백.
+- `MuiButton`/`MuiOutlinedInput` 내부 패딩: 리터럴 px로 소폭 축소(§8.2, MUI 기본 대비 조밀) —
+  `theme.spacing()`을 경유하지 않는 CSS-in-JS 리터럴이라 전역 파급이 없다.
+
+**터치 타깃 불변식(요구 4)**: `formControlHeight`(48)·버튼 `minHeight`(48/56)·`touchTargetMin`
+(44)은 이번 조밀화에서 전혀 건드리지 않는다. 패딩 축소는 `minHeight`가 명시적으로 하한을
+고정하는 한 콘텐츠 상자를 작게 만들 뿐 실제 렌더 높이를 44px 아래로 내리지 않는다 — CSS
+`min-height`가 패딩·콘텐츠 합보다 크면 그 값으로 강제되므로 구조적으로 보장된다.
+
+**레이아웃 파손 리스크(v2.x 이력 문화 명시적 반영)**: `cardPad`/`sectionGap`은 raw px 상수이므로
+`layoutTokens` export를 실제로 참조하는 소비처만 자동으로 값이 바뀐다. 위험은 반대 방향 —
+`layoutTokens`를 우회해 `20`/`40`을 로컬 sx에 직접 하드코딩한 지점이 있다면 이번 갱신 후
+그 지점만 새 값(16/32)과 시각적으로 어긋나 보인다. 동기화 담당은 `rg
+'padding:\s*20\b|gap:\s*40\b|padding:\s*\x2740px|padding:\s*\x2720px'` 류로 `layoutTokens`
+우회 하드코딩 잔존을 먼저 확인할 것(§10).
 
 ## 6. 포커스·forced-colors·모션 (v3 구조 승계 + v4 값 갱신)
 
 | 항목 | 계약 |
 |---|---|
 | **focus ring** | 전역 `*:focus-visible { outline: 2px solid var(--mml-focus-ring); outline-offset: 2px }` 유지. 실값: dark `copper400`(인접 대비 umber950 7.78 / umber800 7.15 / copperTint 6.30 — 전부 ≥3:1), light `copper700`(white 4.58:1 — 여유 근소, DS-A18로 cream50 직접 사용 금지). **컷코너 버튼도 ring 생존** — clip-path는 ::before 배경층에만 적용, root 박스의 outline은 잘리지 않는다(§9.1) |
-| **forced-colors** | 시스템 색 승계 허용 — 상태 구분은 라벨+아이콘 보장. 컷코너 ::before 배경이 소실되므로 **버튼 root에 `border: 1px solid transparent` 가드**(forced-colors에서 ButtonText 보더로 실체화) |
+| **forced-colors** | 시스템 색 승계 허용 — 상태 구분은 라벨+아이콘 보장. **v4.1**: 컷코너 폐기로 버튼이 표준 MUI contained 배경 모델(배경색이 root에 직접 걸림)로 복귀해 `border: 1px solid transparent` 가드가 더 이상 필요 없다(그 가드는 ::before 배경층이 forced-colors에서 소실되는 문제의 대응책이었다 — DS-A13 폐기, DS-A20) — 제거 |
 | **prefers-reduced-motion** | 전역 0ms(CssBaseline) + press scale `transform: none` + 펄스 정지 점 + 진행 아크·바늘 즉시 이동 + 모드 토글 무전환 |
 | **모션 토큰** | v3 값 승계 — `hoverMs: 140` / `pressMs: 120` / `enterMs: 200` / `needleMs: 100` / `easeStandard` / `easeOut` / `stableTransitionMs: 400` / `pulsePeriodMs: 1200` |
 | **미세 규정** | hover: 배경/보더 밝기 전환 140ms + (dark primary 한정) **코퍼 글로우** box-shadow. press: `scale(0.98)` 120ms. 카드 hover: 보더 hairline→hairlineStrong. 탭 활성: 상단 2px **코퍼** 인디케이터. 전부 CSS transition — JS/라이브러리 금지 |
@@ -426,6 +508,9 @@ export const color = {
   stone100: '#F1E9DD', // divider·suspended 배경
   cream50: '#FBF6F1', //  background.default(후보 A 제안값)
   white: '#FFFFFF',
+  // v4.1 신규 — 카드류 매트 그림자(light) 글로우 성분. 후보 A는 다크 대표값만 제공해 라이트는
+  // 신규 결정: copper700 계열 저알파(순검정 고알파 대신 — §5 근거). 장식(대비 요건 비대상).
+  copperShadowL: 'rgba(184, 92, 30, 0.10)',
 } as const
 
 /* ------------------------------------------------------------------ *
@@ -446,7 +531,7 @@ export const darkColor = {
   copper300: '#FF9D5C', // primary.dark — hover/pressed 상승
   copperTint: '#382316', // stable 배경 tint (shift-light 잠금면)
   copperGlow: 'rgba(255, 138, 61, 0.25)', // primary hover 글로우 (장식)
-  copperShadow: 'rgba(255, 138, 61, 0.14)', // v4 additive(선택, 미배선) — 후보 A --st-shadow 컬러 성분
+  copperShadow: 'rgba(255, 138, 61, 0.14)', // v4.1: MuiPaper outlined에 배선 완료(§8.2) — 후보 A --st-shadow 컬러 성분, `0 4px 20px ${copperShadow}, 0 1px 2px rgba(0,0,0,0.4)`로 조합
   amber400: '#FFD400', // warning — weak-signal·저장 불가 전용 (v4: hue 42°→50°로 이동)
   amberTint: '#332B10',
   red400: '#FF6B5A', //  error — destructive·no-permission·레드라인 밴드(장식)(후보 A --st-danger)
@@ -543,6 +628,14 @@ export const buildModeCssVars = (scheme: 'dark' | 'light'): Record<string, strin
 // 대형 디스플레이 수치(rpmValue·guideRange)에만 적용 — 본문·라벨·목록 수치는 시스템 스택 유지.
 export const numericFontStack = "'Oxanium Variable', system-ui, sans-serif"
 
+/**
+ * v4.1 신규 — 후보 A `--st-font-display`(시스템 모노스페이스, "기계식 크로노그래프" 서사).
+ * 적용은 h1(페이지 타이틀)·h2(섹션 헤딩)만(theme.ts typography, §3.1) — numericFontStack과
+ * 역할이 겹치지 않는다(하나는 헤딩 텍스트, 하나는 S1 계기 숫자 전용). 웹폰트 아님 — 전부
+ * 시스템 설치 폰트 스택(DS-A2 승계).
+ */
+export const displayFontStack = '"SFMono-Regular", "Roboto Mono", ui-monospace, Menlo, Consolas, monospace'
+
 export const numericTypography = {
   /** S1 파노 대형 수치·weak-signal "—" — 상태 간 동일 크기 */
   rpmValue: {
@@ -578,7 +671,7 @@ export const numericTypography = {
 } as const
 
 /* ------------------------------------------------------------------ *
- * 4. 레이아웃·형태·모션 토큰 (v4: 색 변경 없음 — 값 v3 승계)
+ * 4. 레이아웃·형태·모션 토큰 (v4.1: cardPad·sectionGap·shapeTokens.radius 갱신 — §5·§5.1. 나머지 값 v3 승계)
  * ------------------------------------------------------------------ */
 export const layoutTokens = {
   /** 전 화면 콘텐츠 max-width — 태블릿/데스크탑 동일 레이아웃 중앙 정렬 */
@@ -595,18 +688,28 @@ export const layoutTokens = {
   /** S1 중앙 수치 영역 고정 높이 — 6-status 전부 동일 (layout shift 금지, DS-A3).
    *  게이지 확대 후속 재클램프 — 계약(전 status 동일 높이)은 불변. */
   measureValueMinHeight: 'clamp(224px, 66vw, 300px)',
-  /** 섹션 간 수직 여백 (px) */
-  sectionGap: 40,
-  /** 카드 내부 패딩 (px) */
-  cardPad: 20,
+  /** 섹션 간 수직 여백 (px) — v4.1: 40 → 32(8×4), 밀도 전략 §5.1 */
+  sectionGap: 32,
+  /** 카드 내부 패딩 (px) — v4.1: 20 → 16(8×2), 밀도 전략 §5.1 */
+  cardPad: 16,
   safeAreaTop: 'var(--mml-safe-top)',
   safeAreaBottom: 'var(--mml-safe-bottom)',
 } as const
 
-/** 컷코너 버튼 형태 (::before clip-path 전용, §9.1. root에 직접 clip 금지 — focus ring 보존). v4: 무변경 */
+/**
+ * v4.1(DS-A20, §5): 전역 버튼 시스템은 컷코너를 더 이상 쓰지 않는다 — 후보 A 소프트라운드
+ * 12px 채택. cutCorner/cutCornerLg 값은 **롤백·개별 참조용으로 보존**한다(삭제 금지):
+ * `MotorDetailPage.tsx`가 이 clip-path를 outlined 보조 버튼 하나에 직접 import해 쓰고 있어
+ * 삭제하면 그 파일이 컴파일 에러로 깨진다 — 그 파일은 v4.1 동기화 시 소프트라운드로 교체
+ * 대상이다(§8.2 이식 주의, §10). `radius`는 버튼·인풋·카드 3종이 공유하는 신규 형태 토큰이며
+ * `theme.shape.borderRadius`와 같은 값(12)을 별도 이름으로도 노출한다 — 컴포넌트 override에서
+ * `theme.shape.borderRadius` 대신 명시적 상수를 참조하고 싶은 지점(root sx 직접 소비 등)을 위함.
+ */
 export const shapeTokens = {
-  cutCorner: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)',
-  cutCornerLg: 'polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)',
+  cutCorner: 'polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px)', // DEPRECATED — 전역 버튼 미사용(v4.1)
+  cutCornerLg: 'polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px)', // DEPRECATED — 전역 버튼 미사용(v4.1)
+  /** v4.1 신규 — 버튼·인풋·카드 공통 소프트라운드(후보 A `--st-radius`, §5). 다이얼로그(8)·시트 상단(20)은 별도 값 유지 — 여기 포함 안 됨 */
+  radius: 12,
 } as const
 
 /**
@@ -656,15 +759,18 @@ export const motionTokens = {
 
 ```ts
 // src/app/theme.ts
-// design-system.md v4 §8.2 — 토큰 정의는 src/shared/config/design-tokens.ts가 canonical (app→shared 방향).
+// design-system.md v4.1 §8.2 — 토큰 정의는 src/shared/config/design-tokens.ts가 canonical (app→shared 방향).
 // 소비 규칙: 컴포넌트에서 hex 직접 사용 금지. theme.palette/theme.vars 또는 design-tokens export 경유.
-// v4: Pit-Wall Amber 리컬러 — 웜틴트 카본(umber) + 시그니처 코퍼(copper) 1색 + 컷코너 버튼(v3 승계).
-// colorSchemes 2벌 구조·컴포넌트 오버라이드 구조 전부 불변 — 참조하는 토큰 키만 v4로 갱신.
+// v4: Pit-Wall Amber 리컬러 — 웜틴트 카본(umber) + 시그니처 코퍼(copper) 1색.
+// v4.1: 시안 A 5축 완결 — 디스플레이 헤딩 모노스페이스(h1/h2)·소프트라운드 12px(버튼·인풋·카드,
+// 컷코너 폐기)·카드 매트 카퍼 글로우 그림자·밀도 국소 조정(cardPad/sectionGap/버튼·인풋 패딩).
+// colorSchemes 2벌 구조는 불변 — 컴포넌트 오버라이드 구조는 버튼/인풋/카드에 한해 v4.1로 갱신.
 import { createTheme } from '@mui/material/styles'
 import {
   buildModeCssVars,
   color,
   darkColor,
+  displayFontStack,
   motionTokens,
   shapeTokens,
 } from '@shared/config/design-tokens'
@@ -711,16 +817,17 @@ export const theme = createTheme({
   typography: {
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, 'Noto Sans KR', 'Malgun Gothic', sans-serif",
-    h1: { fontSize: 'clamp(1.75rem, 7vw, 2.125rem)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 },
-    h2: { fontSize: '1.125rem', fontWeight: 700, letterSpacing: '-0.01em' },
+    // v4.1(§3.1): 디스플레이 2종만 모노스페이스 — 본문·라벨·버튼·인풋은 위 기본 휴머니스트 스택 그대로.
+    h1: { fontFamily: displayFontStack, fontSize: 'clamp(1.75rem, 7vw, 2.125rem)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 },
+    h2: { fontFamily: displayFontStack, fontSize: '1.125rem', fontWeight: 700, letterSpacing: '-0.01em' },
     body1: { fontSize: '1rem', lineHeight: 1.5 },
     body2: { fontSize: '0.875rem', lineHeight: 1.45 },
     caption: { fontSize: '0.75rem' },
-    overline: { fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.12em', lineHeight: 1.4 },
-    button: { fontSize: '1rem', fontWeight: 700, letterSpacing: '0.01em', textTransform: 'none' },
+    overline: { fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.12em', lineHeight: 1.4 }, // 본문 스택 유지(§3.1)
+    button: { fontSize: '1rem', fontWeight: 700, letterSpacing: '0.01em', textTransform: 'none' }, // 본문 스택 유지(§3.1)
   },
-  spacing: 8,
-  shape: { borderRadius: 4 }, // v3 승계: 버튼은 0+컷코너, 다이얼로그 8, 시트 상단 20
+  spacing: 8, // v4.1: 전역 유닛 미변경 — 밀도는 국소 오버라이드로 반영(§5.1 근거)
+  shape: { borderRadius: shapeTokens.radius }, // v4.1: 4 → 12 — 버튼·인풋·카드 소프트라운드(§5, DS-A20). 다이얼로그 8·시트 상단 20은 개별 override로 별도 유지
   components: {
     MuiCssBaseline: {
       styleOverrides: (t) => ({
@@ -748,20 +855,22 @@ export const theme = createTheme({
       }),
     },
     /* -------------------------------------------------------------- *
-     * 버튼 (v3 구조 승계 — §9.1)
-     * contained = 컷코너: clip-path는 ::before 배경층에만 — root outline(focus ring) 생존.
-     * ripple 대신 press scale 피드백 (사각 ripple이 컷코너 밖으로 새는 문제 회피).
-     * forced-colors: ::before 배경 소실 대비 — root의 transparent 보더가 ButtonText로 실체화.
+     * 버튼 (v4.1: 컷코너 폐기 — 후보 A 소프트라운드 12px, §5·DS-A20)
+     * clip-path ::before 이중층 구조를 걷어내고 표준 MUI contained/outlined/text 배경 모델로
+     * 복귀 — background-color가 root에 직접 걸리므로 forced-colors 실루엣 가드(구 transparent
+     * border)가 더 이상 필요 없다(그 가드는 ::before 배경이 forced-colors에서 사라지는 문제의
+     * 대응책이었다 — DS-A13 폐기). ripple은 계속 비활성(press scale 피드백 유지, v3 승계).
+     * 패딩은 v4.1 밀도 전략(§5.1)에 따라 리터럴 px로 소폭 축소 — theme.spacing() 비경유라
+     * 전역 파급 없음.
      * -------------------------------------------------------------- */
     MuiButton: {
       defaultProps: { disableElevation: true, disableRipple: true },
       styleOverrides: {
         root: {
           minHeight: 48,
-          borderRadius: 0,
-          border: '1px solid transparent', // forced-colors 실루엣 가드 (§6)
+          borderRadius: shapeTokens.radius, // v4.1: 0(컷코너) → 12(소프트라운드)
+          padding: '10px 20px', // v4.1 밀도(§5.1): MUI 기본보다 소폭 조밀 — minHeight가 44px 하한을 별도 보장
           position: 'relative',
-          isolation: 'isolate',
           transition: `transform ${motionTokens.pressMs}ms ${motionTokens.easeStandard}, box-shadow ${hoverTransition}, border-color ${hoverTransition}, background-color ${hoverTransition}, color ${hoverTransition}`,
           '&:active': { transform: 'scale(0.98)' },
           '@media (prefers-reduced-motion: reduce)': { '&:active': { transform: 'none' } },
@@ -770,40 +879,20 @@ export const theme = createTheme({
           minHeight: 56,
           fontSize: '1.0625rem',
           letterSpacing: '0.02em',
-          '&::before': { clipPath: shapeTokens.cutCornerLg },
+          padding: '14px 24px', // v4.1 밀도(§5.1)
         },
-        contained: ({ theme: t }) => ({
-          backgroundColor: 'transparent', // 실제 면은 ::before가 그린다
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            inset: -1, // transparent 보더 두께 보상 — 컷코너 면이 박스를 정확히 덮는다
-            zIndex: -1,
-            clipPath: shapeTokens.cutCorner,
-            transition: `background-color ${hoverTransition}, filter ${hoverTransition}`,
-          },
-          '&:hover': { backgroundColor: 'transparent' },
-          '&.Mui-disabled': {
-            backgroundColor: 'transparent',
-            color: (t.vars ?? t).palette.text.disabled,
-            '&::before': { backgroundColor: (t.vars ?? t).palette.action.disabledBackground },
-          },
-        }),
+        // contained/containedError의 배경·라벨색은 MUI 표준 palette 매핑(disableElevation로 그림자만 제거) —
+        // v3처럼 별도로 backgroundColor를 재선언할 필요 없음(컷코너 ::before 폐기로 표준 경로 복귀).
         containedPrimary: ({ theme: t }) => ({
-          color: (t.vars ?? t).palette.primary.contrastText,
-          '&::before': { backgroundColor: (t.vars ?? t).palette.primary.main },
-          // hover: 다크 = 밝기 상승(copper300) + 코퍼 글로우 / 라이트 = 침강(copper800)
-          '&:hover::before': { backgroundColor: (t.vars ?? t).palette.primary.dark },
+          // hover: 다크 = 밝기 상승(copper300) + 코퍼 글로우 / 라이트 = 침강(copper800) — v3 승계
           ...t.applyStyles('dark', {
             '&:hover': { boxShadow: `0 0 24px ${darkColor.copperGlow}` },
           }),
         }),
-        containedError: ({ theme: t }) => ({
-          color: (t.vars ?? t).palette.error.contrastText,
-          '&::before': { backgroundColor: (t.vars ?? t).palette.error.main },
-          '&:hover::before': { filter: 'brightness(1.08)' },
-        }),
-        // secondary 위계 — 직각 사각 + 1px 보더 (컷코너는 contained 전용, DS-A13)
+        containedError: {
+          '&:hover': { filter: 'brightness(1.08)' },
+        },
+        // secondary 위계 — 소프트라운드 12px + 1px 보더(v4.1: 직각 → 라운드, 그 외 무변경)
         outlined: ({ theme: t }) => ({
           color: (t.vars ?? t).palette.text.primary,
           borderColor: 'var(--mml-outline)',
@@ -812,7 +901,7 @@ export const theme = createTheme({
             backgroundColor: (t.vars ?? t).palette.action.hover,
           },
         }),
-        // tertiary 위계 — 시그니처 텍스트 + hover 밑줄
+        // tertiary 위계 — 시그니처 텍스트 + hover 밑줄 (형태 축 무관 — 무변경)
         text: ({ theme: t }) => ({
           color: (t.vars ?? t).palette.primary.main,
           '&:hover': {
@@ -829,13 +918,16 @@ export const theme = createTheme({
     },
     MuiToggleButtonGroup: {
       defaultProps: { fullWidth: true, exclusive: true },
-      styleOverrides: { root: { borderRadius: 0 } }, // 세그먼트 = 직각 (버튼 체계와 정합)
+      // v4.1: 의도적으로 직각 유지(0) — 세그먼트는 이번 라운드 범위 밖(§5 "범위 밖" 목록).
+      // 더 이상 "버튼 체계와 정합"은 아니다(버튼은 12px로 바뀜) — 과도기적 직각·라운드 혼재,
+      // 다음 라운드 정리 대상.
+      styleOverrides: { root: { borderRadius: 0 } },
     },
     MuiToggleButton: {
       styleOverrides: {
         root: ({ theme: t }) => ({
           minHeight: 44,
-          borderRadius: 0,
+          borderRadius: 0, // v4.1: 무변경(범위 밖) — 위 MuiToggleButtonGroup 주석 참조
           textTransform: 'none',
           fontWeight: 600,
           letterSpacing: '0.01em',
@@ -886,6 +978,8 @@ export const theme = createTheme({
       },
     },
     MuiDialog: {
+      // v4.1: 8 무변경 — 후보 A는 다이얼로그 축을 정의하지 않아 기존 값 승계, 12(카드)보다
+      // 의도적으로 각진 위계 차등 유지(§5).
       styleOverrides: { paper: { borderRadius: 8, margin: 16 } },
     },
     MuiDialogActions: {
@@ -929,8 +1023,23 @@ export const theme = createTheme({
         }),
       },
     },
+    /*
+     * v4.1 주의(구현 담당 필독, §10): 실제 앱 폼 필드의 보더는 이 컴포넌트가 그리지 않는다 —
+     * `shared/ui/form-field/FormField.tsx`와 `shared/ui/voltage-stepper/VoltageStepper.tsx`가
+     * `.MuiOutlinedInput-notchedOutline`을 `border: 0`으로 직접 꺼버리고 자기 Box가 테두리를
+     * 소유한다(라벨-위 레이아웃 채택 당시 설계, v2.13 — FormField.tsx 주석 참조). 그 결과 여기
+     * root/notchedOutline의 radius를 12로 올려도 **화면에는 반영되지 않는다** — FormField.tsx·
+     * VoltageStepper.tsx의 감싸는 Box(`border: '1px solid'`)에 `borderRadius: shapeTokens.radius`
+     * (12)를 직접 추가해야 시안 A의 인풋 형태 언어가 실제로 보인다. 그 두 파일은
+     * design-system.md 범위 밖(§10 하류 지시) — 이 오버라이드는 그 두 컴포넌트를 쓰지 않는
+     * 잔여 TextField(있다면)에만 유효하다.
+     */
     MuiOutlinedInput: {
-      styleOverrides: { notchedOutline: { borderColor: 'var(--mml-outline)' } },
+      styleOverrides: {
+        root: { borderRadius: shapeTokens.radius }, // v4.1: 소프트라운드 12px(§5)
+        notchedOutline: { borderColor: 'var(--mml-outline)' },
+        input: { padding: '12px 14px' }, // v4.1 밀도(§5.1): MUI 기본(16.5px)보다 소폭 조밀
+      },
     },
     MuiRadio: {
       styleOverrides: { root: { padding: 10 } }, // 24px 아이콘 + 20px 패딩 = 44px 타깃
@@ -939,10 +1048,16 @@ export const theme = createTheme({
       styleOverrides: { root: { padding: 10 } },
     },
     MuiPaper: {
-      defaultProps: { elevation: 0 }, // 카드류 기본 무그림자 — variant="outlined" (다크: 헤어라인 보더)
+      defaultProps: { elevation: 0 }, // 카드류 기본 — variant="outlined"(1px 보더, v4.1: + 매트 그림자)
       styleOverrides: {
+        root: { borderRadius: shapeTokens.radius }, // v4.1: 소프트라운드 12px(§5). Dialog/Drawer는 자체 paper override로 별도 유지(8/20) — variant="outlined"를 쓰지 않아 무영향
         outlined: ({ theme: t }) => ({
-          transition: `border-color ${hoverTransition}`,
+          transition: `border-color ${hoverTransition}, box-shadow ${hoverTransition}`,
+          // v4.1(§5): 매트 카퍼 글로우 그림자(후보 A --st-shadow) — 카드류 전용, outlined variant만
+          boxShadow: `0 4px 20px ${darkColor.copperShadow}, 0 1px 2px rgba(0, 0, 0, 0.4)`,
+          ...t.applyStyles('light', {
+            boxShadow: `0 4px 16px ${color.copperShadowL}, 0 1px 2px rgba(36, 28, 22, 0.06)`,
+          }),
           // hover 시 헤어라인 승격 — 카드 인터랙션 미세 피드백 (다크 전용 장식)
           ...t.applyStyles('dark', {
             '&:hover': { borderColor: darkColor.hairlineStrong },
@@ -980,38 +1095,68 @@ export const theme = createTheme({
    이식 후 `rg 'carbon9|carbon8|carbon7|chalk100|smoke2|smoke4|smoke6|smoke7|lime4|lime3|limeTint|limeGlow|gray9|gray7|gray6|gray5|gray3|gray1|gray50|lime7|lime8' src/`로 잔존 참조 0 확인.
 10. 버튼 ripple 비활성(`disableRipple`) — press 피드백은 scale(0.98)이 담당. IconButton·
     ToggleButton의 ripple은 유지(사각형이라 문제 없음).
-11. `copperShadow`는 이번 v4에서 theme.ts에 배선하지 않은 **선택 토큰**이다 — 카드/CTA 정지
-    그림자를 후보 A 형태 언어대로 살리고 싶다면 별도 결정으로 `MuiPaper`/`MuiButton`
-    `boxShadow`에 `` `0 4px 20px ${darkColor.copperShadow}, 0 1px 2px rgba(0,0,0,0.4)` `` 형태로
-    추가한다(라이트는 미정의 — 후보 A가 다크 대표값만 제공).
+11. **v4.1로 배선 완료**: `copperShadow`(dark)·`copperShadowL`(light)는 이제 `MuiPaper`
+    `outlined`에 배선돼 있다(카드류 전용, §8.2) — 더 이상 "선택 토큰"이 아니다. 버튼에는
+    의도적으로 배선하지 않았다(후보 A 템플릿의 `--st-shadow`는 `.st-card`에만 걸리고
+    버튼 CSS에는 없음 — 근거는 candidate-a/index.html).
+12. **v4.1 신규**: 컷코너 버튼 폐기 — `shapeTokens.cutCorner`/`cutCornerLg`는 전역 버튼
+    시스템에서 더 이상 참조되지 않는다(값은 보존, DS-A20). `border: 1px solid transparent`
+    forced-colors 가드도 함께 제거됐다(§6) — 표준 MUI contained 배경 모델은 이 가드가 불요.
+13. **v4.1 신규**: `MotorDetailPage.tsx`의 "레이스 보기" 버튼(수동 컷코너 outlined 복제 —
+    `shapeTokens.cutCorner`를 `::before`/`::after` 2겹으로 직접 참조)은 전역 버튼이
+    소프트라운드로 바뀌면 시각적으로 어긋난다(그 페이지만 컷코너로 남는다). 표준
+    `variant="outlined"`(자동 12px 라운드) 또는 `borderRadius: shapeTokens.radius` 적용으로
+    교체할 것 — **필수 동기화 항목**(§10).
+14. **v4.1 신규**: `shared/ui/form-field/FormField.tsx`·`shared/ui/voltage-stepper/
+    VoltageStepper.tsx`는 `.MuiOutlinedInput-notchedOutline`을 꺼두고 자체 Box 테두리를
+    그린다(§8.2 MuiOutlinedInput 주석) — 그 Box에 `borderRadius: shapeTokens.radius`를
+    추가해야 인풋 폼이 실제로 소프트라운드로 보인다. theme.ts만 갱신하고 이 두 파일을
+    건드리지 않으면 "적용됐다고 문서에는 쓰여 있지만 화면엔 안 보이는" v4와 동일한 결함이
+    재발한다 — **필수 동기화 항목**(§10).
+15. **v4.1 신규**: `SegmentControl`·`MuiToggleButtonGroup`·`BottomNavigation`·`VoltageStepper`
+    내부 스테퍼 버튼 등 기존 0-radius(직각) 컴포넌트군은 이번 라운드에서 의도적으로
+    미반영(§5 범위 밖 항목) — 직각·소프트라운드 혼재가 과도기로 남는다. 회귀가 아니라
+    스코프 결정이다.
+16. **v4.1 신규**: `layoutTokens.cardPad`(20→16)·`sectionGap`(40→32) 갱신 후
+    `rg 'padding:\s*20\b|gap:\s*40\b'` 류로 `layoutTokens`를 우회한 하드코딩(20/40 리터럴)
+    잔존 여부를 확인할 것(§5.1) — 있다면 그 지점만 새 값과 어긋나 보인다.
+17. **v4.1 신규**: `displayFontStack` import 추가 확인 — h1/h2 variant가 이 스택을 못 찾으면
+    타입 에러가 아니라 **조용히 기본 폰트로 폴백**한다(문자열 오탈자는 TS가 못 잡음) — 빌드 후
+    페이지 타이틀·섹션 헤딩이 실제로 모노스페이스로 렌더되는지 육안 확인 필수(QA gate 추가,
+    §10).
 
-## 9. 컴포넌트 인벤토리 (v2 승계 + v3 개정 + v4 값 갱신)
+## 9. 컴포넌트 인벤토리 (v2 승계 + v3 개정 + v4 색 갱신 + v4.1 형태·밀도·타이포 갱신)
 
 v1·v2 표의 매핑·FSD 위치·public props 전량 불변. v3 스타일 개정(구조)은 그대로이며, v4는 색
-참조 표현(라임→코퍼)만 갱신한다:
+참조 표현(라임→코퍼)만 갱신했다. **v4.1**은 버튼·인풋·카드 3종의 형태(소프트라운드 12px·매트
+그림자)·밀도(패딩)와 헤딩 타이포(모노 디스플레이)를 갱신한다 — 나머지 컴포넌트는 이번에도
+색/구조 참조가 theme에서 자동 전환될 뿐 개별 코드 변경은 없다(단, §8.2 이식 주의 12~14의
+예외: `MotorDetailPage.tsx`·`FormField.tsx`·`VoltageStepper.tsx`는 로컬 하드코딩 때문에
+theme만으로 전환되지 않아 수동 동기화가 필요하다):
 
-### 9.1 버튼 위계 (v3 재설계 승계 — theme이 전담, 호출부 무변경)
+### 9.1 버튼 위계 (v4.1 재설계 — 소프트라운드, theme이 전담, 호출부 무변경)
 
 | 위계 | MUI variant | 형태 | 상호작용 |
 |---|---|---|---|
-| **Primary** | `contained` color=primary | **컷코너**(10px, large 12px — livery slash), **코퍼** 면 + umber950(다크)/화이트(라이트) 라벨 w700 | hover: 다크 밝기 상승+**코퍼** 글로우 / 라이트 침강. press: scale 0.98 |
-| **Secondary** | `outlined` | 직각 사각 + 1px `--mml-outline` 보더, text.primary 라벨 | hover: 보더 승격 + action.hover 면 |
+| **Primary** | `contained` color=primary | **소프트라운드 12px**(v4.1: 컷코너 폐기, DS-A20), **코퍼** 면 + umber950(다크)/화이트(라이트) 라벨 w700, 표준 MUI 배경 모델 | hover: 다크 밝기 상승+**코퍼** 글로우 / 라이트 침강. press: scale 0.98 |
+| **Secondary** | `outlined` | 소프트라운드 12px(v4.1: 직각 → 라운드) + 1px `--mml-outline` 보더, text.primary 라벨 | hover: 보더 승격 + action.hover 면 |
 | **Tertiary** | `text` | 시그니처 텍스트 | hover: 2px 밑줄(offset 4px) |
-| **Destructive** | `contained` color=error | 컷코너, 레드 면 — **ConfirmDialog 계약 내에서만** | hover: brightness 1.08 |
+| **Destructive** | `contained` color=error | 소프트라운드 12px, 레드 면 — **ConfirmDialog 계약 내에서만** | hover: brightness 1.08 |
 
-- 구조 원칙(DS-A13): clip-path는 **::before 배경층 전용** — root 박스는 온전해서 focus ring
-  outline·글로우 box-shadow가 잘리지 않는다. root의 transparent 1px 보더는 forced-colors
-  실루엣 가드.
+- 구조 원칙(**v4.1: DS-A13 폐기, DS-A20 신설**): 컷코너 clip-path 이중층(`::before`) 구조를
+  걷어내고 표준 MUI `contained`/`outlined`/`text` 배경 모델로 복귀했다 — `borderRadius:
+  shapeTokens.radius`(12)만으로 형태가 결정되고, forced-colors 실루엣 가드(구 transparent
+  보더)도 함께 제거됐다(§6, §8.2). 값·롤백 경로는 §5·DS-A20.
 
 ### 9.2 컴포넌트 개정표
 
 | 컴포넌트 | FSD 위치 | 규칙 |
 |---|---|---|
-| **PageHeader** | `shared/ui/page-header` | props 불변(`title/onBack/actions/action`). 2단 재구성(v3): ① 유틸 행 ② 디스플레이 타이틀 행. v4는 색 참조만 자동 전환 |
-| BigNumber | `shared/ui/big-number` | 개별 베젤 없음 — 베젤은 히어로 존(MeasureFigures) 소유. `darkColor` import 없음, 순수 수치 렌더. props·"—"·sr-only 불변 |
+| **PageHeader** | `shared/ui/page-header` | props 불변(`title/onBack/actions/action`). 2단 재구성(v3): ① 유틸 행 ② 디스플레이 타이틀 행. v4는 색 참조만 자동 전환. **v4.1**: 디스플레이 타이틀 행이 `h1`(모노 `displayFontStack`) variant를 쓰면 자동 전환, 로컬에서 fontFamily를 별도 하드코딩했다면 확인 필요 |
+| BigNumber | `shared/ui/big-number` | 개별 베젤 없음 — 베젤은 히어로 존(MeasureFigures) 소유. `darkColor` import 없음, 순수 수치 렌더. props·"—"·sr-only 불변. numericFontStack 계기 폰트 무변경(§3.1) |
 | StatusLabel | `shared/ui/status-label` | 무변경 — var() 토큰이 자동 전환. 펄스 점 currentColor(**코퍼**) 상속 |
-| SegmentControl 계열 | `shared/ui/segment-control` | theme ToggleButton 개정이 자동 적용(직각·**코퍼** 선택·w800) — 코드 무변경 |
-| 카드류 전반 | 각 위치 | Paper `variant="outlined"` 유지 + 편집 요소(sx 조정): 좌상단 인덱스 번호(`overline` 변형, sand400/stone500), 타이틀 행 아래 hairlineStrong 룰, 수치는 우측 baseline 정렬(`listValue`), 내부 패딩 `cardPad`(20px). hover 보더 승격은 theme 자동 |
+| SegmentControl 계열 | `shared/ui/segment-control` | **v4.1: 무변경(범위 밖)** — theme ToggleButton이 여전히 직각·**코퍼** 선택·w800(§5 "범위 밖" 목록, §8.2 MuiToggleButtonGroup 주석). 버튼(12px)과 형태가 갈리는 과도기 상태를 의도적으로 감수 |
+| 카드류 전반 | 각 위치 | Paper `variant="outlined"` 유지 + 편집 요소(sx 조정): 좌상단 인덱스 번호(`overline` 변형, sand400/stone500), 타이틀 행 아래 hairlineStrong 룰, 수치는 우측 baseline 정렬(`listValue`), 내부 패딩 `cardPad`(**v4.1: 20→16px**). hover 보더 승격은 theme 자동. **v4.1 신규**: 소프트라운드 12px + 매트 카퍼 글로우 그림자(dark/light, §5·§8.2 MuiPaper)도 theme에서 자동 적용 |
 | 목록 행(S3/S4) | features/pages | 좌: 회차 인덱스(overline) / 중앙: 라벨 / 우: 수치(listValue, tabular). 구분은 hairline |
 | EmptyState | `shared/ui/empty-state` | 대형 디스플레이 문구(h2 + 여백 상향) + Tertiary 버튼 |
 | ThemeToggle | `shared/ui/theme-toggle` | 무변경 (44×44·aria-label 유지) |

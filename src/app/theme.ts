@@ -1,13 +1,16 @@
 // src/app/theme.ts
-// design-system.md v4 §8.2 — 토큰 정의는 src/shared/config/design-tokens.ts가 canonical (app→shared 방향).
+// design-system.md v4.1 §8.2 — 토큰 정의는 src/shared/config/design-tokens.ts가 canonical (app→shared 방향).
 // 소비 규칙: 컴포넌트에서 hex 직접 사용 금지. theme.palette/theme.vars 또는 design-tokens export 경유.
-// v4: Pit-Wall Amber 리컬러 — 웜틴트 카본(umber) + 시그니처 코퍼(copper) 1색 + 컷코너 버튼(v3 승계).
-// colorSchemes 2벌 구조·컴포넌트 오버라이드 구조 전부 불변 — 참조하는 토큰 키만 v4로 갱신.
+// v4: Pit-Wall Amber 리컬러 — 웜틴트 카본(umber) + 시그니처 코퍼(copper) 1색.
+// v4.1: 시안 A 5축 완결 — 디스플레이 헤딩 모노스페이스(h1/h2)·소프트라운드 12px(버튼·인풋·카드,
+// 컷코너 폐기)·카드 매트 카퍼 글로우 그림자·밀도 국소 조정(cardPad/sectionGap/버튼·인풋 패딩).
+// colorSchemes 2벌 구조는 불변 — 컴포넌트 오버라이드 구조는 버튼/인풋/카드에 한해 v4.1로 갱신.
 import { createTheme } from '@mui/material/styles'
 import {
   buildModeCssVars,
   color,
   darkColor,
+  displayFontStack,
   motionTokens,
   shapeTokens,
 } from '@shared/config/design-tokens'
@@ -54,16 +57,17 @@ export const theme = createTheme({
   typography: {
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, 'Noto Sans KR', 'Malgun Gothic', sans-serif",
-    h1: { fontSize: 'clamp(1.75rem, 7vw, 2.125rem)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 },
-    h2: { fontSize: '1.125rem', fontWeight: 700, letterSpacing: '-0.01em' },
+    // v4.1(§3.1): 디스플레이 2종만 모노스페이스 — 본문·라벨·버튼·인풋은 위 기본 휴머니스트 스택 그대로.
+    h1: { fontFamily: displayFontStack, fontSize: 'clamp(1.75rem, 7vw, 2.125rem)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 },
+    h2: { fontFamily: displayFontStack, fontSize: '1.125rem', fontWeight: 700, letterSpacing: '-0.01em' },
     body1: { fontSize: '1rem', lineHeight: 1.5 },
     body2: { fontSize: '0.875rem', lineHeight: 1.45 },
     caption: { fontSize: '0.75rem' },
-    overline: { fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.12em', lineHeight: 1.4 },
-    button: { fontSize: '1rem', fontWeight: 700, letterSpacing: '0.01em', textTransform: 'none' },
+    overline: { fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.12em', lineHeight: 1.4 }, // 본문 스택 유지(§3.1)
+    button: { fontSize: '1rem', fontWeight: 700, letterSpacing: '0.01em', textTransform: 'none' }, // 본문 스택 유지(§3.1)
   },
-  spacing: 8,
-  shape: { borderRadius: 4 }, // v3 승계: 버튼은 0+컷코너, 다이얼로그 8, 시트 상단 20
+  spacing: 8, // v4.1: 전역 유닛 미변경 — 밀도는 국소 오버라이드로 반영(§5.1 근거)
+  shape: { borderRadius: shapeTokens.radius }, // v4.1: 4 → 12 — 버튼·인풋·카드 소프트라운드(§5, DS-A20). 다이얼로그 8·시트 상단 20은 개별 override로 별도 유지
   components: {
     MuiCssBaseline: {
       styleOverrides: (t) => ({
@@ -91,20 +95,22 @@ export const theme = createTheme({
       }),
     },
     /* -------------------------------------------------------------- *
-     * 버튼 (v3 구조 승계 — §9.1)
-     * contained = 컷코너: clip-path는 ::before 배경층에만 — root outline(focus ring) 생존.
-     * ripple 대신 press scale 피드백 (사각 ripple이 컷코너 밖으로 새는 문제 회피).
-     * forced-colors: ::before 배경 소실 대비 — root의 transparent 보더가 ButtonText로 실체화.
+     * 버튼 (v4.1: 컷코너 폐기 — 후보 A 소프트라운드 12px, §5·DS-A20)
+     * clip-path ::before 이중층 구조를 걷어내고 표준 MUI contained/outlined/text 배경 모델로
+     * 복귀 — background-color가 root에 직접 걸리므로 forced-colors 실루엣 가드(구 transparent
+     * border)가 더 이상 필요 없다(그 가드는 ::before 배경이 forced-colors에서 사라지는 문제의
+     * 대응책이었다 — DS-A13 폐기). ripple은 계속 비활성(press scale 피드백 유지, v3 승계).
+     * 패딩은 v4.1 밀도 전략(§5.1)에 따라 리터럴 px로 소폭 축소 — theme.spacing() 비경유라
+     * 전역 파급 없음.
      * -------------------------------------------------------------- */
     MuiButton: {
       defaultProps: { disableElevation: true, disableRipple: true },
       styleOverrides: {
         root: {
           minHeight: 48,
-          borderRadius: 0,
-          border: '1px solid transparent', // forced-colors 실루엣 가드 (§6)
+          borderRadius: shapeTokens.radius, // v4.1: 0(컷코너) → 12(소프트라운드)
+          padding: '10px 20px', // v4.1 밀도(§5.1): MUI 기본보다 소폭 조밀 — minHeight가 44px 하한을 별도 보장
           position: 'relative',
-          isolation: 'isolate',
           transition: `transform ${motionTokens.pressMs}ms ${motionTokens.easeStandard}, box-shadow ${hoverTransition}, border-color ${hoverTransition}, background-color ${hoverTransition}, color ${hoverTransition}`,
           '&:active': { transform: 'scale(0.98)' },
           '@media (prefers-reduced-motion: reduce)': { '&:active': { transform: 'none' } },
@@ -113,40 +119,20 @@ export const theme = createTheme({
           minHeight: 56,
           fontSize: '1.0625rem',
           letterSpacing: '0.02em',
-          '&::before': { clipPath: shapeTokens.cutCornerLg },
+          padding: '14px 24px', // v4.1 밀도(§5.1)
         },
-        contained: ({ theme: t }) => ({
-          backgroundColor: 'transparent', // 실제 면은 ::before가 그린다
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            inset: -1, // transparent 보더 두께 보상 — 컷코너 면이 박스를 정확히 덮는다
-            zIndex: -1,
-            clipPath: shapeTokens.cutCorner,
-            transition: `background-color ${hoverTransition}, filter ${hoverTransition}`,
-          },
-          '&:hover': { backgroundColor: 'transparent' },
-          '&.Mui-disabled': {
-            backgroundColor: 'transparent',
-            color: (t.vars ?? t).palette.text.disabled,
-            '&::before': { backgroundColor: (t.vars ?? t).palette.action.disabledBackground },
-          },
-        }),
+        // contained/containedError의 배경·라벨색은 MUI 표준 palette 매핑(disableElevation로 그림자만 제거) —
+        // v3처럼 별도로 backgroundColor를 재선언할 필요 없음(컷코너 ::before 폐기로 표준 경로 복귀).
         containedPrimary: ({ theme: t }) => ({
-          color: (t.vars ?? t).palette.primary.contrastText,
-          '&::before': { backgroundColor: (t.vars ?? t).palette.primary.main },
-          // hover: 다크 = 밝기 상승(copper300) + 코퍼 글로우 / 라이트 = 침강(copper800)
-          '&:hover::before': { backgroundColor: (t.vars ?? t).palette.primary.dark },
+          // hover: 다크 = 밝기 상승(copper300) + 코퍼 글로우 / 라이트 = 침강(copper800) — v3 승계
           ...t.applyStyles('dark', {
             '&:hover': { boxShadow: `0 0 24px ${darkColor.copperGlow}` },
           }),
         }),
-        containedError: ({ theme: t }) => ({
-          color: (t.vars ?? t).palette.error.contrastText,
-          '&::before': { backgroundColor: (t.vars ?? t).palette.error.main },
-          '&:hover::before': { filter: 'brightness(1.08)' },
-        }),
-        // secondary 위계 — 직각 사각 + 1px 보더 (컷코너는 contained 전용, DS-A13)
+        containedError: {
+          '&:hover': { filter: 'brightness(1.08)' },
+        },
+        // secondary 위계 — 소프트라운드 12px + 1px 보더(v4.1: 직각 → 라운드, 그 외 무변경)
         outlined: ({ theme: t }) => ({
           color: (t.vars ?? t).palette.text.primary,
           borderColor: 'var(--mml-outline)',
@@ -155,7 +141,7 @@ export const theme = createTheme({
             backgroundColor: (t.vars ?? t).palette.action.hover,
           },
         }),
-        // tertiary 위계 — 시그니처 텍스트 + hover 밑줄
+        // tertiary 위계 — 시그니처 텍스트 + hover 밑줄 (형태 축 무관 — 무변경)
         text: ({ theme: t }) => ({
           color: (t.vars ?? t).palette.primary.main,
           '&:hover': {
@@ -172,13 +158,16 @@ export const theme = createTheme({
     },
     MuiToggleButtonGroup: {
       defaultProps: { fullWidth: true, exclusive: true },
-      styleOverrides: { root: { borderRadius: 0 } }, // 세그먼트 = 직각 (버튼 체계와 정합)
+      // v4.1: 의도적으로 직각 유지(0) — 세그먼트는 이번 라운드 범위 밖(§5 "범위 밖" 목록).
+      // 더 이상 "버튼 체계와 정합"은 아니다(버튼은 12px로 바뀜) — 과도기적 직각·라운드 혼재,
+      // 다음 라운드 정리 대상.
+      styleOverrides: { root: { borderRadius: 0 } },
     },
     MuiToggleButton: {
       styleOverrides: {
         root: ({ theme: t }) => ({
           minHeight: 44,
-          borderRadius: 0,
+          borderRadius: 0, // v4.1: 무변경(범위 밖) — 위 MuiToggleButtonGroup 주석 참조
           textTransform: 'none',
           fontWeight: 600,
           letterSpacing: '0.01em',
@@ -229,6 +218,8 @@ export const theme = createTheme({
       },
     },
     MuiDialog: {
+      // v4.1: 8 무변경 — 후보 A는 다이얼로그 축을 정의하지 않아 기존 값 승계, 12(카드)보다
+      // 의도적으로 각진 위계 차등 유지(§5).
       styleOverrides: { paper: { borderRadius: 8, margin: 16 } },
     },
     MuiDialogActions: {
@@ -272,8 +263,23 @@ export const theme = createTheme({
         }),
       },
     },
+    /*
+     * v4.1 주의(구현 담당 필독, §10): 실제 앱 폼 필드의 보더는 이 컴포넌트가 그리지 않는다 —
+     * `shared/ui/form-field/FormField.tsx`와 `shared/ui/voltage-stepper/VoltageStepper.tsx`가
+     * `.MuiOutlinedInput-notchedOutline`을 `border: 0`으로 직접 꺼버리고 자기 Box가 테두리를
+     * 소유한다(라벨-위 레이아웃 채택 당시 설계, v2.13 — FormField.tsx 주석 참조). 그 결과 여기
+     * root/notchedOutline의 radius를 12로 올려도 **화면에는 반영되지 않는다** — FormField.tsx·
+     * VoltageStepper.tsx의 감싸는 Box(`border: '1px solid'`)에 `borderRadius: shapeTokens.radius`
+     * (12)를 직접 추가해야 시안 A의 인풋 형태 언어가 실제로 보인다. 그 두 파일은
+     * design-system.md 범위 밖(§10 하류 지시) — 이 오버라이드는 그 두 컴포넌트를 쓰지 않는
+     * 잔여 TextField(있다면)에만 유효하다.
+     */
     MuiOutlinedInput: {
-      styleOverrides: { notchedOutline: { borderColor: 'var(--mml-outline)' } },
+      styleOverrides: {
+        root: { borderRadius: shapeTokens.radius }, // v4.1: 소프트라운드 12px(§5)
+        notchedOutline: { borderColor: 'var(--mml-outline)' },
+        input: { padding: '12px 14px' }, // v4.1 밀도(§5.1): MUI 기본(16.5px)보다 소폭 조밀
+      },
     },
     MuiRadio: {
       styleOverrides: { root: { padding: 10 } }, // 24px 아이콘 + 20px 패딩 = 44px 타깃
@@ -282,10 +288,16 @@ export const theme = createTheme({
       styleOverrides: { root: { padding: 10 } },
     },
     MuiPaper: {
-      defaultProps: { elevation: 0 }, // 카드류 기본 무그림자 — variant="outlined" (다크: 헤어라인 보더)
+      defaultProps: { elevation: 0 }, // 카드류 기본 — variant="outlined"(1px 보더, v4.1: + 매트 그림자)
       styleOverrides: {
+        root: { borderRadius: shapeTokens.radius }, // v4.1: 소프트라운드 12px(§5). Dialog/Drawer는 자체 paper override로 별도 유지(8/20) — variant="outlined"를 쓰지 않아 무영향
         outlined: ({ theme: t }) => ({
-          transition: `border-color ${hoverTransition}`,
+          transition: `border-color ${hoverTransition}, box-shadow ${hoverTransition}`,
+          // v4.1(§5): 매트 카퍼 글로우 그림자(후보 A --st-shadow) — 카드류 전용, outlined variant만
+          boxShadow: `0 4px 20px ${darkColor.copperShadow}, 0 1px 2px rgba(0, 0, 0, 0.4)`,
+          ...t.applyStyles('light', {
+            boxShadow: `0 4px 16px ${color.copperShadowL}, 0 1px 2px rgba(36, 28, 22, 0.06)`,
+          }),
           // hover 시 헤어라인 승격 — 카드 인터랙션 미세 피드백 (다크 전용 장식)
           ...t.applyStyles('dark', {
             '&:hover': { borderColor: darkColor.hairlineStrong },
