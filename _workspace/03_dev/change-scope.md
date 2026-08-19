@@ -2721,3 +2721,105 @@ inset 0, aria-hidden)으로 깔고 전경에 수치를 얹는 구조라, 펼친 
   vite build 성공. probe 실측(시드 3종 재현): 2dB off 75~116프레임 반값 → on 오값 0·커버리지
   131~145/153 · 2.5dB off 153 반값 → on 오값 0·정상 145 · 경쟁 모터 0.5 off 153 반값 → on
   오값 0·정상 145 · 험 0.7 off 153 반값 → on 오값 0(미표시) · 0~1.5dB 양쪽 모두 미표시(안전).
+
+---
+
+# Change Scope — R69 (N1 완화: 초기 잠금 검증) [2026-08-19, day-2 파일럿 R1]
+
+CHANGE_MODE: existing-change
+REQUEST: pano-tuner-comparison.md §4 권고 1 — 신규 획득(무hint) 직후 1회 comb식 무이력
+  하강 검사. 획득값 f0의 1/2이 대역 내면 f0/2의 비공유 배음(0.5·1.5·2.5f0)을 R63 기준
+  (국소 SNR ≥12dB + 메인 라인 대비 전력 ≥10%)으로 검사, 실증거 있으면 하강 시작값 채택.
+OBSERVED_BASELINE: descendFundamental이 hintF0 === null이면 즉시 f0 반환(analyze-frame.ts:502)
+  — 신규 획득은 스펙트럼 하강 검사 없이 YIN 최단 lag가 그대로 잠긴다. 기본파 약한
+  레짐(원거리·R58 거리 확대)에서 2f0 오잠금 시 R62가 진실을 측정 제외, R65가 하강 차단 →
+  구조적 고착(N1). isSubharmonicArtifact(R67)는 반대 방향(반값 인공물)만 방어.
+TARGET_BEHAVIOR: 무hint 획득 프레임에서 n=2 한정(권고 명시), 힌트 게이트 없이 동일 증거
+  기준으로 하강. 추적 중(R62~R65) 로직 무변경. 배값 오잠금 재현 신호에서 f0 획득,
+  정상 신호에서 하강 없음.
+ALLOWED_PATHS: src/shared/lib/audio-analysis/analyze-frame.ts,
+  src/shared/lib/audio-analysis/engine.acquisition-descent.test.ts (신규)
+PUBLIC_CONTRACTS_TO_PRESERVE: 엔진 공개 API(types.ts) 무변경 · 오값 표시 금지 계약 ·
+  추적 중 동작(R62~R65) · comb 모드 경로 · 기존 테스트 스위트 전부 green
+NON_GOALS: N2~N6 · yinThreshold 조정 · EMA 가드 전력 사용(R63과 동일하게 순간 스펙트럼)
+CHANGE_BUDGET: analyze-frame.ts 내 descendFundamental 확장(~15줄) + 신규 테스트 1파일
+TEST_EVIDENCE: (전) 배값 오잠금 재현 테스트가 현행 코드에서 2f0 표시 확인 → (후) 동일
+  신호 f0 표시 + 기존 스위트(fixtures·noise-acquisition·real-motors) 전부 green +
+  typecheck. 실기기 검증은 DEPLOY_ONLY — 사용자 위임.
+CAPABILITY_ESCALATION: none (클라이언트 DSP 로직, 서버·인증·의존성 변화 없음)
+DOCS_TO_UPDATE: _workspace/01_plan/pano-tuner-comparison.md §4.1 상태 갱신(적용됨 표기)
+
+## R69 라운드 결과 (2026-08-19 10:07)
+
+- 재현(변경 전): engine.acquisition-descent.test.ts가 현행 코드에서 FAIL — 기본파 약한
+  신호 113프레임 전부 배값(600) 표시, 정상값 0 (N1 고착 재현).
+- 검증(변경 후): 동일 테스트 2/2 PASS + 전체 스위트 41파일/318테스트 green +
+  typecheck·lint·build green (toolchain pin 22.22.3, cwd=workspace/tamiya-motor-lab).
+- 라운드 종료 게이트: ① 승격 QA 불요(ESCALATION none) ② **QA evidence: STALE (재발급
+  불가)** — run-quality-gates가 locked profile 불일치로 거부(M3 어댑터 변경), 재잠금
+  시도는 INGESTION_CONTRACT_MISSING(api/ 서버리스 → 하이브리드 모델링 갭)으로 BLOCKED.
+  기존 receipt 2건(lint·typecheck)은 소스 변경으로 stale. 위조 없이 STALE로 명시한다.
+  ③ 문서 동기화 완료(pano-tuner-comparison.md §4.1 적용 표기).
+- Runtime verifiability: 합성 신호 검증은 LOCAL_VERIFIABLE 완료. **원거리·기본파 약한
+  실기기 레짐은 DEPLOY_ONLY — 사용자 위임** (release 후 실기기 확인 필요).
+- 요청 외 변경: 없음. changed paths = ALLOWED_PATHS와 일치(analyze-frame.ts + 신규 테스트
+  + 문서 2건(change-scope·pano-tuner-comparison) + CLAUDE.md 마커(온보딩, 별도 기록)).
+
+---
+
+# Change Scope — R2 방향 발산 (디자인 리프레시 방향 탐색) [2026-08-19, day-2 파일럿 R2 1단계]
+
+CHANGE_MODE: existing-change (단, 이번 1단계는 source 무변경 — _workspace 설계 후보만 생성)
+REQUEST: 사용자 — "더 스타일리쉬·깔끔·트렌디하게. 현재 디자인이 투박·구식·색감 별로."
+OBSERVED_BASELINE: design-system.md v3 — 무채 카본 + 시그니처 라임 1색(lime700 #566E00),
+  시맨틱 순간색(red/amber/green), MUI theme 소비. 측정 게이지 중심 다크 UI.
+TARGET_BEHAVIOR: 발산 프로토콜(스타일 타일)로 직교 후보 2~3개 → 렌더 판정 → 단일
+  시안+근거 제시 → **사용자 승인 후** 2단계(토큰 v4 반영·앱 적용) 진행.
+ALLOWED_PATHS: _workspace/02_design/design-system/style-tiles/** (1단계 한정)
+PUBLIC_CONTRACTS_TO_PRESERVE: motorKindColors(실물 엔드벨 색 — 사용자 지정 불변) ·
+  시맨틱 순간색 의미 체계 · WCAG AA 4.5:1 · 다크/라이트 양모드 · MUI theme 실장 가능성 ·
+  승인 전 사용자 관측 가능 외형 무변경(baseline 보존)
+NON_GOALS: 레이아웃·IA 변경 · 컴포넌트 구조 변경 · 이번 1단계에서의 source/정본 문서 수정
+CHANGE_BUDGET: style-tiles 후보 2~3디렉터리 + README (1단계)
+TEST_EVIDENCE: 타일 렌더 실측(내장 대비 검사) + 렌더 판정 기록(RENDER-VERDICT.md)
+CAPABILITY_ESCALATION: none
+DOCS_TO_UPDATE: (2단계에서) design-system.md v3→v4 — 1단계에서는 none
+
+### R2 브리프 수정 (2026-08-19, 사용자 지시)
+
+- PUBLIC_CONTRACTS_TO_PRESERVE에서 "MUI theme 실장 가능성" 해제 — 비-MUI 방향 후보 허용.
+- 함의: 비-MUI 후보가 채택되면 2단계 범위가 ui-change(토큰 교체)를 넘어 컴포넌트
+  마이그레이션(refactor/infrastructure급)으로 확대된다 — 후보 README에 마이그레이션 비용
+  명시 의무를 부과했고, 범위 확대 여부는 시안 승인 시점에 사용자와 확정한다(scope
+  expansion 절차).
+
+### R2 브리프 수정 2 (2026-08-19, 하네스 UI 레인 확인)
+
+- 비-MUI 대안을 하네스 지원 레인 `tailwind-shadcn`으로 특정(tailwind-shadcn-styling.md
+  계약 존재 — @theme 토큰이 스타일 타일 tokens.css와 구조 1:1). 임의 스택 아님.
+- 브라운필드 레인 전환 규칙: integration-overlay uiLane 실측(mui)이 현재 우선 — 전환
+  채택 시 validate-ui-lane 검사 대상이며, tailwind-shadcn 계약은 "명명 수준 — 미검증"
+  이라 motor-lab이 첫 실검증이 된다(2단계 범위·리스크 판단 입력).
+
+### R2 2단계 개시 (2026-08-19, 사용자 승인: A · Pit-Wall Amber)
+
+- 승인 기록: 단일 시안 A 제시 → 사용자 "A 승인 — 2단계 진행" 선택(AskUserQuestion).
+- 2단계 ALLOWED_PATHS: _workspace/02_design/design-system.md(v4 개정 — architect 소유),
+  src/shared/config/design-tokens.ts·src/app/theme.ts(§8.1 동기화 — 오케스트레이터 직접,
+  탐색된 소비처 추가 시 brief 갱신).
+- 게이트: typecheck·lint·test·build + 라이브 렌더 확인(측정·모터·레이스 탭, 양모드).
+
+### R2 2단계 결과 (2026-08-19)
+
+- v4 개정: design-system.md v3→v4(architect, §8.1/§8.2 이식 블록 형식). 특기: README
+  라이트 제안값 #D8CCBE의 3:1 미달을 에이전트가 자체 검증으로 교정, warning amber hue를
+  카퍼와 분리(42°→50°/34°→53°), 뱃지 실물색 무변경.
+- 동기화: §8.1→design-tokens.ts, §8.2→theme.ts 기계 이식 + index.html 부트 hex 2건.
+  구 키 잔존 참조 0(rg 스캔).
+- 게이트: typecheck(리네임 회귀망 — 파손 0)·lint·test 318/318·build 전부 green.
+- 라이브 검증: 다크(웜 엄버+크림+카퍼)·라이트(크림+스톤+카퍼) 양모드 렌더 확인,
+  콘솔 에러 0. 모드 전환 부트 스크립트 정상.
+- QA evidence: STALE (재발급 불가 — R1과 동일 사유: locked profile 불일치+하이브리드
+  모델링 갭). 위조 없이 명시.
+- 시안 아카이브: 라운드 디렉터리 2026-08-19-pitwall-refresh/로 재배치(보존 규약 이행).
+- 실기기·실사용 시각 확인은 사용자 몫(커밋·release 결정 대기).

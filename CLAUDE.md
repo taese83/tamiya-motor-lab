@@ -20,3 +20,13 @@ pnpm run release:minor  # 기능 단위가 클 때
 ## toolchain
 
 Node 22.22.3 + pnpm 11.18.0 (engines 핀). 검증: `pnpm typecheck && pnpm test`.
+
+<!-- web-harness-managed -->
+This project is managed by the web-harness pipeline (`_workspace/` artifacts).
+For follow-up changes, re-enter via the situation-matched minimal contract load in
+the web-orchestrator `reentry-map.md` instead of reloading the full skill. The
+web-harness plugin's SessionStart hook injects that file's absolute path; without
+the hook, locate it with Glob `**/skills/web-orchestrator/references/reentry-map.md`.
+Full `/web-orchestrator` entry is only needed for a new service or when the
+situation is unclear.
+<!-- /web-harness-managed -->
