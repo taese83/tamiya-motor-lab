@@ -34,7 +34,7 @@
     <!-- 다크 기본 no-flash 부팅 (design-system v2 §7.2) — MUI InitColorSchemeScript는 CSR에서
          실행되지 않으므로 동등 인라인 스크립트를 직접 둔다. 'mml-mode'는 ThemeProvider
          modeStorageKey와 문자열 결속 — 불일치 시 no-flash가 깨진다. -->
-    <meta name="theme-color" content="#0A0A0B" />
+    <meta name="theme-color" content="#1A1410" />
     <style>
       html {
         background-color: #0a0a0b;
@@ -55,7 +55,7 @@
           if (localStorage.getItem('mml-mode-2') === 'light') mode = 'light'
         } catch (e) {}
         document.documentElement.setAttribute('data-mui-color-scheme', mode)
-        if (mode === 'light') document.documentElement.style.backgroundColor = '#F8F9FA'
+        if (mode === 'light') document.documentElement.style.backgroundColor = '#FBF6F1'
       })()
     </script>
     <title>%VITE_APP_TITLE%</title>

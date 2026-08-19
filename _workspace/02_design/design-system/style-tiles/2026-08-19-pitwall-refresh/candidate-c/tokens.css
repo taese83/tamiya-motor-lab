@@ -1,0 +1,19 @@
+/* Style tile tokens — Candidate C "Graphite Signal"
+   structural blueprint: mid-dark graphite neutral + dual teal/steel-blue signature,
+   condensed display + expanded body contrast, hard-edge no-shadow, hierarchy via
+   structural border/grid. design-system.md 정본 아님 — 발산 비교용 (README.md 참조). */
+:root {
+  --st-bg: #1C1E24;
+  --st-surface: #202329;
+  --st-text: #EDEFF2;
+  --st-text-muted: #9BA3AF;
+  --st-accent: #2DD4B0;
+  --st-on-accent: #0E1013;
+  --st-border: #6E8CA8;
+  --st-danger: #F56B7E;
+  --st-radius: 0px;
+  --st-space: 8px;
+  --st-font-display: "Roboto Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+  --st-font-body: "Trebuchet MS", "Segoe UI", Verdana, sans-serif;
+  --st-shadow: none;
+}

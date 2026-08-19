@@ -1,0 +1,19 @@
+/* Style tile tokens — Candidate B "Track Ceramic"
+   cool glass telemetry: cool navy-charcoal neutral + pastel ice-cyan glow accent,
+   unified single-family geometric sans, large-radius glass surfaces, hierarchy via
+   elevation/whitespace. design-system.md 정본 아님 — 발산 비교용 (README.md 참조). */
+:root {
+  --st-bg: #161A22;
+  --st-surface: #232A36;
+  --st-text: #EAF0F6;
+  --st-text-muted: #9AA7B5;
+  --st-accent: #7DD3E8;
+  --st-on-accent: #10141B;
+  --st-border: #6B7C94;
+  --st-danger: #FF7A8A;
+  --st-radius: 20px;
+  --st-space: 12px;
+  --st-font-display: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --st-font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --st-shadow: 0 8px 32px rgba(125, 211, 232, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}

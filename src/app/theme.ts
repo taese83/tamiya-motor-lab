@@ -1,18 +1,16 @@
 // src/app/theme.ts
-// design-system.md v3 §8.2 — 토큰 정의는 src/shared/config/design-tokens.ts가 canonical (app→shared 방향).
+// design-system.md v4 §8.2 — 토큰 정의는 src/shared/config/design-tokens.ts가 canonical (app→shared 방향).
 // 소비 규칙: 컴포넌트에서 hex 직접 사용 금지. theme.palette/theme.vars 또는 design-tokens export 경유.
-// v3: 시그니처 라임 1색 체계 + 컷코너 버튼 + 마이크로 인터랙션. colorSchemes 2벌 구조 불변.
+// v4: Pit-Wall Amber 리컬러 — 웜틴트 카본(umber) + 시그니처 코퍼(copper) 1색 + 컷코너 버튼(v3 승계).
+// colorSchemes 2벌 구조·컴포넌트 오버라이드 구조 전부 불변 — 참조하는 토큰 키만 v4로 갱신.
 import { createTheme } from '@mui/material/styles'
 import {
   buildModeCssVars,
   color,
   darkColor,
-  layoutTokens,
   motionTokens,
   shapeTokens,
 } from '@shared/config/design-tokens'
-// OPTION-F1: 숫자 전용 가변 폰트 — self-host woff2(14KB), 외부 요청 0 (구글 CDN 금지)
-import oxaniumWoff2 from '@fontsource-variable/oxanium/files/oxanium-latin-wght-normal.woff2'
 
 // 하위 호환 re-export — 기존 `@app/theme` 소비자 유지.
 export {
@@ -32,55 +30,43 @@ export const theme = createTheme({
   colorSchemes: {
     dark: {
       palette: {
-        primary: { main: darkColor.lime400, dark: darkColor.lime300, light: darkColor.limeTint, contrastText: darkColor.carbon950 },
-        error: { main: darkColor.red400, light: darkColor.redTint, contrastText: darkColor.carbon950 },
-        warning: { main: darkColor.amber400, light: darkColor.amberTint, contrastText: darkColor.carbon950 },
-        success: { main: darkColor.green400, light: darkColor.greenTint, contrastText: darkColor.carbon950 },
-        text: { primary: darkColor.chalk100, secondary: darkColor.smoke400, disabled: darkColor.smoke700 },
-        background: { default: darkColor.carbon950, paper: darkColor.carbon800 },
+        primary: { main: darkColor.copper400, dark: darkColor.copper300, light: darkColor.copperTint, contrastText: darkColor.umber950 },
+        error: { main: darkColor.red400, light: darkColor.redTint, contrastText: darkColor.umber950 },
+        warning: { main: darkColor.amber400, light: darkColor.amberTint, contrastText: darkColor.umber950 },
+        success: { main: darkColor.green400, light: darkColor.greenTint, contrastText: darkColor.umber950 },
+        text: { primary: darkColor.cream100, secondary: darkColor.sand400, disabled: darkColor.sand700 },
+        background: { default: darkColor.umber950, paper: darkColor.umber800 },
         divider: darkColor.hairline,
       },
     },
     light: {
       palette: {
-        primary: { main: color.lime700, dark: color.lime800, light: color.limeTintL, contrastText: color.white },
+        primary: { main: color.copper700, dark: color.copper800, light: color.copperTintL, contrastText: color.white },
         error: { main: color.red800, light: color.red50, contrastText: color.white },
         warning: { main: color.amber800, light: color.amber50, contrastText: color.white },
         success: { main: color.green800, light: color.green50, contrastText: color.white },
-        text: { primary: color.gray900, secondary: color.gray600, disabled: color.gray300 },
-        background: { default: color.gray50, paper: color.white },
-        divider: color.gray100,
+        text: { primary: color.stone900, secondary: color.stone600, disabled: color.stone300 },
+        background: { default: color.cream50, paper: color.white },
+        divider: color.stone100,
       },
     },
   },
   typography: {
     fontFamily:
       "-apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, 'Noto Sans KR', 'Malgun Gothic', sans-serif",
-    // v3 디스플레이 스케일 — 페이지 타이틀 = 대형 디스플레이 (§3.5)
     h1: { fontSize: 'clamp(1.75rem, 7vw, 2.125rem)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 },
     h2: { fontSize: '1.125rem', fontWeight: 700, letterSpacing: '-0.01em' },
     body1: { fontSize: '1rem', lineHeight: 1.5 },
     body2: { fontSize: '0.875rem', lineHeight: 1.45 },
     caption: { fontSize: '0.75rem' },
-    // 편집 오버라인 — 카드 인덱스("01")·메타 라벨·단위 캡션 (§9.3)
     overline: { fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.12em', lineHeight: 1.4 },
     button: { fontSize: '1rem', fontWeight: 700, letterSpacing: '0.01em', textTransform: 'none' },
   },
   spacing: 8,
-  shape: { borderRadius: 4 }, // v3: 12→4 — 날카로운 편집 톤 (버튼은 0+컷코너, 다이얼로그 8, 시트 상단 20)
+  shape: { borderRadius: 4 }, // v3 승계: 버튼은 0+컷코너, 다이얼로그 8, 시트 상단 20
   components: {
     MuiCssBaseline: {
       styleOverrides: (t) => ({
-        // OPTION-F1 — 숫자 디스플레이 전용(digits+구두점 unicode-range). font-display: optional:
-        // 첫 페인트에 못 실으면 그 세션은 시스템 폰트 고정 — tabular 폭 스왑 layout shift 방지.
-        '@font-face': {
-          fontFamily: 'Oxanium Variable',
-          src: `url(${oxaniumWoff2}) format('woff2-variations')`,
-          fontWeight: '200 800',
-          fontStyle: 'normal',
-          fontDisplay: 'optional',
-          unicodeRange: 'U+0030-0039, U+002C, U+002E, U+2014, U+00D7, U+0025',
-        },
         ':root': {
           '--mml-safe-top': 'env(safe-area-inset-top, 0px)',
           '--mml-safe-bottom': 'env(safe-area-inset-bottom, 0px)',
@@ -105,7 +91,7 @@ export const theme = createTheme({
       }),
     },
     /* -------------------------------------------------------------- *
-     * v3 버튼 재설계 (§9.1)
+     * 버튼 (v3 구조 승계 — §9.1)
      * contained = 컷코너: clip-path는 ::before 배경층에만 — root outline(focus ring) 생존.
      * ripple 대신 press scale 피드백 (사각 ripple이 컷코너 밖으로 새는 문제 회피).
      * forced-colors: ::before 배경 소실 대비 — root의 transparent 보더가 ButtonText로 실체화.
@@ -149,10 +135,10 @@ export const theme = createTheme({
         containedPrimary: ({ theme: t }) => ({
           color: (t.vars ?? t).palette.primary.contrastText,
           '&::before': { backgroundColor: (t.vars ?? t).palette.primary.main },
-          // hover: 다크 = 밝기 상승(lime300) + 라임 글로우 / 라이트 = 침강(lime800)
+          // hover: 다크 = 밝기 상승(copper300) + 코퍼 글로우 / 라이트 = 침강(copper800)
           '&:hover::before': { backgroundColor: (t.vars ?? t).palette.primary.dark },
           ...t.applyStyles('dark', {
-            '&:hover': { boxShadow: `0 0 24px ${darkColor.limeGlow}` },
+            '&:hover': { boxShadow: `0 0 24px ${darkColor.copperGlow}` },
           }),
         }),
         containedError: ({ theme: t }) => ({
@@ -179,12 +165,6 @@ export const theme = createTheme({
             textDecorationThickness: '2px',
           },
         }),
-        // v2.6 신설 — tertiary 파괴 톤. 위 `text` 오버라이드가 라임을 고정해 MUI 기본
-        // textError 색을 덮어버리므로, color="error"가 실제로 반영되려면 이 슬롯이 필요하다
-        // (없으면 [삭제]가 라임으로 렌더돼 안전한 주 행동처럼 보인다).
-        textError: ({ theme: t }) => ({
-          color: (t.vars ?? t).palette.error.main,
-        }),
       },
     },
     MuiIconButton: {
@@ -197,8 +177,7 @@ export const theme = createTheme({
     MuiToggleButton: {
       styleOverrides: {
         root: ({ theme: t }) => ({
-          // v2.10: 폼 공통 높이. minHeight이므로 2줄 라벨(종류 10택 그리드)은 그대로 늘어난다
-          minHeight: layoutTokens.formControlHeight,
+          minHeight: 44,
           borderRadius: 0,
           textTransform: 'none',
           fontWeight: 600,
@@ -268,12 +247,11 @@ export const theme = createTheme({
       },
     },
     MuiSnackbar: {
-      // v2.x(사용자): 하단 → **상단**. 하단은 [기록]·탭 바와 동선이 겹쳤다.
-      defaultProps: { anchorOrigin: { vertical: 'top', horizontal: 'center' } },
+      defaultProps: { anchorOrigin: { vertical: 'bottom', horizontal: 'center' } },
       styleOverrides: {
-        // 상단 헤더(상태 라벨) 아래에 뜬다 — 노치/status bar 가림 금지(safe-top 오프셋)
-        anchorOriginTopCenter: {
-          top: 'calc(var(--mml-safe-top, 0px) + 56px)',
+        // 하단 탭 위에 뜬다 (탭 바 가림 금지)
+        anchorOriginBottomCenter: {
+          bottom: 'calc(56px + var(--mml-safe-bottom) + 8px)',
         },
       },
     },
@@ -294,18 +272,8 @@ export const theme = createTheme({
         }),
       },
     },
-    /**
-     * v2.10: 폼 컨트롤 높이를 theme가 소유한다. 이전에는 아무도 소유하지 않아 입력이 MUI 기본
-     * 56px, 세그먼트가 52px, 스테퍼 버튼이 48px로 흩어져 같은 행에서도 위아래가 어긋났다.
-     * input 패딩으로 높이를 만든다(root에 height를 박으면 floating label·helper가 깨진다).
-     */
     MuiOutlinedInput: {
-      styleOverrides: {
-        notchedOutline: { borderColor: 'var(--mml-outline)' },
-        root: { minHeight: layoutTokens.formControlHeight },
-        // 기본 16.5px → 12px: line-height 23px + 24px = 47~48px (formControlHeight와 정합)
-        input: { paddingTop: 12, paddingBottom: 12 },
-      },
+      styleOverrides: { notchedOutline: { borderColor: 'var(--mml-outline)' } },
     },
     MuiRadio: {
       styleOverrides: { root: { padding: 10 } }, // 24px 아이콘 + 20px 패딩 = 44px 타깃

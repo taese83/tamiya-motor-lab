@@ -1,0 +1,19 @@
+/* Style tile tokens — Candidate A "Pit-Wall Amber"
+   warm dense telemetry: warm-tinted carbon neutral + warm copper/amber signature,
+   mono numeral display + humanist body, soft-round matte, hierarchy via size/weight.
+   design-system.md 정본 아님 — 발산 비교용 (README.md 참조). */
+:root {
+  --st-bg: #1A1410;
+  --st-surface: #241C16;
+  --st-text: #F4ECE2;
+  --st-text-muted: #B8ACA0;
+  --st-accent: #FF8A3D;
+  --st-on-accent: #1A1410;
+  --st-border: #8C7C6B;
+  --st-danger: #FF6B5A;
+  --st-radius: 12px;
+  --st-space: 6px;
+  --st-font-display: "SFMono-Regular", "Roboto Mono", ui-monospace, Menlo, Consolas, monospace;
+  --st-font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --st-shadow: 0 4px 20px rgba(255, 138, 61, 0.14), 0 1px 2px rgba(0, 0, 0, 0.4);
+}
