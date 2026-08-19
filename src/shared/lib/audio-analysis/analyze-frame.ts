@@ -497,17 +497,22 @@ export function createFrameAnalyzer(
         // "추적 중인 값에서 위로 튄 픽을 되돌리는" 방어이지 새 값을 만드는 게 아니다. R62가
         // 추적값의 서브하모닉으로 미끄러지는 걸 막는 것과 상하 대칭 원리. 게이트가 없으면
         // 반차수 사이드밴드가 순간 10%를 넘는 프레임에서 정상 추적(445)이 반토막(222)으로
-        // 하강해 버린다(실기기 확인). 추적이 없으면 하강 없음 — 초기 획득은 YIN 최단 lag +
-        // 비정수배 반증 가드가 담당한다.
+        // 하강해 버린다(실기기 확인).
+        // R69 초기 잠금 검증(N1 완화, 권고 §4.1): 무hint = 신규 획득 프레임에는 힌트 게이트를
+        // 적용할 추적값 자체가 없다 — 대신 comb식 무이력 검사를 n=2 한정으로 1회 적용한다.
+        // 기본파 약한 원거리 레짐(R58 거리 확대가 노출 확대)에서 2f0 최단-lag 오잠금이
+        // R62(진실 측정 제외)·R65(하강 차단)로 구조 고착되는 경로를 획득 시점에 차단한다.
+        // 증거 기준은 추적 중 R63과 동일(비공유 배음 실피크 SNR + 메인 대비 전력) — 정상
+        // 신호(기본파 최강)는 f0/2 비공유 대역이 비어 있어 오하강하지 않는다(회귀 고정).
         const descendFundamental = (f0: number): number => {
-          if (hintF0 === null || hintF0 <= 0) return f0
+          const hint = hintF0 !== null && hintF0 > 0 ? hintF0 : null
           const main = measureHarmonics(spectrum.power, spectrum.binHz, decimatedRate, f0, [1])[0]
           const mainPower = main?.peakPower ?? 0
           if (mainPower <= 0) return f0
-          for (const n of [2, 3]) {
+          for (const n of hint === null ? [2] : [2, 3]) {
             const base = f0 / n
             if (base < options.fMin) continue
-            if (Math.abs(base / hintF0 - 1) > DESCEND_HINT_TOL_RATIO) continue
+            if (hint !== null && Math.abs(base / hint - 1) > DESCEND_HINT_TOL_RATIO) continue
             const ks = n === 2 ? [1, 3, 5] : [1, 2, 4, 5]
             const evidence = measureHarmonics(spectrum.power, spectrum.binHz, decimatedRate, base, ks)
             for (const h of evidence) {
