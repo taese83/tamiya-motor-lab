@@ -2888,3 +2888,47 @@ DOCS_TO_UPDATE: (2단계에서) design-system.md v3→v4 — 1단계에서는 no
 - 라이브: 3탭 렌더·콘솔 0·shape 12px. **요소 확인 잔여(로그인 게이트)**: RaceEntrySheet
   폼 프레임 12px·세그먼트 바깥 라운드·기록 버튼 soft-disabled 회색 면 — 사용자 실사용
   확인 위임(§10 QA gate 항목).
+
+---
+
+# Change Scope — R3 델타 킷 온보딩 [2026-08-19, day-2 파일럿 R3]
+
+CHANGE_MODE: existing-change (src 무변경 — _workspace 델타 킷 산출물만 신설)
+REQUEST: 사용자 — 라이브 델타 킷 온보딩. 콘솔 라이브 카드 + 이후 변경의 승인 표면 확보.
+OBSERVED_BASELINE: preview/ 부재(ABSENT) — 전환 후 첫 델타 변경 미발생으로 킷 미생성
+  (계약상 정상). 콘솔 라이브 카드 미표시(델타 manifest 부재).
+TARGET_BEHAVIOR: 계약 산출물 4종(delta-spec·manifest(identity 필수)·bootstrap·
+  traceability) + wh-overlay 사본 → validate-design-preview live-delta 모드 스냅샷 고정
+  (UNAPPROVED — 승인은 첫 실제 변경 라운드 몫) → 콘솔 라이브 카드 + identity verified +
+  기존 기능 앵커 배지 라이브 확인.
+ALLOWED_PATHS: _workspace/02_design/delta-spec.md, _workspace/02_design/preview/**
+PUBLIC_CONTRACTS_TO_PRESERVE: 기존 앱 소스 절대 무수정(계약) · as-is 기능 동작 ·
+  feature-plan 원문 무수정(FEAT-ID 이전 형식은 traceability 매핑표로 흡수)
+NON_GOALS: 신규 기능 델타 · feature-plan 형식 현대화 · 승인 기록(변경 없음)
+CHANGE_BUDGET: _workspace 신규 5파일
+TEST_EVIDENCE: validator --json 상태(live-delta·UNAPPROVED) + 브라우저 앵커 스탬핑 실측
+  + 콘솔 카드·identity 상태 실측
+CAPABILITY_ESCALATION: none
+DOCS_TO_UPDATE: none (delta-spec 자체가 신설 정본)
+
+### R3 범위 확대 (2026-08-19)
+
+- NON_GOAL이던 feature-plan.md 무수정이 유지 불가 — validate-design-preview의 traceability
+  양방향 대조가 리터럴 FEAT-\d{3} 토큰을 요구(구형 F# 표는 파싱 밖). 최소 정합 조치로
+  **부가 매핑 절만 추가**(기존 내용 무수정): FEAT-001~010 ↔ F1~F10 + as-is 앵커 TC 3건.
+- 하네스 발견: 구형(pre-FEAT) 플랜 브라운필드는 매핑 절 없이는 델타 킷 온보딩이 구조적으로
+  불가 — brownfield-adoption 체크리스트 추가 후보로 기록.
+
+### R3 결과 (2026-08-19)
+
+- 킷 5파일 + feature-plan 부록(FEAT-001~010 매핑 + 앵커 TC 3건). validator:
+  live-delta / UNAPPROVED / errors 0 (승인은 첫 실제 변경 라운드 몫 — as-is에 승인 없음).
+- 라이브 실측: 콘솔 라이브 카드 생성(프록시→8080, identity "Motor Lab" 대조 통과 —
+  신원 검증 계약의 실사용 첫 적용), bootstrap 주입·앵커 3종 스탬핑(하이드레이션 재적용),
+  오버레이 가동(배지 닷 3 + 토글), 정착 후 경고 0.
+- 왕복 2건(실측 교훈): ① 오버레이는 side-effect import가 아니라 initWhOverlay 명시
+  초기화 필요(델타 시그니처) ② 로드 직후 스탬핑 실패 경고는 SPA 하이드레이션 전
+  경합 소음 — "정착 후 미매칭만 경고"로 침묵 금지 계약의 판정 시점을 정교화.
+- 하네스 발견: 구형(pre-FEAT) 플랜은 매핑 부록 없이 델타 킷 온보딩 불가(traceability
+  양방향 리터럴 대조) — 부록 패턴이 해법. 부록 산문의 FEAT-토큰 언급도 grep에 걸림
+  (리터럴 대조의 성격 자기실측).

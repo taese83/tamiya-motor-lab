@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-19",
+  "note": "as-is 온보딩 — 변경 없음. FEAT ID는 feature-plan.md 부록 매핑(F1~F10 ↔ FEAT-001~010).",
+  "features": [
+    {
+      "featureId": "FEAT-002",
+      "title": "측정 세션",
+      "summary": "마이크 캡처·상태 머신·RPM 게이지 — 측정 화면의 핵심 흐름",
+      "scope": "as-is (변경 없음 — 온보딩 앵커)",
+      "anchorIds": [
+        "wh-feat-measure-tab"
+      ],
+      "testCaseIds": [
+        "TC-002-1"
+      ],
+      "testCases": [
+        {
+          "id": "TC-002-1",
+          "given": "앱 로드 후 측정 탭",
+          "when": "마이크 권한 승인·모터 구동음 입력",
+          "then": "게이지·RPM이 실시간 갱신되고 stable 시 기록 가능"
+        }
+      ]
+    },
+    {
+      "featureId": "FEAT-007",
+      "title": "목록·이력 조회",
+      "summary": "모터 목록·모터별 파노 이력(종류 뱃지·차트·기록 리스트)",
+      "scope": "as-is (변경 없음 — 온보딩 앵커)",
+      "anchorIds": [
+        "wh-feat-motors-tab"
+      ],
+      "testCaseIds": [
+        "TC-007-1"
+      ],
+      "testCases": [
+        {
+          "id": "TC-007-1",
+          "given": "로그인 상태에서 모터 탭",
+          "when": "모터 선택",
+          "then": "상세(칩·차트·기록 리스트·측정 CTA) 표시"
+        }
+      ]
+    },
+    {
+      "featureId": "FEAT-008",
+      "title": "전압 가이드·레이스",
+      "summary": "레이스 기록·전압 가이드 흐름",
+      "scope": "as-is (변경 없음 — 온보딩 앵커)",
+      "anchorIds": [
+        "wh-feat-race-tab"
+      ],
+      "testCaseIds": [
+        "TC-008-1"
+      ],
+      "testCases": [
+        {
+          "id": "TC-008-1",
+          "given": "레이스 탭",
+          "when": "기록 시트 진입",
+          "then": "결과 세그먼트·전압 스테퍼·이탈 사유 입력 동작"
+        }
+      ]
+    },
+    {
+      "featureId": "FEAT-001",
+      "title": "분석 엔진 파이프라인 v2",
+      "summary": "순수 TS + Worker DSP",
+      "scope": "as-is",
+      "anchorIds": [],
+      "testCaseIds": [],
+      "unmappedReason": "비시각 모듈 — UI 앵커 없음"
+    },
+    {
+      "featureId": "FEAT-003",
+      "title": "측정→기록 연결",
+      "summary": "확정값 handoff·자동 채움",
+      "scope": "as-is",
+      "anchorIds": [],
+      "testCaseIds": [],
+      "unmappedReason": "화면 간 전이 흐름 — 단일 앵커 부적합(측정·모터 앵커가 양끝 커버)"
+    },
+    {
+      "featureId": "FEAT-004",
+      "title": "IndexedDB persistence 계층",
+      "summary": "스키마/버전/복구",
+      "scope": "as-is",
+      "anchorIds": [],
+      "testCaseIds": [],
+      "unmappedReason": "전역 비시각 계층"
+    },
+    {
+      "featureId": "FEAT-005",
+      "title": "모터 CRUD",
+      "summary": "등록·수정·cascade 삭제",
+      "scope": "as-is",
+      "anchorIds": [],
+      "testCaseIds": [],
+      "unmappedReason": "모터 탭 내부 흐름 — 온보딩은 탭 수준 앵커까지(세부 앵커는 해당 기능 변경 라운드에서)"
+    },
+    {
+      "featureId": "FEAT-006",
+      "title": "기록 CRUD",
+      "summary": "입력 폼·검증·삭제",
+      "scope": "as-is",
+      "anchorIds": [],
+      "testCaseIds": [],
+      "unmappedReason": "모터/레이스 탭 내부 흐름 — 상동"
+    },
+    {
+      "featureId": "FEAT-009",
+      "title": "앱 셸·탭 네비게이션",
+      "summary": "셸·배너·복구 UI",
+      "scope": "as-is",
+      "anchorIds": [],
+      "testCaseIds": [],
+      "unmappedReason": "탭 자체가 FEAT-002/007/008 앵커의 호스트 — 중복 배지 방지"
+    },
+    {
+      "featureId": "FEAT-010",
+      "title": "공용 UI 킷",
+      "summary": "confirm·토스트·시트·스테퍼",
+      "scope": "as-is",
+      "anchorIds": [],
+      "testCaseIds": [],
+      "unmappedReason": "횡단 컴포넌트 — 단일 앵커 부적합"
+    }
+  ],
+  "anchors": [
+    {
+      "anchorId": "wh-feat-measure-tab",
+      "featureId": "FEAT-002",
+      "testCaseIds": [
+        "TC-002-1"
+      ],
+      "label": "측정",
+      "route": "/",
+      "selector": "[data-wh-anchor=\"wh-feat-measure-tab\"]",
+      "behavior": "하단 내비 — 측정 화면 진입(마이크·게이지·기록 dock)"
+    },
+    {
+      "anchorId": "wh-feat-motors-tab",
+      "featureId": "FEAT-007",
+      "testCaseIds": [
+        "TC-007-1"
+      ],
+      "label": "모터",
+      "route": "/motors",
+      "selector": "[data-wh-anchor=\"wh-feat-motors-tab\"]",
+      "behavior": "하단 내비 — 모터 목록/상세 진입"
+    },
+    {
+      "anchorId": "wh-feat-race-tab",
+      "featureId": "FEAT-008",
+      "testCaseIds": [
+        "TC-008-1"
+      ],
+      "label": "레이스",
+      "route": "/race",
+      "selector": "[data-wh-anchor=\"wh-feat-race-tab\"]",
+      "behavior": "하단 내비 — 레이스 기록/가이드 진입"
+    }
+  ],
+  "sourceSnapshot": {
+    "algorithm": "sha256",
+    "digest": "d3d577fa9b3eafad0f1b512515b4d1914973fa45efb256129fbe4caa4e616420",
+    "files": [
+      {
+        "path": "_workspace/01_plan/feature-plan.md",
+        "sha256": "fc4926e2a777e8e4bf2103326c2264aac1025ce0de216a4a417cf765a7df0102"
+      },
+      {
+        "path": "_workspace/01_plan/ux-brief.md",
+        "sha256": "831bdef4c85ab1b4a4e788d80aeac43414247a2da337b457b19528c1e99cc020"
+      },
+      {
+        "path": "_workspace/02_design/component-spec.md",
+        "sha256": "dba061e579a35a95d9ce73d7e53451fcbabc8c2e92a8047b1e35ef2e50809dbc"
+      },
+      {
+        "path": "_workspace/02_design/delta-spec.md",
+        "sha256": "a523ffd0b2059eb779e3c1992253e8fcea3deb5528765f2c45ee9b03843b1ea3"
+      },
+      {
+        "path": "_workspace/02_design/design-system.md",
+        "sha256": "6743fd1fb0fbd01869febe74330613ed7576660773922c839d54f7915f477a5b"
+      },
+      {
+        "path": "_workspace/02_design/design-system/style-tiles/2026-08-19-pitwall-refresh/candidate-a/index.html",
+        "sha256": "aad85efaa70fdf41c1bf017fcf9d58dbd7d35c93d809fcdfbacc9231d982a6d3"
+      },
+      {
+        "path": "_workspace/02_design/design-system/style-tiles/2026-08-19-pitwall-refresh/candidate-a/tokens.css",
+        "sha256": "62d4cfbcc03658d116c62a5446eefbb4b1c8f13fded1b1cb8d27e84aa77dfe21"
+      },
+      {
+        "path": "_workspace/02_design/design-system/style-tiles/2026-08-19-pitwall-refresh/candidate-b/index.html",
+        "sha256": "aad85efaa70fdf41c1bf017fcf9d58dbd7d35c93d809fcdfbacc9231d982a6d3"
+      },
+      {
+        "path": "_workspace/02_design/design-system/style-tiles/2026-08-19-pitwall-refresh/candidate-b/tokens.css",
+        "sha256": "eb468f238a1584f67d8fc34a687c5c097b26b4ba6294d2e51b33d53801b332df"
+      },
+      {
+        "path": "_workspace/02_design/design-system/style-tiles/2026-08-19-pitwall-refresh/candidate-c/index.html",
+        "sha256": "aad85efaa70fdf41c1bf017fcf9d58dbd7d35c93d809fcdfbacc9231d982a6d3"
+      },
+      {
+        "path": "_workspace/02_design/design-system/style-tiles/2026-08-19-pitwall-refresh/candidate-c/tokens.css",
+        "sha256": "2ad00202c0f7a06a86ebc1cb375c126d27084aab58d26d5dbe8d60a6e38663a8"
+      },
+      {
+        "path": "_workspace/02_design/design-system/style-tiles/2026-08-19-pitwall-refresh/IMPLEMENTATION-VERDICT.md",
+        "sha256": "715d61909be52ea6f55baedfe8c52a350f0696b14fee01d5eea3e31b32318685"
+      },
+      {
+        "path": "_workspace/02_design/design-system/style-tiles/2026-08-19-pitwall-refresh/README.md",
+        "sha256": "b82c4d53b0d7af16be6b70268828dd721d9df2415e05b48180e3abc75f15a1c0"
+      },
+      {
+        "path": "_workspace/02_design/design-system/style-tiles/2026-08-19-pitwall-refresh/RENDER-VERDICT.md",
+        "sha256": "257f383cfd65582e0349769dc89f98e919281926bd212c2649816f518385f163"
+      },
+      {
+        "path": "_workspace/02_design/layout-spec.md",
+        "sha256": "403d126bab6948b04cde322f65ab06034bb492789fb326031c6f41f475a15652"
+      }
+    ]
+  }
+}
